@@ -22,8 +22,8 @@ import { ConfigModule } from '@nestjs/config';
       type: 'postgres',
       host: process.env.DB_HOST,
       port: parseInt(process.env.DB_PORT),
-      username: 'root',
-      password: 'root',
+      username: 'postgres',
+      password: '',
       database: 'school',
       autoLoadEntities: true,
 
