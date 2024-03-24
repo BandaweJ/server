@@ -29,7 +29,7 @@ export class MarksEntity {
   @Column()
   comment: string;
 
-  @Column({ type: 'datetime', default: () => 'NOW()' })
+  @Column({ type: 'timestamp', default: () => 'NOW()' })
   date: Date;
 
   @ManyToOne(() => SubjectsEntity, (subject) => subject.marks, {
