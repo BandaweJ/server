@@ -19,7 +19,7 @@ import { ConfigModule } from '@nestjs/config';
     AuthModule,
 
     TypeOrmModule.forRoot({
-      type: 'postgres',
+      type: 'mysql',
       host: process.env.DB_HOST,
       port: parseInt(process.env.DB_PORT),
       username: 'root',
