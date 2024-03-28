@@ -451,7 +451,7 @@ export class EnrolmentService {
       );
   }
 
-  async editTerm(term: TermsEntity) {
+  async editTerm(term: CreateTermDto) {
     const { num, year } = term;
     const trm = await this.termRepository.findOne({
       where: { num, year },

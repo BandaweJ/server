@@ -27,7 +27,7 @@ import { ConfigModule } from '@nestjs/config';
       database: process.env.DB_NAME,
       autoLoadEntities: true,
 
-      synchronize: true,
+      synchronize: false,
     }),
     ResourceByIdModule,
     EnrolmentModule,

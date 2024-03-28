@@ -88,7 +88,7 @@ export class EnrolmentController {
   }
 
   @Patch('terms')
-  editTerm(@Body() term: TermsEntity) {
+  editTerm(@Body() term: CreateTermDto) {
     return this.enrolmentService.editTerm(term);
   }
 
