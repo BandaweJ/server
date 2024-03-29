@@ -600,7 +600,9 @@ export class ReportsService {
           .stroke()
           .text(
             `${report.report.subjectsTable[i].grade}`,
-            margin + columnWidth * 10.5 + smallPadding,
+            // margin + columnWidth * 10.5 + smallPadding,
+            margin + columnWidth * 10.5,
+
             rowHeight * (7 + i + 1) + padding,
           )
           .rect(
