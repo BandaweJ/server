@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsNumber, IsString } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 import { StudentsEntity } from 'src/profiles/entities/students.entity';
 
 export class CommentDto {
@@ -17,6 +17,6 @@ export class CommentDto {
   @IsNotEmpty()
   student: StudentsEntity;
 
-  @IsNumber()
+  @IsOptional()
   id?: number;
 }
