@@ -345,6 +345,12 @@ export class ReportsService {
       //insert banner
 
       const base64Image = './banner3.jpg';
+      // Add an image, constrain it to a given size, and center it vertically and horizontally
+      doc.image('banner3.jpg', {
+        fit: [250, 300],
+        align: 'center',
+        valign: 'center',
+      });
       // const imageBuffer = Buffer.from(base64Image, 'base64');
       // doc.image(base64Image, 0, 0, { fit: [250, 300] });
 
