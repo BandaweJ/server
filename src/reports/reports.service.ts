@@ -647,7 +647,7 @@ export class ReportsService {
         .stroke()
         .fillColor(report.report.percentageAverge >= 60 ? blueColor : redColor)
         .text(
-          `${report.report.percentageAverge}`,
+          `${Math.round(report.report.percentageAverge)}`,
           margin + columnWidth * 6 + smallPadding,
           rowHeight * (7 + averageMarkRowNumber + 1) + padding,
         )
