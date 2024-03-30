@@ -615,7 +615,7 @@ export class ReportsService {
           .text(
             `${report.report.subjectsTable[i].comment}`,
             margin + columnWidth * 12 + smallPadding,
-            rowHeight * (7 + i + 1),
+            rowHeight * (7 + i + 1) + smallPadding,
           );
       }
 
