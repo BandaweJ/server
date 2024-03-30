@@ -193,6 +193,16 @@ export class ReportsService {
       });
     });
 
+    reps.map((rep) => {
+      if (rep.name.charAt(0) === '5' || rep.name.charAt(0) === '6') {
+        let pnts = 0;
+        rep.report.subjectsTable.forEach((subj) => {
+          pnts += this.computePoints(subj.mark);
+        });
+        rep.report.points = pnts;
+      }
+    });
+
     return reps;
   }
 
@@ -205,6 +215,15 @@ export class ReportsService {
     else if (mark >= 40) return 'E';
     else if (mark >= 30) return 'F';
     else return 'G';
+  }
+
+  private computePoints(mark: number): number {
+    if (mark >= 80) return 5;
+    else if (mark >= 70) return 4;
+    else if (mark >= 60) return 3;
+    else if (mark >= 50) return 2;
+    else if (mark >= 40) return 1;
+    else if (mark < 40) return 0;
   }
 
   async saveReports(
