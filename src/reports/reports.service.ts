@@ -182,6 +182,17 @@ export class ReportsService {
       reps.push(rep);
     });
 
+    //check if reports already saved and assign id and head's comment
+    const savedReports = await this.viewReports(name, num, year, profile);
+    savedReports.map((rep) => {
+      reps.map((rp) => {
+        if (rep.studentNumber === rp.studentNumber) {
+          rp.id = rep.id;
+          rp.report.headComment = rep.report.headComment;
+        }
+      });
+    });
+
     return reps;
   }
 
