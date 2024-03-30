@@ -601,7 +601,7 @@ export class ReportsService {
           .text(
             `${report.report.subjectsTable[i].grade}`,
             // margin + columnWidth * 10.5 + smallPadding,
-            margin + columnWidth * 10.5,
+            margin + columnWidth * 10.5 + padding,
 
             rowHeight * (7 + i + 1) + padding,
           )
@@ -615,7 +615,7 @@ export class ReportsService {
           .text(
             `${report.report.subjectsTable[i].comment}`,
             margin + columnWidth * 12 + smallPadding,
-            rowHeight * (7 + i + 1) + padding,
+            rowHeight * (7 + i + 1),
           );
       }
 
