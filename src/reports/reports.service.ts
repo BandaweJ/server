@@ -377,10 +377,12 @@ export class ReportsService {
 
       //insert banner
 
-      const base64Image = './banner3.jpg';
+      // const base64Image = './banner3.jpg';
+      const imagePath = '/public/banner3.jpg'; // Assuming the public folder is at the root
+
       // Add an image, constrain it to a given size, and center it vertically and horizontally
       try {
-        doc.image('/public/banner3.jpg', {
+        doc.image(imagePath, {
           fit: [250, 300],
           align: 'center',
           valign: 'center',
