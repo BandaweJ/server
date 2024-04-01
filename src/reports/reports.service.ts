@@ -84,7 +84,9 @@ export class ReportsService {
       subjectmarks.forEach(
         (mark) =>
           (mark.position =
-            subjectmarks.indexOf(mark) + 1 + '/' + subjectmarks.length),
+            mark.mark === 100
+              ? '1' + '/' + subjectmarks.length
+              : subjectmarks.indexOf(mark) + 1 + '/' + subjectmarks.length),
       );
 
       subject.average = subjectAverage;
