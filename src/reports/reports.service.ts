@@ -380,7 +380,7 @@ export class ReportsService {
       const base64Image = './banner3.jpg';
       // Add an image, constrain it to a given size, and center it vertically and horizontally
       try {
-        doc.image('assets/images/banner3.jpg', {
+        doc.image('/src/public/banner3.jpg', {
           fit: [250, 300],
           align: 'center',
           valign: 'center',
