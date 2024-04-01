@@ -9,6 +9,8 @@ import { EnrolmentModule } from './enrolment/enrolment.module';
 import { MarksModule } from './marks/marks.module';
 import { ReportsModule } from './reports/reports.module';
 import { ConfigModule } from '@nestjs/config';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import * as path from 'path';
 
 @Module({
   imports: [
@@ -17,7 +19,9 @@ import { ConfigModule } from '@nestjs/config';
     }),
     ProfilesModule,
     AuthModule,
-
+    ServeStaticModule.forRoot({
+      rootPath: path.join(__dirname, '..', 'src', 'assets'), // Adjust path as needed
+    }),
     TypeOrmModule.forRoot({
       type: 'postgres',
       host: process.env.DB_HOST,
