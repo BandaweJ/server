@@ -381,7 +381,8 @@ export class ReportsService {
       // Add an image, constrain it to a given size, and center it vertically and horizontally
       try {
         const imagePath = path.join(__dirname, 'banner3.jpg');
-        doc.image('banner3.jpg', {
+        console.log('Using image path:', imagePath);
+        doc.image(imagePath, {
           fit: [250, 300],
           align: 'center',
           valign: 'center',
