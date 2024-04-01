@@ -17,6 +17,7 @@ import * as fs from 'fs';
 import { height } from 'pdfkit/js/page';
 import { ReportsModel } from './models/reports.model';
 import { HeadCommentDto } from './dtos/head-comment.dto';
+import * as path from 'path';
 // import bannerImagePath from '../assets/images/banner3.png';
 
 @Injectable()
@@ -379,6 +380,7 @@ export class ReportsService {
       const base64Image = './banner3.jpg';
       // Add an image, constrain it to a given size, and center it vertically and horizontally
       try {
+        const imagePath = path.join(__dirname, 'banner3.jpg');
         doc.image('banner3.jpg', {
           fit: [250, 300],
           align: 'center',
