@@ -20,7 +20,7 @@ import * as path from 'path';
     ProfilesModule,
     AuthModule,
     ServeStaticModule.forRoot({
-      rootPath: path.join(__dirname, '..', 'src', 'assets'), // Adjust path as needed
+      rootPath: path.join(__dirname, '..', 'src', 'assets/banner3.jpg'), // Adjust path as needed
     }),
     TypeOrmModule.forRoot({
       type: 'postgres',
