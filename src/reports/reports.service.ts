@@ -379,7 +379,7 @@ export class ReportsService {
 
       // const base64Image = './banner3.jpg';
       ///opt/render/project/src/src/reports/reports.service.ts:385:13
-      const imagePath = '../../banner3.jpg'; // Assuming the public folder is at the root
+      const imagePath = '../banner3.jpg'; // Assuming the public folder is at the root
 
       // Add an image, constrain it to a given size, and center it vertically and horizontally
       try {
