@@ -20,8 +20,7 @@ export class TeacherCommentEntity {
   @Column()
   year: number;
 
-  @Column()
-  @IsOptional()
+  @Column({ default: 'End Of Term' })
   examtype: string;
 
   @ManyToOne(() => TeachersEntity, (teacher) => teacher.comments, {
