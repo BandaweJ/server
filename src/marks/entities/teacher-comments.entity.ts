@@ -1,3 +1,4 @@
+import { IsOptional } from 'class-validator';
 import { StudentsEntity } from 'src/profiles/entities/students.entity';
 import { TeachersEntity } from 'src/profiles/entities/teachers.entity';
 import { Column, Entity, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
@@ -20,6 +21,7 @@ export class TeacherCommentEntity {
   year: number;
 
   @Column()
+  @IsOptional()
   examtype: string;
 
   @ManyToOne(() => TeachersEntity, (teacher) => teacher.comments, {

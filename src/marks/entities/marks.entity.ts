@@ -37,7 +37,7 @@ export class MarksEntity {
 
   @Column()
   @IsOptional()
-  type: string;
+  examtype: string;
 
   @ManyToOne(() => SubjectsEntity, (subject) => subject.marks, {
     nullable: false,

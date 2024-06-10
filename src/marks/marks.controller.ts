@@ -91,12 +91,13 @@ export class MarksController {
     );
   }
 
-  @Get('/marks/:num/:year/:name/:subjectCode')
+  @Get('/marks/:num/:year/:name/:subjectCode/:examtype')
   getSubjectMarksInClass(
     @Param('num') num: number,
     @Param('year') year: number,
     @Param('name') name: string,
     @Param('subjectCode') subjectCode: string,
+    @Param('examtype') examtype: string,
     @GetUser() profile: StudentsEntity | ParentsEntity | TeachersEntity,
   ) {
     // console.log(num, name, year, subjectCode);
@@ -105,6 +106,7 @@ export class MarksController {
       year,
       name,
       subjectCode,
+      examtype,
       profile,
     );
   }

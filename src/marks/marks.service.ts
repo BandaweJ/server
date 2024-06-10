@@ -115,7 +115,7 @@ export class MarksService {
       }
     }
 
-    const { num, year, name, mark, comment, subject, student, id, type } =
+    const { num, year, name, mark, comment, subject, student, id, examtype } =
       createMarkDto;
 
     if (id) {
@@ -128,13 +128,13 @@ export class MarksService {
       if (found) {
         found.mark = mark;
         found.comment = comment;
-        found.type = type;
+        found.examtype = examtype;
         // console.log('edited mark ', found);
 
         const result = await this.marksRepository.update(id, {
           mark,
           comment,
-          type,
+          examtype,
         });
 
         if (result.affected) {
@@ -151,7 +151,7 @@ export class MarksService {
       record.comment = comment;
       record.subject = subject;
       record.student = student;
-      record.type = type;
+      record.examtype = examtype;
       console.log('new mark ', record);
 
       try {
@@ -198,7 +198,7 @@ export class MarksService {
         num,
         year,
         name,
-        type: examtype,
+        examtype,
       },
       relations: ['subject', 'student'],
     });
@@ -209,6 +209,7 @@ export class MarksService {
     year: number,
     name: string,
     subjectCode: string,
+    examtype: string,
     profile: StudentsEntity | ParentsEntity | TeachersEntity,
   ): Promise<MarksEntity[]> {
     switch (profile.role) {
@@ -231,6 +232,7 @@ export class MarksService {
         num,
         name,
         year,
+        examtype,
       },
       relations: ['subject', 'student'],
     });
@@ -260,6 +262,7 @@ export class MarksService {
           mark.mark = mrk.mark;
           mark.comment = mrk.comment;
           mark.id = mrk.id;
+          mark.examtype = mrk.examtype;
         }
       });
     });
@@ -309,7 +312,7 @@ export class MarksService {
         num,
         name,
         year,
-        type: examtype,
+        examtype,
       },
       relations: ['student', 'subject'],
     });
@@ -508,6 +511,7 @@ export class MarksService {
           cmmnt.comment = cmt.comment;
           cmmnt.teacher = cmt.teacher;
           cmmnt.id = cmt.id;
+          cmmnt.examtype = cmt.examtype;
         }
       });
     });

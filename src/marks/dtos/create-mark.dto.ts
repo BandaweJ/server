@@ -44,5 +44,5 @@ export class CreateMarkDto {
 
   @ApiProperty()
   @IsNotEmpty()
-  type: string;
+  examtype: string;
 }
