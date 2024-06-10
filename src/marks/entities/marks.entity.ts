@@ -8,6 +8,7 @@ import {
 import { SubjectsEntity } from './subjects.entity';
 import { StudentsEntity } from '../../profiles/entities/students.entity';
 import { timeStamp } from 'console';
+import { ExamType } from '../models/examtype.enum';
 
 @Entity('marks')
 export class MarksEntity {
@@ -31,6 +32,9 @@ export class MarksEntity {
 
   @Column({ type: 'timestamp', default: () => 'NOW()' })
   date: Date;
+
+  @Column()
+  type: string;
 
   @ManyToOne(() => SubjectsEntity, (subject) => subject.marks, {
     nullable: false,

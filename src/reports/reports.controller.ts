@@ -16,22 +16,28 @@ import { TeachersEntity } from 'src/profiles/entities/teachers.entity';
 import { StudentsEntity } from 'src/profiles/entities/students.entity';
 import { ParentsEntity } from 'src/profiles/entities/parents.entity';
 import { HeadCommentDto } from './dtos/head-comment.dto';
-import { profile } from 'console';
 
 @Controller('reports')
 @UseGuards(AuthGuard())
 export class ReportsController {
   constructor(private reportsService: ReportsService) {}
 
-  @Get('/generate/:name/:num/:year')
+  @Get('/generate/:name/:num/:year/:examtype')
   generateReports(
     @Param('name') name: string,
     @Param('num') num: number,
     @Param('year') year: number,
+    @Param('examtype') examtype: string,
     @GetUser() profile,
   ) {
     // console.log('name', name);
-    return this.reportsService.generateReports(name, num, year, profile);
+    return this.reportsService.generateReports(
+      name,
+      num,
+      year,
+      examtype,
+      profile,
+    );
   }
 
   @Post('/save/:name/:num/:year')

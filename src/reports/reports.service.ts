@@ -35,6 +35,7 @@ export class ReportsService {
     name: string,
     num: number,
     year: number,
+    examtype: string,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ): Promise<ReportsModel[]> {
     switch (profile.role) {
@@ -55,11 +56,12 @@ export class ReportsService {
       year,
     );
 
-    //get all marks for the class for all subjects
+    //get all marks for the class for all subjects and examtype
     const marks = await this.marksService.getMarksbyClass(
       num,
       year,
       name,
+      examtype,
       profile,
     );
 
@@ -99,6 +101,7 @@ export class ReportsService {
         name,
         num,
         year,
+        examtype,
       },
       relations: ['student', 'teacher'],
     });

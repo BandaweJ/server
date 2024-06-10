@@ -6,11 +6,10 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { MarksEntity } from './entities/marks.entity';
-import { Equal, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { SubjectsEntity } from './entities/subjects.entity';
 import { CreateMarkDto } from './dtos/create-mark.dto';
 import { ResourceByIdService } from '../resource-by-id/resource-by-id.service';
-import { UpdateMarkDto } from './dtos/update-mark.dto';
 import { StudentsEntity } from '../profiles/entities/students.entity';
 import { ParentsEntity } from '../profiles/entities/parents.entity';
 import { TeachersEntity } from '../profiles/entities/teachers.entity';
@@ -116,7 +115,7 @@ export class MarksService {
       }
     }
 
-    const { num, year, name, mark, comment, subject, student, id } =
+    const { num, year, name, mark, comment, subject, student, id, type } =
       createMarkDto;
 
     if (id) {
@@ -129,8 +128,14 @@ export class MarksService {
       if (found) {
         found.mark = mark;
         found.comment = comment;
+        found.type = type;
+        // console.log('edited mark ', found);
 
-        const result = await this.marksRepository.update(id, { mark, comment });
+        const result = await this.marksRepository.update(id, {
+          mark,
+          comment,
+          type,
+        });
 
         if (result.affected) {
           return found;
@@ -146,6 +151,8 @@ export class MarksService {
       record.comment = comment;
       record.subject = subject;
       record.student = student;
+      record.type = type;
+      console.log('new mark ', record);
 
       try {
         await this.marksRepository.save(record);
@@ -176,6 +183,7 @@ export class MarksService {
     num: number,
     year: number,
     name: string,
+    examtype: string,
     profile: StudentsEntity | ParentsEntity | TeachersEntity,
   ): Promise<MarksEntity[]> {
     switch (profile.role) {
@@ -190,6 +198,7 @@ export class MarksService {
         num,
         year,
         name,
+        type: examtype,
       },
       relations: ['subject', 'student'],
     });
@@ -289,12 +298,18 @@ export class MarksService {
     }
   }
 
-  async getPerfomanceData(num: number, year: number, name: string) {
+  async getPerfomanceData(
+    num: number,
+    year: number,
+    name: string,
+    examtype: string,
+  ) {
     const marks = await this.marksRepository.find({
       where: {
         num,
         name,
         year,
+        type: examtype,
       },
       relations: ['student', 'subject'],
     });
@@ -371,7 +386,7 @@ export class MarksService {
         );
     }
 
-    const { comment, name, num, year, student, id } = commentDto;
+    const { comment, name, num, year, student, id, examtype } = commentDto;
 
     // ....................
 
@@ -403,6 +418,7 @@ export class MarksService {
       cmmnt.year = year;
       cmmnt.teacher = profile;
       cmmnt.student = student;
+      cmmnt.examtype = examtype;
 
       return await this.teacherCommentRepository.save(cmmnt);
     }
@@ -438,6 +454,7 @@ export class MarksService {
     name: string,
     num: number,
     year: number,
+    examtype: string,
     profile: TeachersEntity,
   ): Promise<TeacherCommentEntity[]> {
     switch (profile.role) {
@@ -448,18 +465,20 @@ export class MarksService {
     }
 
     // const subject = await this.getOneSubject(subjectCode);
-
+    //get class list for the term
     const classlist = await this.enrolmentService.getEnrolmentByClass(
       name,
       num,
       year,
     );
 
+    //get comments for this term and for this particular exam
     const foundComments = await this.teacherCommentRepository.find({
       where: {
         num,
         name,
         year,
+        examtype,
       },
       relations: ['teacher', 'student'],
     });
@@ -468,6 +487,7 @@ export class MarksService {
     //   (mark) => mark.subject.code === subjectCode,
     // );
 
+    //combine found comments with the class list
     const classComments: TeacherCommentEntity[] = [];
 
     classlist.map((enrol) => {

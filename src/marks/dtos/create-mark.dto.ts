@@ -2,6 +2,7 @@ import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 import { SubjectsEntity } from '../entities/subjects.entity';
 import { StudentsEntity } from 'src/profiles/entities/students.entity';
 import { ApiProperty } from '@nestjs/swagger';
+import { ExamType } from '../models/examtype.enum';
 
 export class CreateMarkDto {
   @ApiProperty()
@@ -40,4 +41,8 @@ export class CreateMarkDto {
   @ApiProperty()
   @IsOptional()
   id?: number;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  type: string;
 }

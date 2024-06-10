@@ -19,6 +19,9 @@ export class TeacherCommentEntity {
   @Column()
   year: number;
 
+  @Column()
+  examtype: string;
+
   @ManyToOne(() => TeachersEntity, (teacher) => teacher.comments, {
     nullable: false,
   })

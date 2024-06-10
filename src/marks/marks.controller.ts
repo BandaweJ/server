@@ -63,6 +63,7 @@ export class MarksController {
     @Body() createMarkDto: CreateMarkDto,
     @GetUser() profile: StudentsEntity | ParentsEntity | TeachersEntity,
   ) {
+    // console.log(createMarkDto);
     return this.marksService.createMark(createMarkDto, profile);
   }
 
@@ -78,9 +79,16 @@ export class MarksController {
     @Param('num') num: number,
     @Param('year') year: number,
     @Param('name') name: string,
+    @Param('examtype') examtype: string,
     @GetUser() profile: StudentsEntity | ParentsEntity | TeachersEntity,
   ) {
-    return this.marksService.getMarksbyClass(num, year, name, profile);
+    return this.marksService.getMarksbyClass(
+      num,
+      year,
+      name,
+      examtype,
+      profile,
+    );
   }
 
   @Get('/marks/:num/:year/:name/:subjectCode')
@@ -124,14 +132,15 @@ export class MarksController {
     return this.marksService.deleteMark(id, profile);
   }
 
-  @Get('/perf/:num/:year/:name')
+  @Get('/perf/:num/:year/:name/:examtype')
   getPerfomanceData(
     @Param('num') num: number,
     @Param('year') year: number,
     @Param('name') name: string,
+    @Param('examtype') examtype: string,
   ) {
     // console.log(num, name, year);
-    return this.marksService.getPerfomanceData(num, year, name);
+    return this.marksService.getPerfomanceData(num, year, name, examtype);
   }
 
   @Post('/comments')
@@ -143,13 +152,20 @@ export class MarksController {
     return this.marksService.createComment(commentDto, profile);
   }
 
-  @Get('/comments/:name/:num/:year')
+  @Get('/comments/:name/:num/:year/:examtype')
   fetchClassComments(
     @Param('name') name: string,
     @Param('num') num: number,
     @Param('year') year: number,
+    @Param('examtype') examtype: string,
     @GetUser() profile: TeachersEntity,
   ) {
-    return this.marksService.fetchClassComments(name, num, year, profile);
+    return this.marksService.fetchClassComments(
+      name,
+      num,
+      year,
+      examtype,
+      profile,
+    );
   }
 }

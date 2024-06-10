@@ -19,4 +19,7 @@ export class CommentDto {
 
   @IsOptional()
   id?: number;
+
+  @IsString()
+  examtype: string;
 }
