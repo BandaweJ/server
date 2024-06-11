@@ -155,6 +155,14 @@ export class EnrolmentController {
   }
 
   @Get('enrol/:num/:year')
+  getTotalEnrolmentByTerm(
+    @Param('num') num: number,
+    @Param('year') year: number,
+  ) {
+    return this.enrolmentService.getTotalEnrolmentByTerm(num, year);
+  }
+
+  @Get('enrol/:num/:year')
   getEnrolmentByTerm(@Param('num') num: number, @Param('year') year: number) {
     return this.enrolmentService.getEnrolmentByTerm(num, year);
   }

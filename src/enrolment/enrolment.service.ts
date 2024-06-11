@@ -308,6 +308,18 @@ export class EnrolmentService {
     });
   }
 
+  async getTotalEnrolmentByTerm(
+    num: number,
+    year: number,
+  ): Promise<EnrolEntity[]> {
+    return await this.enrolmentRepository.find({
+      where: {
+        num,
+        year,
+      },
+    });
+  }
+
   async getEnrolmentByTerm(num: number, year: number): Promise<EnrolEntity[]> {
     return await this.enrolmentRepository.find({
       where: {
