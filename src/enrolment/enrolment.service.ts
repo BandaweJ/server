@@ -308,10 +308,7 @@ export class EnrolmentService {
     });
   }
 
-  async getTotalEnrolmentByTerm(
-    num: number,
-    year: number,
-  ): Promise<EnrolEntity[]> {
+  async getTotalEnrolmentByTerm(num: number, year: number): Promise<number> {
     const enrols = await this.enrolmentRepository.find({
       where: {
         num,
@@ -320,9 +317,7 @@ export class EnrolmentService {
       relations: ['student'],
     });
 
-    console.log(enrols);
-
-    return enrols;
+    return enrols.length;
   }
 
   async getEnrolmentByTerm(num: number, year: number): Promise<EnrolEntity[]> {
