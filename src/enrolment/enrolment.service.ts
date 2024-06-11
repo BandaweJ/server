@@ -312,12 +312,17 @@ export class EnrolmentService {
     num: number,
     year: number,
   ): Promise<EnrolEntity[]> {
-    return await this.enrolmentRepository.find({
+    const enrols = await this.enrolmentRepository.find({
       where: {
         num,
         year,
       },
+      relations: ['student'],
     });
+
+    console.log(enrols);
+
+    return enrols;
   }
 
   async getEnrolmentByTerm(num: number, year: number): Promise<EnrolEntity[]> {
