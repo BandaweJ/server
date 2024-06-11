@@ -20,9 +20,6 @@ export class TeacherCommentEntity {
   @Column()
   year: number;
 
-  @Column({ default: 'End Of Term' })
-  examtype: string;
-
   @ManyToOne(() => TeachersEntity, (teacher) => teacher.comments, {
     nullable: false,
   })

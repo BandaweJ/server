@@ -22,12 +22,12 @@ import { HeadCommentDto } from './dtos/head-comment.dto';
 export class ReportsController {
   constructor(private reportsService: ReportsService) {}
 
-  @Get('/generate/:name/:num/:year/:examtype')
+  @Get('/generate/:name/:num/:year')
   generateReports(
     @Param('name') name: string,
     @Param('num') num: number,
     @Param('year') year: number,
-    @Param('examtype') examtype: string,
+    // @Param('examtype') examtype: string,
     @GetUser() profile,
   ) {
     // console.log('name', name);
@@ -35,7 +35,7 @@ export class ReportsController {
       name,
       num,
       year,
-      examtype,
+      // examtype,
       profile,
     );
   }

@@ -35,7 +35,7 @@ export class ReportsService {
     name: string,
     num: number,
     year: number,
-    examtype: string,
+    // examtype: string,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ): Promise<ReportsModel[]> {
     switch (profile.role) {
@@ -61,7 +61,7 @@ export class ReportsService {
       num,
       year,
       name,
-      examtype,
+      // examtype,
       profile,
     );
 
@@ -101,7 +101,7 @@ export class ReportsService {
         name,
         num,
         year,
-        examtype,
+        // examtype,
       },
       relations: ['student', 'teacher'],
     });

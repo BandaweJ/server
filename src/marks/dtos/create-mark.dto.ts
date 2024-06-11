@@ -41,8 +41,4 @@ export class CreateMarkDto {
   @ApiProperty()
   @IsOptional()
   id?: number;
-
-  @ApiProperty()
-  @IsNotEmpty()
-  examtype: string;
 }

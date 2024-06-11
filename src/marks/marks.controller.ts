@@ -79,25 +79,24 @@ export class MarksController {
     @Param('num') num: number,
     @Param('year') year: number,
     @Param('name') name: string,
-    @Param('examtype') examtype: string,
+
     @GetUser() profile: StudentsEntity | ParentsEntity | TeachersEntity,
   ) {
     return this.marksService.getMarksbyClass(
       num,
       year,
       name,
-      examtype,
+
       profile,
     );
   }
 
-  @Get('/marks/:num/:year/:name/:subjectCode/:examtype')
+  @Get('/marks/:num/:year/:name/:subjectCode')
   getSubjectMarksInClass(
     @Param('num') num: number,
     @Param('year') year: number,
     @Param('name') name: string,
     @Param('subjectCode') subjectCode: string,
-    @Param('examtype') examtype: string,
     @GetUser() profile: StudentsEntity | ParentsEntity | TeachersEntity,
   ) {
     // console.log(num, name, year, subjectCode);
@@ -106,7 +105,7 @@ export class MarksController {
       year,
       name,
       subjectCode,
-      examtype,
+
       profile,
     );
   }
@@ -134,15 +133,14 @@ export class MarksController {
     return this.marksService.deleteMark(id, profile);
   }
 
-  @Get('/perf/:num/:year/:name/:examtype')
+  @Get('/perf/:num/:year/:name')
   getPerfomanceData(
     @Param('num') num: number,
     @Param('year') year: number,
     @Param('name') name: string,
-    @Param('examtype') examtype: string,
   ) {
     // console.log(num, name, year);
-    return this.marksService.getPerfomanceData(num, year, name, examtype);
+    return this.marksService.getPerfomanceData(num, year, name);
   }
 
   @Post('/comments')
@@ -154,19 +152,19 @@ export class MarksController {
     return this.marksService.createComment(commentDto, profile);
   }
 
-  @Get('/comments/:name/:num/:year/:examtype')
+  @Get('/comments/:name/:num/:year')
   fetchClassComments(
     @Param('name') name: string,
     @Param('num') num: number,
     @Param('year') year: number,
-    @Param('examtype') examtype: string,
+
     @GetUser() profile: TeachersEntity,
   ) {
     return this.marksService.fetchClassComments(
       name,
       num,
       year,
-      examtype,
+
       profile,
     );
   }

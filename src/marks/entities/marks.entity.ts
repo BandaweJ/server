@@ -35,9 +35,6 @@ export class MarksEntity {
   @Column({ type: 'timestamp', default: () => 'NOW()' })
   date: Date;
 
-  @Column({ default: 'End Of Term' })
-  examtype: string;
-
   @ManyToOne(() => SubjectsEntity, (subject) => subject.marks, {
     nullable: false,
   })
