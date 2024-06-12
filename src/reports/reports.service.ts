@@ -144,37 +144,37 @@ export class ReportsService {
       reports.push(report);
     });
 
-    reports.forEach((report) => {
-      report.subjectsTable.map((subjInfo) => {
-        switch (subjInfo.grade) {
-          case 'A*':
-            report.symbols[0] = report.symbols[0] + 1;
-            break;
-          case 'A':
-            report.symbols[1] = report.symbols[1] + 1;
+    // reports.forEach((report) => {
+    //   report.subjectsTable.map((subjInfo) => {
+    //     switch (subjInfo.grade) {
+    //       case 'A*':
+    //         report.symbols[0] = report.symbols[0] + 1;
+    //         break;
+    //       case 'A':
+    //         report.symbols[1] = report.symbols[1] + 1;
 
-            break;
-          case 'B':
-            report.symbols[2] = report.symbols[2] + 1;
+    //         break;
+    //       case 'B':
+    //         report.symbols[2] = report.symbols[2] + 1;
 
-            break;
-          case 'C':
-            report.symbols[3] = report.symbols[3] + 1;
+    //         break;
+    //       case 'C':
+    //         report.symbols[3] = report.symbols[3] + 1;
 
-            break;
-          case 'D':
-            report.symbols[4] = report.symbols[4] + 1;
+    //         break;
+    //       case 'D':
+    //         report.symbols[4] = report.symbols[4] + 1;
 
-            break;
-        }
-      });
-      console.log(
-        'Student : ',
-        report.name + ' ' + report.surname + ' ' + report.studentNumber,
-        'has : ',
-        report.symbols,
-      );
-    });
+    //         break;
+    //     }
+    //   });
+    //   console.log(
+    //     'Student : ',
+    //     report.name + ' ' + report.surname + ' ' + report.studentNumber,
+    //     'has : ',
+    //     report.symbols,
+    //   );
+    // });
 
     reports.map((report) => {
       report.classSize = reports.length;
