@@ -17,11 +17,5 @@ export class ReportModel {
   subjectsTable: SubjectInfoModel[];
   classSize: number;
   subjectsPassed: number;
-  symbols: { [key: string]: number } = {
-    ass: 0,
-    as: 0,
-    bs: 0,
-    cs: 0,
-    ds: 0,
-  };
+  symbols: number[];
 }

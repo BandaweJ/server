@@ -148,19 +148,23 @@ export class ReportsService {
       report.subjectsTable.map((subjInfo) => {
         switch (subjInfo.grade) {
           case 'A*':
-            report.symbols['ass']++;
+            report.symbols[0] = report.symbols[0] + 1;
             break;
           case 'A':
-            report.symbols['as']++;
+            report.symbols[1] = report.symbols[1] + 1;
+
             break;
           case 'B':
-            report.symbols['bs']++;
+            report.symbols[2] = report.symbols[2] + 1;
+
             break;
           case 'C':
-            report.symbols['cs']++;
+            report.symbols[3] = report.symbols[3] + 1;
+
             break;
           case 'D':
-            report.symbols['ds']++;
+            report.symbols[4] = report.symbols[4] + 1;
+
             break;
         }
       });
