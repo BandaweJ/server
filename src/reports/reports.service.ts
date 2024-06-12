@@ -69,6 +69,7 @@ export class ReportsService {
     const subjectsSet = new Set<SubjectSetItem>();
 
     //populate subjectset with subjects done in class
+    //used set so no duplicates
     marks.forEach((mark) => {
       subjectsSet.add(new SubjectSetItem(mark.subject.code));
     });
@@ -141,6 +142,29 @@ export class ReportsService {
       });
 
       reports.push(report);
+    });
+
+    reports.forEach((report) => {
+      report.subjectsTable.map((subjInfo) => {
+        switch (subjInfo.grade) {
+          case 'A*':
+            report.symbols['ass']++;
+            break;
+          case 'A':
+            report.symbols['as']++;
+            break;
+          case 'B':
+            report.symbols['bs']++;
+            break;
+          case 'C':
+            report.symbols['cs']++;
+            break;
+          case 'D':
+            report.symbols['ds']++;
+            break;
+        }
+      });
+      console.log('Student : ', report.name, 'has : ', report.symbols);
     });
 
     reports.map((report) => {
