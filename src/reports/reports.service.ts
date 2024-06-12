@@ -164,7 +164,12 @@ export class ReportsService {
             break;
         }
       });
-      console.log('Student : ', report.name, 'has : ', report.symbols);
+      console.log(
+        'Student : ',
+        report.name + ' ' + report.surname + ' ' + report.studentNumber,
+        'has : ',
+        report.symbols,
+      );
     });
 
     reports.map((report) => {

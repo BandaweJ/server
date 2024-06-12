@@ -18,6 +18,7 @@ export class ReportModel {
   classSize: number;
   subjectsPassed: number;
   symbols: { [key: string]: number } = {
+    ass: 0,
     as: 0,
     bs: 0,
     cs: 0,
