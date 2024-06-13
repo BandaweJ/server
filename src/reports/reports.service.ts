@@ -214,6 +214,23 @@ export class ReportsService {
       rep.report.subjectsTable.sort((a, b) => +b.subjectCode - +a.subjectCode);
     });
 
+    reps.map((rep) => {
+      rep.report.symbols = Array(5).fill(0);
+      rep.report.subjectsTable.forEach((subj) => {
+        if (subj.grade === 'A*') {
+          rep.report.symbols[0]++;
+        } else if (subj.grade === 'A') {
+          rep.report.symbols[1]++;
+        } else if (subj.grade === 'B') {
+          rep.report.symbols[2]++;
+        } else if (subj.grade === 'C') {
+          rep.report.symbols[3]++;
+        } else if (subj.grade === 'D') {
+          rep.report.symbols[4]++;
+        }
+      });
+    });
+
     return reps;
   }
 
