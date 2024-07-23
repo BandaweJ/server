@@ -236,15 +236,27 @@ export class MarksService {
       year,
     );
 
-    const foundMarks = await this.marksRepository.find({
-      where: {
-        num,
-        name,
-        year,
-        examType,
-      },
-      relations: ['subject', 'student'],
-    });
+    let foundMarks: MarksEntity[] = [];
+
+    if (examType)
+      foundMarks = await this.marksRepository.find({
+        where: {
+          num,
+          name,
+          year,
+          examType,
+        },
+        relations: ['subject', 'student'],
+      });
+    else
+      foundMarks = await this.marksRepository.find({
+        where: {
+          num,
+          name,
+          year,
+        },
+        relations: ['subject', 'student'],
+      });
 
     const subjectMarks = foundMarks.filter(
       (mark) => mark.subject.code === subjectCode,
@@ -258,9 +270,11 @@ export class MarksService {
       mark.num = num;
       mark.name = name;
       mark.year = year;
-      mark.examType = examType;
       mark.student = enrol.student;
       mark.subject = subject;
+      if (examType) {
+        mark.examType = examType;
+      }
 
       classSubjectMarks.push(mark);
     });
@@ -316,15 +330,27 @@ export class MarksService {
     name: string,
     examType: string,
   ) {
-    const marks = await this.marksRepository.find({
-      where: {
-        num,
-        name,
-        year,
-        examType,
-      },
-      relations: ['student', 'subject'],
-    });
+    let marks: MarksEntity[] = [];
+
+    if (examType)
+      marks = await this.marksRepository.find({
+        where: {
+          num,
+          name,
+          year,
+          examType,
+        },
+        relations: ['student', 'subject'],
+      });
+    else
+      marks = await this.marksRepository.find({
+        where: {
+          num,
+          name,
+          year,
+        },
+        relations: ['student', 'subject'],
+      });
 
     // const subjectsSet = new Set<SubjectsEntity>();
     const subjectsArray: SubjectsEntity[] = [];
@@ -487,15 +513,26 @@ export class MarksService {
     );
 
     //get comments for this term and for this particular exam
-    const foundComments = await this.teacherCommentRepository.find({
-      where: {
-        num,
-        name,
-        year,
-        examType,
-      },
-      relations: ['teacher', 'student'],
-    });
+    let foundComments: TeacherCommentEntity[] = [];
+    if (examType)
+      foundComments = await this.teacherCommentRepository.find({
+        where: {
+          num,
+          name,
+          year,
+          examType,
+        },
+        relations: ['teacher', 'student'],
+      });
+    else
+      foundComments = await this.teacherCommentRepository.find({
+        where: {
+          num,
+          name,
+          year,
+        },
+        relations: ['teacher', 'student'],
+      });
 
     // const subjectMarks = foundMarks.filter(
     //   (mark) => mark.subject.code === subjectCode,
