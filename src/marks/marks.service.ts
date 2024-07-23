@@ -115,7 +115,7 @@ export class MarksService {
       }
     }
 
-    const { num, year, name, mark, comment, subject, student, id } =
+    const { num, year, name, mark, comment, subject, student, id, examType } =
       createMarkDto;
 
     if (id) {
@@ -126,15 +126,13 @@ export class MarksService {
       });
 
       if (found) {
+        //update the mark and comment only
         found.mark = mark;
         found.comment = comment;
-        // found.examtype = examtype;
-        // console.log('edited mark ', found);
 
         const result = await this.marksRepository.update(id, {
           mark,
           comment,
-          // examtype,
         });
 
         if (result.affected) {
@@ -151,8 +149,8 @@ export class MarksService {
       record.comment = comment;
       record.subject = subject;
       record.student = student;
-      // record.examtype = examtype;
-      console.log('new mark ', record);
+      record.examType = examType; //all new marks have examtype set
+      // console.log('new mark ', record);
 
       try {
         await this.marksRepository.save(record);
@@ -183,7 +181,7 @@ export class MarksService {
     num: number,
     year: number,
     name: string,
-    // examtype: string,
+    examType: string,
     profile: StudentsEntity | ParentsEntity | TeachersEntity,
   ): Promise<MarksEntity[]> {
     switch (profile.role) {
@@ -193,12 +191,23 @@ export class MarksService {
       }
     }
 
+    if (examType) {
+      return await this.marksRepository.find({
+        where: {
+          num,
+          year,
+          name,
+          examType,
+        },
+        relations: ['subject', 'student'],
+      });
+    }
+
     return await this.marksRepository.find({
       where: {
         num,
         year,
         name,
-        // examtype,
       },
       relations: ['subject', 'student'],
     });
@@ -209,7 +218,7 @@ export class MarksService {
     year: number,
     name: string,
     subjectCode: string,
-    // examtype: string,
+    examType: string,
     profile: StudentsEntity | ParentsEntity | TeachersEntity,
   ): Promise<MarksEntity[]> {
     switch (profile.role) {
@@ -232,7 +241,7 @@ export class MarksService {
         num,
         name,
         year,
-        // examtype,
+        examType,
       },
       relations: ['subject', 'student'],
     });
@@ -249,7 +258,7 @@ export class MarksService {
       mark.num = num;
       mark.name = name;
       mark.year = year;
-
+      mark.examType = examType;
       mark.student = enrol.student;
       mark.subject = subject;
 
@@ -262,7 +271,7 @@ export class MarksService {
           mark.mark = mrk.mark;
           mark.comment = mrk.comment;
           mark.id = mrk.id;
-          // mark.examtype = mrk.examtype;
+          // mark.examType = mrk.examType;
         }
       });
     });
@@ -305,14 +314,14 @@ export class MarksService {
     num: number,
     year: number,
     name: string,
-    // examtype: string,
+    examType: string,
   ) {
     const marks = await this.marksRepository.find({
       where: {
         num,
         name,
         year,
-        // examtype,
+        examType,
       },
       relations: ['student', 'subject'],
     });
@@ -389,7 +398,7 @@ export class MarksService {
         );
     }
 
-    const { comment, name, num, year, student, id } = commentDto;
+    const { comment, name, num, year, student, id, examType } = commentDto;
 
     // ....................
 
@@ -421,7 +430,9 @@ export class MarksService {
       cmmnt.year = year;
       cmmnt.teacher = profile;
       cmmnt.student = student;
-      // cmmnt.examtype = examtype;
+      if (examType) {
+        cmmnt.examType = examType;
+      }
 
       return await this.teacherCommentRepository.save(cmmnt);
     }
@@ -457,7 +468,7 @@ export class MarksService {
     name: string,
     num: number,
     year: number,
-    // examtype: string,
+    examType: string,
     profile: TeachersEntity,
   ): Promise<TeacherCommentEntity[]> {
     switch (profile.role) {
@@ -481,7 +492,7 @@ export class MarksService {
         num,
         name,
         year,
-        // examtype,
+        examType,
       },
       relations: ['teacher', 'student'],
     });

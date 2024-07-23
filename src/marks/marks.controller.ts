@@ -74,29 +74,30 @@ export class MarksController {
     return this.marksService.getAllMarks(profile);
   }
 
-  @Get('/marks/:num/:year/:name')
+  @Get('/marks/:num/:year/:name/:examType')
   getMarksByClass(
     @Param('num') num: number,
     @Param('year') year: number,
     @Param('name') name: string,
-
+    @Param('examType') examType: string,
     @GetUser() profile: StudentsEntity | ParentsEntity | TeachersEntity,
   ) {
     return this.marksService.getMarksbyClass(
       num,
       year,
       name,
-
+      examType,
       profile,
     );
   }
 
-  @Get('/marks/:num/:year/:name/:subjectCode')
+  @Get('/marks/:num/:year/:name/:subjectCode/:examType')
   getSubjectMarksInClass(
     @Param('num') num: number,
     @Param('year') year: number,
     @Param('name') name: string,
     @Param('subjectCode') subjectCode: string,
+    @Param('examType') examType: string,
     @GetUser() profile: StudentsEntity | ParentsEntity | TeachersEntity,
   ) {
     // console.log(num, name, year, subjectCode);
@@ -105,7 +106,7 @@ export class MarksController {
       year,
       name,
       subjectCode,
-
+      examType,
       profile,
     );
   }
@@ -133,14 +134,15 @@ export class MarksController {
     return this.marksService.deleteMark(id, profile);
   }
 
-  @Get('/perf/:num/:year/:name')
+  @Get('/perf/:num/:year/:name/:examType')
   getPerfomanceData(
     @Param('num') num: number,
     @Param('year') year: number,
     @Param('name') name: string,
+    @Param('examType') examType: string,
   ) {
     // console.log(num, name, year);
-    return this.marksService.getPerfomanceData(num, year, name);
+    return this.marksService.getPerfomanceData(num, year, name, examType);
   }
 
   @Post('/comments')
@@ -152,19 +154,19 @@ export class MarksController {
     return this.marksService.createComment(commentDto, profile);
   }
 
-  @Get('/comments/:name/:num/:year')
+  @Get('/comments/:name/:num/:year/:examType')
   fetchClassComments(
     @Param('name') name: string,
     @Param('num') num: number,
     @Param('year') year: number,
-
+    @Param('examType') examType: string,
     @GetUser() profile: TeachersEntity,
   ) {
     return this.marksService.fetchClassComments(
       name,
       num,
       year,
-
+      examType,
       profile,
     );
   }

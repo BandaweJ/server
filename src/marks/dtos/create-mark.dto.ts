@@ -30,6 +30,9 @@ export class CreateMarkDto {
   @IsNotEmpty()
   comment: string;
 
+  @IsOptional()
+  examType?: ExamType;
+
   @ApiProperty()
   @IsNotEmpty()
   subject: SubjectsEntity;
