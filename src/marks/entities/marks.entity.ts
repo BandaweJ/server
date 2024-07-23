@@ -1,16 +1,12 @@
 import {
   Column,
   Entity,
-  IsNull,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { SubjectsEntity } from './subjects.entity';
 import { StudentsEntity } from '../../profiles/entities/students.entity';
-import { timeStamp } from 'console';
-import { ExamType } from '../models/examtype.enum';
-import { IsOptional } from 'class-validator';
 
 @Entity('marks')
 export class MarksEntity {
@@ -34,6 +30,9 @@ export class MarksEntity {
 
   @Column({ type: 'timestamp', default: () => 'NOW()' })
   date: Date;
+
+  @Column({ nullable: true })
+  examType: string;
 
   @ManyToOne(() => SubjectsEntity, (subject) => subject.marks, {
     nullable: false,

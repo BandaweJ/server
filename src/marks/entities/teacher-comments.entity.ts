@@ -20,6 +20,9 @@ export class TeacherCommentEntity {
   @Column()
   year: number;
 
+  @Column({ nullable: true })
+  examType: string;
+
   @ManyToOne(() => TeachersEntity, (teacher) => teacher.comments, {
     nullable: false,
   })
