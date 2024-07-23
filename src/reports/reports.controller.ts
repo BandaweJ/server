@@ -27,7 +27,7 @@ export class ReportsController {
     @Param('name') name: string,
     @Param('num') num: number,
     @Param('year') year: number,
-    // @Param('examtype') examtype: string,
+    @Param('examType') examType: string,
     @GetUser() profile,
   ) {
     // console.log('name', name);
@@ -35,7 +35,7 @@ export class ReportsController {
       name,
       num,
       year,
-      // examtype,
+      examType,
       profile,
     );
   }
