@@ -191,6 +191,8 @@ export class MarksService {
       }
     }
 
+    console.log('In GetMarksByClass. Value of examType is ', examType);
+
     if (examType) {
       return await this.marksRepository.find({
         where: {
@@ -201,16 +203,15 @@ export class MarksService {
         },
         relations: ['subject', 'student'],
       });
-    }
-
-    return await this.marksRepository.find({
-      where: {
-        num,
-        year,
-        name,
-      },
-      relations: ['subject', 'student'],
-    });
+    } else
+      return await this.marksRepository.find({
+        where: {
+          num,
+          year,
+          name,
+        },
+        relations: ['subject', 'student'],
+      });
   }
 
   async getSubjectMarksInClass(
@@ -228,17 +229,22 @@ export class MarksService {
       }
     }
 
-    const subject = await this.getOneSubject(subjectCode);
+    console.log(
+      'In getSubjectMarksInClass. The value of examType is : ',
+      examType,
+    );
+    const subject = await this.getOneSubject(subjectCode); //get the subject
 
     const classlist = await this.enrolmentService.getEnrolmentByClass(
+      //get the list of students in the class
       name,
       num,
       year,
     );
 
-    let foundMarks: MarksEntity[] = [];
+    let foundMarks: MarksEntity[] = []; //array to store the marks currently saved for the subject and class
 
-    if (examType)
+    if (examType) {
       foundMarks = await this.marksRepository.find({
         where: {
           num,
@@ -248,7 +254,7 @@ export class MarksService {
         },
         relations: ['subject', 'student'],
       });
-    else
+    } else
       foundMarks = await this.marksRepository.find({
         where: {
           num,
@@ -259,6 +265,7 @@ export class MarksService {
       });
 
     const subjectMarks = foundMarks.filter(
+      //filter the marks to remain with those of the concerned
       (mark) => mark.subject.code === subjectCode,
     );
 
