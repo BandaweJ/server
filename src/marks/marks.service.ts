@@ -202,7 +202,7 @@ export class MarksService {
       name,
     );
 
-    if (examType) {
+    if (examType == '') {
       return await this.marksRepository.find({
         where: {
           num,
