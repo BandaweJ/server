@@ -115,29 +115,37 @@ export class MarksService {
       }
     }
 
-    const { num, year, name, mark, comment, subject, student, id, examType } =
+    const { num, year, name, mark, comment, subject, student, examType } =
       createMarkDto;
 
-    if (id) {
+    const found = await this.marksRepository.findOne({
+      // where: { id },
+      where: {
+        num,
+        year,
+        name,
+        examType,
+        subject: { code: subject.code },
+        student: { studentNumber: student.studentNumber },
+      },
+      relations: ['student', 'subject'],
+    });
+
+    if (found) {
       //edited mark
-      const found = await this.marksRepository.findOne({
-        where: { id },
-        relations: ['student', 'subject'],
+
+      //update the mark and comment only
+      found.mark = mark;
+      found.comment = comment;
+      const id = found.id;
+
+      const result = await this.marksRepository.update(id, {
+        mark,
+        comment,
       });
 
-      if (found) {
-        //update the mark and comment only
-        found.mark = mark;
-        found.comment = comment;
-
-        const result = await this.marksRepository.update(id, {
-          mark,
-          comment,
-        });
-
-        if (result.affected) {
-          return found;
-        }
+      if (result.affected) {
+        return found;
       }
     } else {
       //new mark
