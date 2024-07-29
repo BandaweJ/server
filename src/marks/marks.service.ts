@@ -191,13 +191,6 @@ export class MarksService {
       }
     }
 
-    // const updated = await this.marksRepository.update(
-    //   { num: 2, year: 2024 },
-    //   { examType: 'Mid Term' },
-    // );
-
-    // console.log('Updated marks', updated.affected);
-
     if (examType) {
       return await this.marksRepository.find({
         where: {
@@ -233,6 +226,14 @@ export class MarksService {
         throw new UnauthorizedException('You are not authorised');
       }
     }
+
+    // const updated = await this.marksRepository.update(
+    //   { num: 2, year: 2024 },
+    //   { examType: 'Mid Term' },
+    // );
+
+    // console.log('Updated marks', updated.affected);
+    console.log('Always getSubjectMarksInClass called');
 
     const subject = await this.getOneSubject(subjectCode); //get the subject
 
