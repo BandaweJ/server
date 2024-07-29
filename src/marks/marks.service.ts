@@ -191,7 +191,16 @@ export class MarksService {
       }
     }
 
-    console.log('In GetMarksByClass. Value of examType is ', examType);
+    console.log(
+      'In GetMarksByClass. Value of examType is ',
+      examType,
+      'num: ',
+      num,
+      'year: ',
+      year,
+      'name: ',
+      name,
+    );
 
     if (examType) {
       return await this.marksRepository.find({
@@ -230,9 +239,18 @@ export class MarksService {
     }
 
     console.log(
-      'In getSubjectMarksInClass. The value of examType is : ',
+      'In GetSubjectMarksInClass. Value of examType is ',
       examType,
+      'num: ',
+      num,
+      'year: ',
+      year,
+      'name: ',
+      name,
+      'subjectCode: ',
+      subjectCode,
     );
+
     const subject = await this.getOneSubject(subjectCode); //get the subject
 
     const classlist = await this.enrolmentService.getEnrolmentByClass(
