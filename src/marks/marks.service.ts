@@ -191,18 +191,7 @@ export class MarksService {
       }
     }
 
-    console.log(
-      'In GetMarksByClass. Value of examType is ',
-      examType,
-      'num: ',
-      num,
-      'year: ',
-      year,
-      'name: ',
-      name,
-    );
-
-    if (examType == '') {
+    if (examType) {
       return await this.marksRepository.find({
         where: {
           num,
@@ -237,19 +226,6 @@ export class MarksService {
         throw new UnauthorizedException('You are not authorised');
       }
     }
-
-    console.log(
-      'In GetSubjectMarksInClass. Value of examType is ',
-      examType,
-      'num: ',
-      num,
-      'year: ',
-      year,
-      'name: ',
-      name,
-      'subjectCode: ',
-      subjectCode,
-    );
 
     const subject = await this.getOneSubject(subjectCode); //get the subject
 
