@@ -416,7 +416,7 @@ export class ReportsService {
 
         doc.image(imgBuffer, margin, padding, {
           width: columnWidth * 18,
-          height: rowHeight * 4 - padding * 0.75, // Adjust the height as needed - padding ,
+          height: rowHeight * 3, // Adjust the height as needed - padding ,
           align: 'center',
         }); // Adjust position and size as needed
 
