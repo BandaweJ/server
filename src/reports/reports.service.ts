@@ -408,11 +408,10 @@ export class ReportsService {
           doc.page.width, //width
           doc.page.height, //height
           10, //radius of rounded corners
-      )
-        .fillColor(blueColor)
-        
-        
-    }
+        )
+        .fillColor(blueColor);
+
+      // }
 
       //insert banner
 
