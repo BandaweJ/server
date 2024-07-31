@@ -403,12 +403,12 @@ export class ReportsService {
       //border around the document
       doc
         .moveTo(0, 0)
+        .lineWidth(2.5)
         .lineTo(doc.page.width, 0)
         .lineTo(doc.page.width, doc.page.height)
         .lineTo(0, doc.page.height)
         .lineTo(0, 0)
-        .stroke(blueColor)
-        .lineWidth(2.5);
+        .stroke(blueColor);
 
       // }
 
