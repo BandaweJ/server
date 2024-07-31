@@ -414,9 +414,9 @@ export class ReportsService {
         const imgPath = path.join(__dirname, '../../public/banner3.jpg');
         const imgBuffer = fs.readFileSync(imgPath);
 
-        doc.image(imgBuffer, 50, 50, {
-          width: 100,
-          height: 100,
+        doc.image(imgBuffer, margin, padding, {
+          width: columnWidth * 18,
+          height: rowHeight * 4, // Adjust the height as needed - padding,
           align: 'center',
         }); // Adjust position and size as needed
 
