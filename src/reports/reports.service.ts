@@ -400,6 +400,17 @@ export class ReportsService {
         },
       });
 
+      //border around the document
+      doc
+        .roundedRect(
+          0,
+          0,
+          doc.page.width - margin * 2,
+          doc.page.height - margin * 2,
+          10,
+        )
+        .fillColor(blueColor);
+
       //insert banner
 
       // const base64Image = './banner3.jpg';
