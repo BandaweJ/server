@@ -407,12 +407,23 @@ export class ReportsService {
       const imagePath = '../../../../public/banner3.jpg'; // Assuming the public folder is at the root
 
       // Add an image, constrain it to a given size, and center it vertically and horizontally
+
+      // Add an image
+
       try {
-        doc.image(imagePath, {
-          fit: [250, 300],
+        const imgPath = '../../../../public/banner3.jpg'; // Replace with your image path
+        const imgBuffer = fs.readFileSync(imgPath);
+        doc.image(imgBuffer, 50, 50, {
+          width: 100,
+          height: 100,
           align: 'center',
-          valign: 'center',
-        });
+        }); // Adjust position and size as needed
+
+        // doc.image(imagePath, {
+        //   fit: [250, 300],
+        //   align: 'center',
+        //   valign: 'center',
+        // });
       } catch (err) {
         console.log('Failed to add image: ', err);
       }

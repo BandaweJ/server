@@ -473,9 +473,8 @@ export class MarksService {
       cmmnt.year = year;
       cmmnt.teacher = profile;
       cmmnt.student = student;
-      if (examType) {
-        cmmnt.examType = examType;
-      }
+
+      cmmnt.examType = examType;
 
       return await this.teacherCommentRepository.save(cmmnt);
     }
@@ -576,7 +575,7 @@ export class MarksService {
           cmmnt.comment = cmt.comment;
           cmmnt.teacher = cmt.teacher;
           cmmnt.id = cmt.id;
-          // cmmnt.examtype = cmt.examtype;
+          cmmnt.examType = cmt.examType;
         }
       });
     });
