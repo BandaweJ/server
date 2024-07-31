@@ -405,11 +405,14 @@ export class ReportsService {
         .roundedRect(
           0,
           0,
-          doc.page.width - margin * 2,
-          doc.page.height - margin * 2,
-          10,
-        )
-        .fillColor(blueColor);
+          doc.page.width, //width
+          doc.page.height, //height
+          10, //radius of rounded corners
+      )
+        .fillColor(blueColor)
+        
+        
+    }
 
       //insert banner
 
