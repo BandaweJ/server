@@ -408,7 +408,7 @@ export class ReportsService {
         .lineTo(0, doc.page.height)
         .lineTo(0, 0)
         .stroke(blueColor)
-        .lineWidth(0.5);
+        .lineWidth(2.5);
 
       // }
 
