@@ -404,15 +404,16 @@ export class ReportsService {
 
       // const base64Image = './banner3.jpg';
       ///opt/render/project/src/src/reports/reports.service.ts:385:13
-      const imagePath = '../../../../public/banner3.jpg'; // Assuming the public folder is at the root
+      // const imagePath = '../../../../public/banner3.jpg'; // Assuming the public folder is at the root
 
       // Add an image, constrain it to a given size, and center it vertically and horizontally
 
       // Add an image
 
       try {
-        const imgPath = '../../../../public/banner3.jpg'; // Replace with your image path
+        const imgPath = path.join(__dirname, '../../public/banner3.jpg');
         const imgBuffer = fs.readFileSync(imgPath);
+
         doc.image(imgBuffer, 50, 50, {
           width: 100,
           height: 100,
