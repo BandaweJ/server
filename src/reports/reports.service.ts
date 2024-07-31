@@ -402,14 +402,13 @@ export class ReportsService {
 
       //border around the document
       doc
-        .roundedRect(
-          0,
-          0,
-          doc.page.width, //width
-          doc.page.height, //height
-          10, //radius of rounded corners
-        )
-        .fillColor(blueColor);
+        .moveTo(0, 0)
+        .lineTo(doc.page.width, 0)
+        .lineTo(doc.page.width, doc.page.height)
+        .lineTo(0, doc.page.height)
+        .lineTo(0, 0)
+        .stroke(blueColor)
+        .lineWidth(0.5);
 
       // }
 
