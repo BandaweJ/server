@@ -411,12 +411,12 @@ export class ReportsService {
       // Add an image
 
       try {
-        const imgPath = path.join(__dirname, '../../public/banner3.jpg');
+        const imgPath = path.join(__dirname, '../../public/banner.jpeg');
         const imgBuffer = fs.readFileSync(imgPath);
 
         doc.image(imgBuffer, margin, padding, {
           width: columnWidth * 18,
-          height: rowHeight * 4, // Adjust the height as needed - padding,
+          height: rowHeight * 4 - padding * 0.75, // Adjust the height as needed - padding ,
           align: 'center',
         }); // Adjust position and size as needed
 
