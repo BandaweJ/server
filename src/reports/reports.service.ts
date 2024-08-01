@@ -385,6 +385,7 @@ export class ReportsService {
       const blueColor = '#27aae1';
       const blackColor = '#000';
       const redColor = '#ff0000'; //'#ff4a95';
+      const redAccentColor = '#ff4a95';
 
       //default fontSize
       const defaultFontSize = 14;
@@ -457,7 +458,7 @@ export class ReportsService {
 
       //draw a horizontal red line
       doc
-        .strokeColor(redColor)
+        .strokeColor(redAccentColor)
         .moveTo(margin, rowHeight * 5)
         .lineTo(margin + columnWidth * 18, rowHeight * 5)
         .stroke();
@@ -838,6 +839,14 @@ export class ReportsService {
             align: 'left',
           },
         );
+      doc
+        .moveTo(0, 0)
+        .strokeColor(blueColor)
+        .lineWidth(10)
+        .lineTo(doc.page.width, 0)
+        .lineTo(doc.page.width, doc.page.height)
+        .lineTo(0, doc.page.height)
+        .lineTo(0, 0);
 
       // doc.rect(42.5197, 160.079, 510.236, 42.5197).stroke();
 
