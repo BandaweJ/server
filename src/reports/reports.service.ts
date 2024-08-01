@@ -400,16 +400,6 @@ export class ReportsService {
         },
       });
 
-      //border around the document
-      doc
-        .strokeColor(blueColor)
-        .lineWidth(2.5)
-        .moveTo(0, 0)
-        .lineTo(doc.page.width, 0)
-        .lineTo(doc.page.width, doc.page.height)
-        .lineTo(0, doc.page.height)
-        .lineTo(0, 0);
-
       // }
 
       //insert banner
@@ -504,6 +494,7 @@ export class ReportsService {
           },
         );
 
+      //class
       doc
         .fillColor(blackColor)
         .text('Class: ', columnWidth * 12, rowHeight * 5 + padding, {
@@ -546,7 +537,7 @@ export class ReportsService {
 
       //table headers
       doc
-        .strokeColor(blackColor)
+        .strokeColor(blueColor)
         .lineWidth(0.5)
         .rect(margin, rowHeight * 7, columnWidth, rowHeight)
         .stroke()
@@ -627,7 +618,7 @@ export class ReportsService {
 
         //subject row
         doc
-          .strokeColor(blackColor)
+          .strokeColor(blueColor)
           .fillColor(blackColor)
           .lineWidth(0.5)
           .rect(margin, rowHeight * (7 + i + 1), columnWidth, rowHeight)
@@ -716,7 +707,7 @@ export class ReportsService {
 
       //Average Mark row
       doc
-        .strokeColor(blackColor)
+        .strokeColor(blueColor)
         .fillColor(blackColor)
         .lineWidth(0.5)
         .rect(
