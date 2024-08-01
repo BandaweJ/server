@@ -846,7 +846,8 @@ export class ReportsService {
         .lineTo(doc.page.width, 0)
         .lineTo(doc.page.width, doc.page.height)
         .lineTo(0, doc.page.height)
-        .lineTo(0, 0);
+        .lineTo(0, 0)
+        .stroke();
 
       // doc.rect(42.5197, 160.079, 510.236, 42.5197).stroke();
 
