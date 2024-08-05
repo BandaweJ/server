@@ -441,6 +441,14 @@ export class MarksService {
         );
     }
 
+    const updated = await this.teacherCommentRepository.update(
+      { num: 2, year: 2024 },
+      { examType: 'Mid Term' },
+    );
+
+    console.log('Updated comments', updated.affected);
+    console.log('In createComment');
+
     const { comment, name, num, year, student, id, examType } = commentDto;
 
     // ....................

@@ -14,7 +14,6 @@ import { Repository } from 'typeorm';
 import { TeacherCommentEntity } from 'src/marks/entities/teacher-comments.entity';
 import * as PDFDocument from 'pdfkit';
 import * as fs from 'fs';
-import { height } from 'pdfkit/js/page';
 import { ReportsModel } from './models/reports.model';
 import { HeadCommentDto } from './dtos/head-comment.dto';
 import * as path from 'path';
