@@ -16,6 +16,7 @@ import { TeachersEntity } from 'src/profiles/entities/teachers.entity';
 import { StudentsEntity } from 'src/profiles/entities/students.entity';
 import { ParentsEntity } from 'src/profiles/entities/parents.entity';
 import { HeadCommentDto } from './dtos/head-comment.dto';
+import { ReportsModel } from './models/reports.model';
 
 @Controller('reports')
 @UseGuards(AuthGuard())
@@ -89,20 +90,15 @@ export class ReportsController {
   //   );
   // }
 
-  @Get('/pdf/:name/:num/:year/:studentNumber')
+  @Get('/pdf/:reportsModel')
   async getOnePDF(
-    @Param('name') name: string,
-    @Param('num') num: number,
-    @Param('year') year: number,
-    @Param('studentNumber') studentNumber: string,
+    @Param('reportsModel') reportsModel: ReportsModel,
+
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
     @Res() res: Response,
   ): Promise<void> {
-    const buffer = await this.reportsService.downloadReports(
-      name,
-      num,
-      year,
-      studentNumber,
+    const buffer = await this.reportsService.downloadReport(
+      reportsModel,
       profile,
     );
 

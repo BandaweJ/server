@@ -356,11 +356,8 @@ export class ReportsService {
       });
   }
 
-  async downloadReports(
-    name: string,
-    num: number,
-    year: number,
-    studentNumber: string,
+  async downloadReport(
+    reportsModel: ReportsModel,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
     // switch (profile.role) {
@@ -372,33 +369,33 @@ export class ReportsService {
     //     );
     // }
 
-    if (studentNumber) {
-      const report = await this.reportsRepository.findOne({
-        where: {
-          name,
-          num,
-          year,
-          studentNumber,
-        },
-      });
+    // if (studentNumber) {
+    //   const report = await this.reportsRepository.findOne({
+    //     where: {
+    //       name,
+    //       num,
+    //       year,
+    //       studentNumber,
+    //     },
+    //   });
 
-      return await this.generatePDF(report);
-    } else {
-      const reports = await this.reportsRepository.find({
-        where: {
-          name,
-          num,
-          year,
-        },
-      });
+    return await this.generatePDF(reportsModel);
+    // } else {
+    //   const reports = await this.reportsRepository.find({
+    //     where: {
+    //       name,
+    //       num,
+    //       year,
+    //     },
+    //   });
 
-      reports.map(async (rep) => {
-        return await this.generatePDF(rep);
-      });
-    }
+    //   reports.map(async (rep) => {
+    //     return await this.generatePDF(rep);
+    //   });
+    // }
   }
 
-  async generatePDF(report: ReportsEntity): Promise<Buffer> {
+  async generatePDF(report: ReportsModel): Promise<Buffer> {
     // console.log(report);
 
     const filename = `${report.report.name} ${report.report.surname} Term ${report.report.termNumber} - ${report.report.className}`;
