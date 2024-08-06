@@ -22,7 +22,7 @@ import { HeadCommentDto } from './dtos/head-comment.dto';
 export class ReportsController {
   constructor(private reportsService: ReportsService) {}
 
-  @Get('/generate/:name/:num/:year')
+  @Get('/generate/:name/:num/:year/:examType')
   generateReports(
     @Param('name') name: string,
     @Param('num') num: number,
@@ -60,15 +60,16 @@ export class ReportsController {
     return this.reportsService.saveHeadComment(comment, profile);
   }
 
-  @Get('/view/:name/:num/:year')
+  @Get('/view/:name/:num/:year/:examType')
   viewReports(
     @Param('name') name: string,
 
     @Param('num') num: number,
     @Param('year') year: number,
+    @Param('examType') examType: string,
     @GetUser() profile,
   ) {
-    return this.reportsService.viewReports(name, num, year, profile);
+    return this.reportsService.viewReports(name, num, year, examType, profile);
   }
 
   // @Get('view')
