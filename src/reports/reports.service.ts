@@ -55,7 +55,7 @@ export class ReportsService {
       year,
     );
 
-    //get all marks for the class for all subjects and examtype
+    //get all marks for the class for all subjects and current examtype
     const marks = await this.marksService.getMarksbyClass(
       num,
       year,
@@ -64,20 +64,23 @@ export class ReportsService {
       profile,
     );
 
-    //create a set of subjects
+    //create a set of subjects to avoid duplicates
     const subjectsSet = new Set<SubjectSetItem>();
 
     //populate subjectset with subjects done in class
     //used set so no duplicates
     marks.forEach((mark) => {
+      //loop through all marks and add each subject to set
       subjectsSet.add(new SubjectSetItem(mark.subject.code));
     });
 
     // calculate subject average and assign to each subject
     subjectsSet.forEach((subject) => {
       const subjectmarks = marks.filter(
+        //get marks for a particular subject onle
         (mark) => mark.subject.code === subject.code,
       );
+      //clculate the average mark for the subject
       const subjectAverage =
         subjectmarks.reduce((sum, current) => sum + current.mark, 0) /
         subjectmarks.length;
@@ -86,6 +89,7 @@ export class ReportsService {
       subjectmarks.sort((a, b) => b.mark - a.mark);
       subjectmarks.forEach(
         (mark) =>
+          //a mark of 100 is always at position 1
           (mark.position =
             mark.mark === 100
               ? '1' + '/' + subjectmarks.length
@@ -95,19 +99,8 @@ export class ReportsService {
       subject.average = subjectAverage;
     });
 
-    //get Teachers' comments
-    const comments = await this.teacherCommentRepository.find({
-      where: {
-        name,
-        num,
-        year,
-        // examtype,
-      },
-      relations: ['student', 'teacher'],
-    });
-
     // create empty report for each student in class
-    // fill in details like : studentNumber, name, surname, className, termNumber, termYear
+    // fill in details like : studentNumber, name, surname, className, termNumber, termYear, examType
     classList.map((enrol) => {
       const report = new ReportModel();
       report.subjectsTable = [];
@@ -117,13 +110,15 @@ export class ReportsService {
       report.className = enrol.name;
       report.termNumber = enrol.num;
       report.termYear = enrol.year;
+      report.examType = examType;
 
       //get student's marks
       const studentMarks = marks.filter(
         (mark) => mark.student.studentNumber === enrol.student.studentNumber,
       );
 
-      // studentMarks.length &&
+      // create a row for the Reports Table and push it to the report table
+      //report table is a table if subjects and marks and comments in each report
       studentMarks.forEach((subjectMark) => {
         const subjectInfo = new SubjectInfoModel();
 
@@ -143,6 +138,7 @@ export class ReportsService {
       reports.push(report);
     });
 
+    //assign the classSize which equals reports.length and calculate avarage mark for each report/student
     reports.map((report) => {
       report.classSize = reports.length;
       report.percentageAverge =
@@ -150,13 +146,26 @@ export class ReportsService {
         report.subjectsTable.length;
     });
 
+    //sort reports based on avarage mark to assign positions
     reports.sort((a, b) => b.percentageAverge - a.percentageAverge);
 
+    //add 1 to each report position to offset array start position
     reports.forEach(
       (report) => (report.classPosition = reports.indexOf(report) + 1),
     );
 
-    // console.log(comments);
+    //get Teachers' comments for the class, term and examType
+    const comments = await this.teacherCommentRepository.find({
+      where: {
+        name,
+        num,
+        year,
+        examType,
+      },
+      relations: ['student', 'teacher'],
+    });
+
+    //assign class Teacher's comments to each report
     reports.map((report) => {
       comments.map((comment) => {
         if (comment.student.studentNumber === report.studentNumber) {
@@ -165,6 +174,7 @@ export class ReportsService {
       });
     });
 
+    //calculate subjects passed
     reports.map((report) => {
       report.subjectsPassed = 0;
       report.subjectsTable.map((subj) => {
@@ -174,6 +184,8 @@ export class ReportsService {
       });
     });
 
+    //create an array of reportsModel objects to encapsulate each report with much accessed data
+    //so that it becomes easy to access that data without accessing the actual report
     const reps: ReportsModel[] = [];
 
     reports.map((report) => {
@@ -184,12 +196,19 @@ export class ReportsService {
       rep.report = report;
       rep.studentNumber = report.studentNumber;
       rep.year = year;
+      rep.examType = examType;
 
       reps.push(rep);
     });
 
     //check if reports already saved and assign id and head's comment
-    const savedReports = await this.viewReports(name, num, year, profile);
+    const savedReports = await this.viewReports(
+      name,
+      num,
+      year,
+      examType,
+      profile,
+    );
     savedReports.map((rep) => {
       reps.map((rp) => {
         if (rep.studentNumber === rp.studentNumber) {
@@ -199,6 +218,7 @@ export class ReportsService {
       });
     });
 
+    //assign point for A level students
     reps.map((rep) => {
       if (rep.name.charAt(0) === '5' || rep.name.charAt(0) === '6') {
         let pnts = 0;
@@ -209,10 +229,12 @@ export class ReportsService {
       }
     });
 
+    //sort the reports table so that the list of subjects on the report is the same for the fronent
     reps.map((rep) => {
       rep.report.subjectsTable.sort((a, b) => +b.subjectCode - +a.subjectCode);
     });
 
+    //calculate the number of A*,A,B,C,D s for the MarksSheet
     reps.map((rep) => {
       rep.report.symbols = Array(5).fill(0);
       rep.report.subjectsTable.forEach((subj) => {
@@ -291,8 +313,10 @@ export class ReportsService {
     comment: HeadCommentDto,
     profile: StudentsEntity | TeachersEntity | ParentsEntity,
   ): Promise<ReportsEntity> {
+    //assign the comment to the report
     comment.report.report.headComment = comment.comment;
 
+    //save the report
     return await this.reportsRepository.save({
       ...comment.report,
     });
@@ -302,6 +326,7 @@ export class ReportsService {
     name: string,
     num: number,
     year: number,
+    examType: string,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ): Promise<ReportsEntity[]> {
     switch (profile.role) {
@@ -312,13 +337,23 @@ export class ReportsService {
         );
     }
 
-    return await this.reportsRepository.find({
-      where: {
-        name,
-        num,
-        year,
-      },
-    });
+    if (examType) {
+      return await this.reportsRepository.find({
+        where: {
+          name,
+          num,
+          year,
+          examType,
+        },
+      });
+    } else
+      return await this.reportsRepository.find({
+        where: {
+          name,
+          num,
+          year,
+        },
+      });
   }
 
   async downloadReports(

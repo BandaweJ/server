@@ -18,4 +18,5 @@ export class ReportModel {
   classSize: number;
   subjectsPassed: number;
   symbols: number[];
+  examType?: string;
 }

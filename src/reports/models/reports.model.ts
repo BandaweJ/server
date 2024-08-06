@@ -7,4 +7,5 @@ export class ReportsModel {
   year: number;
   studentNumber: string;
   report: ReportModel;
+  examType?: string;
 }

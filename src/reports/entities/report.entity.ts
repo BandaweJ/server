@@ -20,4 +20,7 @@ export class ReportsEntity {
 
   @Column('simple-json')
   report: ReportModel;
+
+  @Column({ nullable: true })
+  examType: string;
 }
