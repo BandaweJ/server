@@ -891,11 +891,11 @@ export class ReportsService {
         const watermarkBuffer = fs.readFileSync(watermarkImg);
 
         const x = doc.page.width / 2 - 50;
-        const y = doc.page.height / 2 - 50;
+        const y = doc.page.height / 2 - 75;
 
         doc
           .rect(x, y, 100, 100)
-          .fillOpacity(0.5) // Set opacity to 50%
+          .fillOpacity(0.2) // Set opacity to 50%
           .fill();
 
         doc.image(
