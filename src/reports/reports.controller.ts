@@ -90,9 +90,9 @@ export class ReportsController {
   //   );
   // }
 
-  @Get('/pdf/:reportsModel')
+  @Post('/pdf')
   async getOnePDF(
-    @Param('reportsModel') reportsModel: ReportsModel,
+    @Body() reportsModel: ReportsModel,
 
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
     @Res() res: Response,
