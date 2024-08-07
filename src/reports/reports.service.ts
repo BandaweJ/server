@@ -357,7 +357,11 @@ export class ReportsService {
   }
 
   async downloadReport(
-    reportsModel: ReportsModel,
+    name,
+    num,
+    year,
+    examType,
+    studentNumber,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
     // switch (profile.role) {
@@ -379,7 +383,13 @@ export class ReportsService {
     //     },
     //   });
 
-    return await this.generatePDF(reportsModel);
+    const reps = await this.generateReports(name, num, year, examType, profile);
+
+    const reportToDownload = reps.find(
+      (rep) => rep.studentNumber === studentNumber,
+    );
+
+    return await this.generatePDF(reportToDownload);
     // } else {
     //   const reports = await this.reportsRepository.find({
     //     where: {

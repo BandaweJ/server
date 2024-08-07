@@ -90,15 +90,23 @@ export class ReportsController {
   //   );
   // }
 
-  @Post('/pdf')
+  @Get('/pdf/:name/:num/:year/:examType/:studentNumber/')
   async getOnePDF(
-    @Body() reportsModel: ReportsModel,
+    @Param('name') name: string,
+    @Param('num') num: number,
+    @Param('year') year: number,
+    @Param('examType') examType: string,
+    @Param('studentNumber') studentNumber: string,
 
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
     @Res() res: Response,
   ): Promise<void> {
     const buffer = await this.reportsService.downloadReport(
-      reportsModel,
+      name,
+      num,
+      year,
+      examType,
+      studentNumber,
       profile,
     );
 
