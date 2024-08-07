@@ -463,15 +463,10 @@ export class ReportsService {
           height: rowHeight * 3, // Adjust the height as needed - padding ,
           align: 'center',
         }); // Adjust position and size as needed
-
-        // doc.image(imagePath, {
-        //   fit: [250, 300],
-        //   align: 'center',
-        //   valign: 'center',
-        // });
       } catch (err) {
         console.log('Failed to add image: ', err);
       }
+
       // const imageBuffer = Buffer.from(base64Image, 'base64');
       // doc.image(base64Image, 0, 0, { fit: [250, 300] });
 
@@ -889,6 +884,32 @@ export class ReportsService {
         .lineTo(0, doc.page.height)
         .lineTo(0, 0)
         .stroke();
+
+      // Load the watermark image
+      try {
+        const watermarkImg = path.join(__dirname, '../../public/logo.png');
+        const watermarkBuffer = fs.readFileSync(watermarkImg);
+
+        const x = doc.page.width / 2 - 50;
+        const y = doc.page.height / 2 - 50;
+
+        doc
+          .rect(x, y, 100, 100)
+          .fillOpacity(0.5) // Set opacity to 50%
+          .fill();
+
+        doc.image(
+          watermarkBuffer,
+          x,
+          y,
+
+          {
+            width: 100,
+            height: 100,
+          },
+        );
+        doc.restore();
+      } catch (e) {}
 
       // doc.rect(42.5197, 160.079, 510.236, 42.5197).stroke();
 
