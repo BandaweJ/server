@@ -405,7 +405,9 @@ export class ReportsService {
     // }
   }
 
-  async generatePDF(report: ReportsModel): Promise<Buffer> {
+  async generatePDF(
+    report: ReportsModel,
+  ): Promise<{ buffer: Buffer; filename: string }> {
     // console.log(report);
 
     const filename = `${report.report.name} ${report.report.surname} Term ${report.report.termNumber} - ${report.report.className}`;
@@ -431,6 +433,8 @@ export class ReportsService {
       //default fontSize
       const defaultFontSize = 14;
 
+      const title = `${report.report.name} ${report.report.surname} Term ${report.report.termNumber} - ${report.report.className}`;
+
       const doc = new PDFDocument({
         // font: '',
         size: 'A4',
@@ -438,7 +442,7 @@ export class ReportsService {
         bufferPages: true,
         displayTitle: true,
         info: {
-          Title: `${report.report.name} ${report.report.surname} Term ${report.report.termNumber} - ${report.report.className}`,
+          Title: title,
         },
       });
 
@@ -920,12 +924,12 @@ export class ReportsService {
       doc.on('data', buffer.push.bind(buffer));
       doc.on('end', () => {
         const data = Buffer.concat(buffer);
-
+        // const filename = title;
         resolve(data);
       });
     });
 
-    return pdfBuffer;
+    return { buffer: pdfBuffer, filename: `${filename}.pdf` };
   }
 
   private mmToPoints(mm: number): number {

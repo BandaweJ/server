@@ -101,7 +101,7 @@ export class ReportsController {
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
     @Res() res: Response,
   ): Promise<void> {
-    const buffer = await this.reportsService.downloadReport(
+    const result = await this.reportsService.downloadReport(
       name,
       num,
       year,
@@ -110,15 +110,15 @@ export class ReportsController {
       profile,
     );
 
-    const filename = `${studentNumber}_${name}_${num}_${year}_report.pdf`;
+    // const filename = `${studentNumber}_${name}_${num}_${year}_report.pdf`;
 
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-      'Content-Length': buffer.length,
+      'Content-Disposition': `attachment; filename="${result.filename}"`,
+      'Content-Length': result.buffer.length,
     });
 
-    res.end(buffer);
+    res.end(result.buffer);
   }
 
   // @Get('/pdf/:name/:num/:year')
