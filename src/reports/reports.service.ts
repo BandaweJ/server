@@ -885,31 +885,31 @@ export class ReportsService {
         .lineTo(0, 0)
         .stroke();
 
-      // Load the watermark image
-      try {
-        const watermarkImg = path.join(__dirname, '../../public/logo.png');
-        const watermarkBuffer = fs.readFileSync(watermarkImg);
+      // // Load the watermark image
+      // try {
+      //   const watermarkImg = path.join(__dirname, '../../public/logo.png');
+      //   const watermarkBuffer = fs.readFileSync(watermarkImg);
 
-        const x = doc.page.width / 2 - 50;
-        const y = doc.page.height / 2 - 75;
+      //   const x = doc.page.width / 2 - 50;
+      //   const y = doc.page.height / 2 - 75;
 
-        doc
-          .rect(x, y, 100, 100)
-          .fillOpacity(0.2) // Set opacity to 50%
-          .fill();
+      //   doc
+      //     .rect(x, y, 100, 100)
+      //     .fillOpacity(0.2) // Set opacity to 50%
+      //     .fill();
 
-        doc.image(
-          watermarkBuffer,
-          x,
-          y,
+      //   doc.image(
+      //     watermarkBuffer,
+      //     x,
+      //     y,
 
-          {
-            width: 100,
-            height: 100,
-          },
-        );
-        doc.restore();
-      } catch (e) {}
+      //     {
+      //       width: 100,
+      //       height: 100,
+      //     },
+      //   );
+      //   doc.restore();
+      // } catch (e) {}
 
       // doc.rect(42.5197, 160.079, 510.236, 42.5197).stroke();
 
