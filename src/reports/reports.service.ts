@@ -920,6 +920,7 @@ export class ReportsService {
       doc.on('data', buffer.push.bind(buffer));
       doc.on('end', () => {
         const data = Buffer.concat(buffer);
+
         resolve(data);
       });
     });

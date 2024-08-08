@@ -110,9 +110,11 @@ export class ReportsController {
       profile,
     );
 
+    const filename = `${studentNumber}_${name}_${num}_${year}_report.pdf`;
+
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': 'attachment; filename=example.pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
       'Content-Length': buffer.length,
     });
 
