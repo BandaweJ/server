@@ -17,11 +17,8 @@ import { ParentsEntity } from '../profiles/entities/parents.entity';
 import { StudentsEntity } from '../profiles/entities/students.entity';
 import { EnrolmentService } from './enrolment.service';
 import { EnrolDto } from './dtos/enrol.dto';
-import { ClassEntity } from './entities/class.entity';
-import { UpdateClassDto } from './dtos/update-class.dto';
 import { MarkRegisterDto } from './dtos/mark-register.dto';
 import { CreateTermDto } from './dtos/create-term.dto';
-import { TermsEntity } from './entities/term.entity';
 
 @Controller('enrolment')
 @UseGuards(AuthGuard())

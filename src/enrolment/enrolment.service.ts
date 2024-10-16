@@ -449,11 +449,25 @@ export class EnrolmentService {
     });
 
     if (currentClassEnrolments.length) {
+      const newClassEnrolment: EnrolEntity[] = [];
+
       currentClassEnrolments.map((enrol) => {
-        enrol.name = toName;
-        enrol.num = toNum;
-        enrol.year = toYear;
+        const newEnrol = new EnrolEntity();
+
+        newEnrol.name = toName;
+        newEnrol.num = toNum;
+        newEnrol.year = toYear;
+        newEnrol.student = enrol.student;
+
+        newClassEnrolment.push(newEnrol);
       });
+
+      await this.enrolmentRepository.save([...newClassEnrolment]);
+      return { result: true };
+      //   enrol.name = toName;
+      //   enrol.num = toNum;
+      //   enrol.year = toYear;
+      // });
 
       await this.enrolmentRepository.save([...currentClassEnrolments]);
       return { result: true };
