@@ -448,13 +448,14 @@ export class EnrolmentService {
     //   relations: ['student'],
     // });
 
-    const currentClassEnrolments = await this.getEnrolmentByClass(
+    let currentClassEnrolments = await this.getEnrolmentByClass(
       fromName,
       fromNum,
       fromYear,
     );
 
     if (currentClassEnrolments.length) {
+      currentClassEnrolments = [...new Set(currentClassEnrolments)];
       const newClassEnrolment: EnrolEntity[] = [];
       console.log('Enrolments found: ', currentClassEnrolments.length);
 
