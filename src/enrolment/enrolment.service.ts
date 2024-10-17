@@ -438,19 +438,25 @@ export class EnrolmentService {
     toNum: number,
     toYear: number,
   ) {
-    const currentClassEnrolments = await this.enrolmentRepository.find({
-      select: ['name', 'num', 'year'],
-      where: {
-        name: fromName,
-        num: fromNum,
-        year: fromYear,
-      },
-      relations: ['student'],
-    });
+    // const currentClassEnrolments = await this.enrolmentRepository.find({
+    //   select: ['name', 'num', 'year'],
+    //   where: {
+    //     name: fromName,
+    //     num: fromNum,
+    //     year: fromYear,
+    //   },
+    //   relations: ['student'],
+    // });
+
+    const currentClassEnrolments = await this.getEnrolmentByClass(
+      fromName,
+      fromNum,
+      fromYear,
+    );
 
     if (currentClassEnrolments.length) {
       const newClassEnrolment: EnrolEntity[] = [];
-      console.log(currentClassEnrolments);
+      console.log('Enrolments found: ', currentClassEnrolments.length);
 
       currentClassEnrolments.map((enrol) => {
         const newEnrol = new EnrolEntity();
