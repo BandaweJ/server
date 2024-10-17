@@ -450,6 +450,7 @@ export class EnrolmentService {
 
     if (currentClassEnrolments.length) {
       const newClassEnrolment: EnrolEntity[] = [];
+      console.log(currentClassEnrolments);
 
       currentClassEnrolments.map((enrol) => {
         const newEnrol = new EnrolEntity();
