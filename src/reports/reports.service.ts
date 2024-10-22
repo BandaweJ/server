@@ -485,7 +485,7 @@ export class ReportsService {
         .stroke();
 
       //insert heading
-      const heading = `End of Term ${report.report.termNumber}, ${report.report.termYear} Report Card`;
+      const heading = `${report.examType} ${report.report.termNumber}, ${report.report.termYear} Report Card`;
       doc
         .fillColor(blackColor)
         .fontSize(defaultFontSize + 10)
