@@ -23,6 +23,8 @@ import { ResourceByIdService } from '../resource-by-id/resource-by-id.service';
 import { EnrolStats } from './dtos/enrol-stats.dto';
 import { MarkRegisterDto } from './dtos/mark-register.dto';
 import { AttendanceEntity } from './entities/attendance.entity';
+import { StudentsSummary } from './models/students-summary.model';
+import { map } from 'rxjs';
 
 @Injectable()
 export class EnrolmentService {
@@ -308,8 +310,8 @@ export class EnrolmentService {
     });
   }
 
-  async getTotalEnrolmentByTerm(num: number, year: number): Promise<number> {
-    const enrols = await this.enrolmentRepository.find({
+  async getTotalEnrolmentByTerm(num: number, year: number): Promise<StudentsSummary> {
+    const enrols: EnrolEntity[] = await this.enrolmentRepository.find({
       where: {
         num,
         year,
@@ -317,7 +319,15 @@ export class EnrolmentService {
       relations: ['student'],
     });
 
-    return enrols.length;
+    let summary: StudentsSummary;
+
+    summary.total = enrols.length;
+    summary.boarders = enrols.filter(enrol => enrol.student.residence === 'Boarder').length;
+    summary.dayScholars = enrols.filter(enrol => enrol.student.residence === 'Day').length;
+    summary.boys = enrols.filter(enrol => enrol.student.gender === 'Male').length;
+    summary.girls = enrols.filter(enrol => enrol.student.gender === 'Female').length;
+
+    return summary;
   }
 
   async getEnrolmentByTerm(num: number, year: number): Promise<EnrolEntity[]> {
