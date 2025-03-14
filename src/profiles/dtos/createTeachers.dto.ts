@@ -73,6 +73,6 @@ export class CreateTeacherDto {
 
   @ApiProperty()
   @IsOptional()
-  @IsBoolean()
+  @IsString()
   role?: string;
 }
