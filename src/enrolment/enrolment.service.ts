@@ -324,7 +324,7 @@ export class EnrolmentService {
       boarders: 0,
       dayScholars: 0,
       boys: 0,
-      girls: 0,
+      girls:0,
     }
 
     summary.total = enrols.length;

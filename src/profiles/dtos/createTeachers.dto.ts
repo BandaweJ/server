@@ -51,7 +51,7 @@ export class CreateTeacherDto {
   @ApiProperty()
   @IsBoolean()
   @IsOptional()
-  actve: boolean;
+  active: boolean;
 
   @ApiProperty()
   @IsString()
@@ -70,4 +70,9 @@ export class CreateTeacherDto {
   @IsOptional()
   @IsDateString()
   dateOfLeaving?: Date;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsBoolean()
+  role?: boolean;
 }

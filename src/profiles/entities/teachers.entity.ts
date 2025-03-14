@@ -39,7 +39,7 @@ export class TeachersEntity extends BaseEntity {
   qualifications: string[];
 
   @Column({ default: true })
-  actve: boolean;
+  active: boolean;
 
   @Column()
   cell: string;
