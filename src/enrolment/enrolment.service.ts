@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import {
   BadRequestException,
   Injectable,
@@ -310,7 +311,10 @@ export class EnrolmentService {
     });
   }
 
-  async getTotalEnrolmentByTerm(num: number, year: number): Promise<StudentsSummary> {
+  async getTotalEnrolmentByTerm(
+    num: number,
+    year: number,
+  ): Promise<StudentsSummary> {
     const enrols: EnrolEntity[] = await this.enrolmentRepository.find({
       where: {
         num,
@@ -324,14 +328,22 @@ export class EnrolmentService {
       boarders: 0,
       dayScholars: 0,
       boys: 0,
-      girls:0,
-    }
+      girls: 0,
+    };
 
     summary.total = enrols.length;
-    summary.boarders = enrols.filter(enrol => enrol.student.residence === 'Boarder').length;
-    summary.dayScholars = enrols.filter(enrol => enrol.student.residence === 'Day').length;
-    summary.boys = enrols.filter(enrol => enrol.student.gender === 'Male').length;
-    summary.girls = enrols.filter(enrol => enrol.student.gender === 'Female').length;
+    summary.boarders = enrols.filter(
+      (enrol) => enrol.student.residence === 'Boarder',
+    ).length;
+    summary.dayScholars = enrols.filter(
+      (enrol) => enrol.student.residence === 'Day',
+    ).length;
+    summary.boys = enrols.filter(
+      (enrol) => enrol.student.gender === 'Male',
+    ).length;
+    summary.girls = enrols.filter(
+      (enrol) => enrol.student.gender === 'Female',
+    ).length;
 
     return summary;
   }

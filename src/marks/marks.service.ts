@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import {
   BadRequestException,
   Injectable,
@@ -19,6 +20,8 @@ import { CreateSubjectDto } from './dtos/create-subject.dto';
 import { EnrolmentService } from 'src/enrolment/enrolment.service';
 import { CommentDto } from './dtos/comment.dto';
 import { TeacherCommentEntity } from './entities/teacher-comments.entity';
+import { MarksProgressModel } from './models/marks-progress.model';
+import { profile } from 'console';
 
 @Injectable()
 export class MarksService {
@@ -591,5 +594,68 @@ export class MarksService {
     // console.log(classSubjectMarks[0]);
 
     return classComments;
+  }
+
+  async fetchMarksProgress(
+    num: number,
+    year: number,
+    fom: number,
+    examType: string,
+    profile: TeachersEntity,
+  ): Promise<MarksProgressModel[]> {
+    //get list of all classes with form equal to fom
+    const allClasses = await this.enrolmentService.getAllClasses();
+    const classes = allClasses.filter((cl) => cl.form === fom);
+
+    const marksProgress: MarksProgressModel[] = [];
+
+    for (const clas of classes) {
+      const marks = await this.getMarksbyClass(
+        num,
+        year,
+        clas.name,
+        examType,
+        profile,
+      );
+      // Create set of subjects in class
+      const subjectsSet = new Set<SubjectsEntity>(
+        marks.map((mark) => mark.subject),
+      );
+      const subjects = Array.from(subjectsSet);
+
+      for (const subject of subjects) {
+        // Filter marks for this subject
+        const marksForSubject = marks.filter(
+          (mark) => mark.subject.code === subject.code,
+        );
+
+        const totalStudentsInClass =
+          await this.enrolmentService.getEnrolmentByClass(clas.name, num, year);
+
+        const totalStudents = totalStudentsInClass.length;
+
+        const marksEntered = marksForSubject.length;
+        const progress = (marksEntered / totalStudentsInClass.length) * 100;
+
+        marksProgress.push({
+          className: clas.name,
+          totalStudents: totalStudentsInClass.length,
+          marksEntered: marksEntered,
+          subject: subject,
+          progress: progress,
+        });
+      }
+    }
+
+    marksProgress.sort((a, b) => {
+      if (a.subject.code < b.subject.code) {
+        return -1;
+      } else if (a > b) {
+        return 1;
+      }
+      return 0;
+    });
+
+    return marksProgress;
   }
 }

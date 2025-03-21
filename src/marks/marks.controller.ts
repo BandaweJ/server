@@ -170,4 +170,21 @@ export class MarksController {
       profile,
     );
   }
+
+  @Get('/marks/:num/:year/:fom/:examType')
+  fetchMarksProgress(
+    @Param('fom') fom: number,
+    @Param('num') num: number,
+    @Param('year') year: number,
+    @Param('examType') examType: string,
+    @GetUser() profile: TeachersEntity,
+  ) {
+    return this.marksService.fetchMarksProgress(
+      num,
+      year,
+      fom,
+      examType,
+      profile,
+    );
+  }
 }
