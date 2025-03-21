@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import {
   Body,
   Controller,
@@ -15,8 +16,7 @@ import { StudentsEntity } from '../profiles/entities/students.entity';
 import { ParentsEntity } from '../profiles/entities/parents.entity';
 import { TeachersEntity } from '../profiles/entities/teachers.entity';
 import { CreateMarkDto } from './dtos/create-mark.dto';
-import { UpdateMarkDto } from './dtos/update-mark.dto';
-import { MarksEntity } from './entities/marks.entity';
+
 import { AuthGuard } from '@nestjs/passport';
 import { CommentDto } from './dtos/comment.dto';
 
