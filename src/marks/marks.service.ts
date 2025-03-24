@@ -599,64 +599,53 @@ export class MarksService {
   async fetchMarksProgress(
     num: number,
     year: number,
-    fom: number,
+    clas: string,
     examType: string,
     profile: TeachersEntity,
   ): Promise<MarksProgressModel[]> {
-    //get list of all classes with form equal to fom
-    const allClasses = await this.enrolmentService.getAllClasses();
-    const classes = allClasses.filter((cl) => cl.form === fom);
+    const marks = await this.getMarksbyClass(
+      num,
+      year,
+      clas,
+      examType,
+      profile,
+    );
 
-    console.log('All classes ', classes);
+    // Create set of subjects in class
+    const subjectsSet = new Set<string>(marks.map((mark) => mark.subject.code));
+    const subjectsNames = Array.from(subjectsSet);
 
     const marksProgress: MarksProgressModel[] = [];
 
-    for (const clas of classes) {
-      const marks = await this.getMarksbyClass(
-        num,
-        year,
-        clas.name,
-        examType,
-        profile,
+    const clasEnrolment = await this.enrolmentService.getEnrolmentByClass(
+      clas,
+      num,
+      year,
+    );
+
+    subjectsNames.forEach((subjectName) => {
+      const marksForSubject = marks.filter(
+        (mark) => mark.subject.name === subjectName,
       );
-      // Create set of subjects in class
-      const subjectsSet = new Set<SubjectsEntity>(
-        marks.map((mark) => mark.subject),
-      );
-      const subjects = Array.from(subjectsSet);
+      const marksProgressItem: MarksProgressModel = {
+        subject: marksForSubject[0].subject,
+        marksEntered: marksForSubject.length,
+        totalStudents: clasEnrolment.length,
+        progress: marksForSubject.length / clasEnrolment.length,
+        className: clas,
+      };
 
-      for (const subject of subjects) {
-        // Filter marks for this subject
-        const marksForSubject = marks.filter(
-          (mark) => mark.subject.code === subject.code,
-        );
+      marksProgress.push(marksProgressItem);
+    });
 
-        const totalStudentsInClass =
-          await this.enrolmentService.getEnrolmentByClass(clas.name, num, year);
-
-        const totalStudents = totalStudentsInClass.length;
-
-        const marksEntered = marksForSubject.length;
-        const progress = (marksEntered / totalStudentsInClass.length) * 100;
-
-        marksProgress.push({
-          className: clas.name,
-          totalStudents,
-          marksEntered: marksEntered,
-          subject: subject,
-          progress: progress,
-        });
+    marksProgress.sort((a, b) => {
+      if (a.subject.code < b.subject.code) {
+        return -1;
+      } else if (a > b) {
+        return 1;
       }
-    }
-
-    // marksProgress.sort((a, b) => {
-    //   if (a.subject.code < b.subject.code) {
-    //     return -1;
-    //   } else if (a > b) {
-    //     return 1;
-    //   }
-    //   return 0;
-    // });
+      return 0;
+    });
 
     console.log(marksProgress[1]);
 

@@ -173,17 +173,17 @@ export class MarksController {
 
   @Get('/marks/:num/:year/:fom/:examType')
   fetchMarksProgress(
-    @Param('fom') fom: number,
+    @Param('clas') clas: string,
     @Param('num') num: number,
     @Param('year') year: number,
     @Param('examType') examType: string,
     @GetUser() profile: TeachersEntity,
   ) {
-    console.log('In controller');
+    // console.log('In controller');
     return this.marksService.fetchMarksProgress(
       num,
       year,
-      fom,
+      clas,
       examType,
       profile,
     );
