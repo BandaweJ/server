@@ -179,6 +179,7 @@ export class MarksController {
     @Param('examType') examType: string,
     @GetUser() profile: TeachersEntity,
   ) {
+    console.log('In controller');
     return this.marksService.fetchMarksProgress(
       num,
       year,
