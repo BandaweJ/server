@@ -602,7 +602,7 @@ export class MarksService {
     clas: string,
     examType: string,
     profile: TeachersEntity,
-  ): Promise<MarksProgressModel[]> {
+  ): Promise<any[]> {
     const marks = await this.getMarksbyClass(
       num,
       year,
@@ -650,6 +650,6 @@ export class MarksService {
 
     console.log(marksProgress[1]);
 
-    return marksProgress;
+    return marks;
   }
 }
