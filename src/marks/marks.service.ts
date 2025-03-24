@@ -611,44 +611,44 @@ export class MarksService {
       profile,
     );
 
-    // Create set of subjects in class
-    const subjectsSet = new Set<string>(marks.map((mark) => mark.subject.code));
-    const subjectsNames = Array.from(subjectsSet);
+    // // Create set of subjects in class
+    // const subjectsSet = new Set<string>(marks.map((mark) => mark.subject.code));
+    // const subjectsNames = Array.from(subjectsSet);
 
-    const marksProgress: MarksProgressModel[] = [];
+    // const marksProgress: MarksProgressModel[] = [];
 
-    const clasEnrolment = await this.enrolmentService.getEnrolmentByClass(
-      clas,
-      num,
-      year,
-    );
+    // const clasEnrolment = await this.enrolmentService.getEnrolmentByClass(
+    //   clas,
+    //   num,
+    //   year,
+    // );
 
-    subjectsNames.forEach((subjectName) => {
-      const marksForSubject = marks.filter(
-        (mark) => mark.subject.name === subjectName,
-      );
-      const marksProgressItem: MarksProgressModel = {
-        subject: marks.find((mark) => mark.subject.name === subjectName)
-          .subject,
-        marksEntered: marksForSubject.length,
-        totalStudents: clasEnrolment.length,
-        progress: marksForSubject.length / clasEnrolment.length,
-        className: clas,
-      };
+    // subjectsNames.forEach((subjectName) => {
+    //   const marksForSubject = marks.filter(
+    //     (mark) => mark.subject.name === subjectName,
+    //   );
+    //   const marksProgressItem: MarksProgressModel = {
+    //     subject: marks.find((mark) => mark.subject.name === subjectName)
+    //       .subject,
+    //     marksEntered: marksForSubject.length,
+    //     totalStudents: clasEnrolment.length,
+    //     progress: marksForSubject.length / clasEnrolment.length,
+    //     className: clas,
+    //   };
 
-      marksProgress.push(marksProgressItem);
-    });
+    //   marksProgress.push(marksProgressItem);
+    // });
 
-    marksProgress.sort((a, b) => {
-      if (a.subject.code < b.subject.code) {
-        return -1;
-      } else if (a > b) {
-        return 1;
-      }
-      return 0;
-    });
+    // marksProgress.sort((a, b) => {
+    //   if (a.subject.code < b.subject.code) {
+    //     return -1;
+    //   } else if (a > b) {
+    //     return 1;
+    //   }
+    //   return 0;
+    // });
 
-    console.log(marksProgress[1]);
+    // console.log(marksProgress[1]);
 
     return marks;
   }
