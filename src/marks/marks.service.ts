@@ -628,7 +628,8 @@ export class MarksService {
         (mark) => mark.subject.name === subjectName,
       );
       const marksProgressItem: MarksProgressModel = {
-        subject: marksForSubject[0].subject,
+        subject: marks.find((mark) => mark.subject.name === subjectName)
+          .subject,
         marksEntered: marksForSubject.length,
         totalStudents: clasEnrolment.length,
         progress: marksForSubject.length / clasEnrolment.length,
