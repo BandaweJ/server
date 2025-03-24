@@ -612,32 +612,31 @@ export class MarksService {
     );
 
     // // Create set of subjects in class
-    const subjectsSet = new Set<string>(marks.map((mark) => mark.subject.code));
+    const subjectsSet = new Set<string>(marks.map((mark) => mark.subject.name));
     const subjectsNames = Array.from(subjectsSet);
 
-    // const marksProgress: MarksProgressModel[] = [];
+    const marksProgress: MarksProgressModel[] = [];
 
-    // const clasEnrolment = await this.enrolmentService.getEnrolmentByClass(
-    //   clas,
-    //   num,
-    //   year,
-    // );
+    const clasEnrolment = await this.enrolmentService.getEnrolmentByClass(
+      clas,
+      num,
+      year,
+    );
 
-    // subjectsNames.forEach((subjectName) => {
-    //   const marksForSubject = marks.filter(
-    //     (mark) => mark.subject.name === subjectName,
-    //   );
-    //   const marksProgressItem: MarksProgressModel = {
-    //     subject: marks.find((mark) => mark.subject.name === subjectName)
-    //       .subject,
-    //     marksEntered: marksForSubject.length,
-    //     totalStudents: clasEnrolment.length,
-    //     progress: marksForSubject.length / clasEnrolment.length,
-    //     className: clas,
-    //   };
-
-    //   marksProgress.push(marksProgressItem);
-    // });
+    subjectsNames.forEach((subjectName) => {
+      const marksForSubject = marks.filter(
+        (mark) => mark.subject.name === subjectName,
+      );
+      const marksProgressItem: MarksProgressModel = {
+        subject: marks.find((mark) => mark.subject.name === subjectName)
+          .subject,
+        marksEntered: marksForSubject.length,
+        totalStudents: clasEnrolment.length,
+        progress: marksForSubject.length / clasEnrolment.length,
+        className: clas,
+      };
+      marksProgress.push(marksProgressItem);
+    });
 
     // marksProgress.sort((a, b) => {
     //   if (a.subject.code < b.subject.code) {
@@ -650,6 +649,6 @@ export class MarksService {
 
     // console.log(marksProgress[1]);
 
-    return subjectsNames;
+    return marksProgress;
   }
 }
