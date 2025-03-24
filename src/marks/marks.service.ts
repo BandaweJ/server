@@ -632,7 +632,7 @@ export class MarksService {
           .subject,
         marksEntered: marksForSubject.length,
         totalStudents: clasEnrolment.length,
-        progress: marksForSubject.length / clasEnrolment.length,
+        progress: (marksForSubject.length / clasEnrolment.length) * 100,
         className: clas,
       };
       marksProgress.push(marksProgressItem);
