@@ -607,7 +607,7 @@ export class MarksService {
     const allClasses = await this.enrolmentService.getAllClasses();
     const classes = allClasses.filter((cl) => cl.form === fom);
 
-    console.log(classes);
+    console.log('All classes ', classes);
 
     const marksProgress: MarksProgressModel[] = [];
 
