@@ -171,7 +171,7 @@ export class MarksController {
     );
   }
 
-  @Get('/marks/:num/:year/:fom/:examType')
+  @Get('/progress/:num/:year/:clas/:examType')
   fetchMarksProgress(
     @Param('clas') clas: string,
     @Param('num') num: number,
