@@ -612,8 +612,8 @@ export class MarksService {
     );
 
     // // Create set of subjects in class
-    // const subjectsSet = new Set<string>(marks.map((mark) => mark.subject.code));
-    // const subjectsNames = Array.from(subjectsSet);
+    const subjectsSet = new Set<string>(marks.map((mark) => mark.subject.code));
+    const subjectsNames = Array.from(subjectsSet);
 
     // const marksProgress: MarksProgressModel[] = [];
 
@@ -650,6 +650,6 @@ export class MarksService {
 
     // console.log(marksProgress[1]);
 
-    return marks;
+    return subjectsNames;
   }
 }
