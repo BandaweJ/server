@@ -591,8 +591,6 @@ export class MarksService {
       });
     });
 
-    // console.log(classSubjectMarks[0]);
-
     return classComments;
   }
 
