@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import { StudentsService } from './students.service';
 import {
   Body,

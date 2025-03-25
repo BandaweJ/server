@@ -323,7 +323,7 @@ export class EnrolmentService {
       relations: ['student'],
     });
 
-    let summary: StudentsSummary = {
+    const summary: StudentsSummary = {
       total: 0,
       boarders: 0,
       dayScholars: 0,
@@ -333,10 +333,10 @@ export class EnrolmentService {
 
     summary.total = enrols.length;
     summary.boarders = enrols.filter(
-      (enrol) => enrol.student.residence === 'Boarder',
+      (enrol) => enrol.residence === 'Boarder',
     ).length;
     summary.dayScholars = enrols.filter(
-      (enrol) => enrol.student.residence === 'Day',
+      (enrol) => enrol.residence === 'Day',
     ).length;
     summary.boys = enrols.filter(
       (enrol) => enrol.student.gender === 'Male',

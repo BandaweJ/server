@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import { Module } from '@nestjs/common';
 import { EnrolmentController } from './enrolment.controller';
 import { EnrolmentService } from './enrolment.service';

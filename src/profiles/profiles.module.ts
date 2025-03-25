@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import { TeachersController } from './teachers/teachers.controller';
 import { TeachersService } from './teachers/teachers.service';
 import { StudentsController } from './students/students.controller';

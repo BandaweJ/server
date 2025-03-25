@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import { TeachersEntity } from './../profiles/entities/teachers.entity';
 import {
   Body,

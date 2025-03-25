@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import {
   Column,
   Entity,
@@ -54,8 +55,8 @@ export class StudentsEntity extends BaseEntity {
   @Column({ default: 'student' })
   role: string;
 
-  @Column({ default: 'Boarder' })
-  residence: 'Day' | 'Boarder';
+  // @Column({ default: 'Boarder' })
+  // residence: 'Day' | 'Boarder';
 
   @ManyToOne(() => ParentsEntity, (parent) => parent.students)
   parent: ParentsEntity;

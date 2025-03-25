@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Module } from '@nestjs/common';
 import { MarksController } from './marks.controller';
