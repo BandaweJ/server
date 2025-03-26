@@ -1,10 +1,13 @@
 /* eslint-disable prettier/prettier */
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotAcceptableException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EnrolmentService } from 'src/enrolment/enrolment.service';
 import { FeesEntity } from './entities/fees.entity';
 import { Repository } from 'typeorm';
 import { Residence } from 'src/enrolment/models/residence.model';
+import { CreateFeesDto } from './dtos/fees.dto';
+import { profile } from 'console';
+import { TeachersEntity } from 'src/profiles/entities/teachers.entity';
 
 /* eslint-disable prettier/prettier */
 @Injectable()
@@ -15,6 +18,38 @@ export class FinanceService {
     @InjectRepository(FeesEntity)
     private feesRepository: Repository<FeesEntity>,
   ) {}
+
+  async getAllFees(): Promise<FeesEntity[]> {
+    return await this.feesRepository.find();
+  }
+
+  async createFees(createFeesDto: CreateFeesDto, profile: TeachersEntity) {
+    const { num, year, residence, amount, description } = createFeesDto;
+
+    const fee = await this.feesRepository.findOne({
+      where: {
+        num,
+        year,
+        residence,
+      },
+    });
+
+    if (fee) {
+      throw new NotAcceptableException(
+        `Fees for Term ${num} ${year} for residence ${residence} already exists`,
+      );
+    }
+
+    const feeToSave = new FeesEntity();
+
+    feeToSave.amount = amount;
+    feeToSave.num = num;
+    feeToSave.year = year;
+    feeToSave.residence = residence;
+    feeToSave.description = description;
+
+    return await this.feesRepository.save(feeToSave);
+  }
 
   async getFeeByResidence(
     residence: Residence,

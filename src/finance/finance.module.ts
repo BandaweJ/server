@@ -14,7 +14,7 @@ import { EnrolmentModule } from 'src/enrolment/enrolment.module';
   imports: [
     AuthModule,
     // EnrolmentModule,
-    forwardRef(() => EnrolmentModule),
+    // forwardRef(() => EnrolmentModule),
     TypeOrmModule.forFeature([FeesEntity]),
   ],
 })
