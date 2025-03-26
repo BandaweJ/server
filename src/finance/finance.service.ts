@@ -60,4 +60,24 @@ export class FinanceService {
       where: { residence, num, year },
     });
   }
+
+  async updateFees(
+    id: number,
+    createFeesDto: CreateFeesDto,
+    profile: TeachersEntity,
+  ) {
+    const { num, residence, year } = createFeesDto;
+    const fee = await this.feesRepository.findOne({ where: { id } });
+
+    if (!fee) {
+      throw new NotAcceptableException(
+        `Fees for Term ${num} ${year} for residence ${residence} does not exist`,
+      );
+    }
+
+    return await this.feesRepository.save({
+      ...fee,
+      ...createFeesDto,
+    });
+  }
 }

@@ -5,6 +5,10 @@ import { Residence } from 'src/enrolment/models/residence.model';
 /* eslint-disable prettier/prettier */
 export class CreateFeesDto {
   @ApiProperty()
+  @IsOptional()
+  id?: number;
+
+  @ApiProperty()
   @IsNumber()
   @IsNotEmpty()
   num: number;

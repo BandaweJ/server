@@ -1,5 +1,5 @@
 /* eslint-disable prettier/prettier */
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { EnrolmentService } from 'src/enrolment/enrolment.service';
 import { CreateFeesDto } from './dtos/fees.dto';
@@ -23,5 +23,15 @@ export class FinanceController {
     @GetUser() profile: TeachersEntity,
   ) {
     return this.financeService.createFees(createFeesDto, profile);
+  }
+
+  @Patch('fees')
+  updateFees(
+    @Body() createFeesDto: CreateFeesDto,
+    @GetUser() profile: TeachersEntity,
+  ) {
+    const id = createFeesDto.id;
+
+    return this.financeService.updateFees(id, createFeesDto, profile);
   }
 }
