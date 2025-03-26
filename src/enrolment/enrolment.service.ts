@@ -258,7 +258,7 @@ export class EnrolmentService {
         year,
       );
       if (!fees) {
-        throw new Error(
+        throw new NotImplementedException(
           `Fees not found for residence: ${residence}, term: ${num} ${year}`,
         );
       }
