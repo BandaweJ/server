@@ -1,5 +1,14 @@
 /* eslint-disable prettier/prettier */
-import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { EnrolmentService } from 'src/enrolment/enrolment.service';
 import { CreateFeesDto } from './dtos/fees.dto';
@@ -25,13 +34,12 @@ export class FinanceController {
     return this.financeService.createFees(createFeesDto, profile);
   }
 
-  @Patch('fees')
+  @Patch('fees/:id')
   updateFees(
+    @Param('id', ParseIntPipe) id: number,
     @Body() createFeesDto: CreateFeesDto,
     @GetUser() profile: TeachersEntity,
   ) {
-    const id = createFeesDto.id;
-
     return this.financeService.updateFees(id, createFeesDto, profile);
   }
 }

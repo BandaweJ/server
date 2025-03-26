@@ -76,6 +76,7 @@ export class FinanceService {
     }
 
     return await this.feesRepository.save({
+      id,
       ...fee,
       ...createFeesDto,
     });
