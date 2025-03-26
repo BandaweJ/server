@@ -2,6 +2,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -41,5 +42,10 @@ export class FinanceController {
     @GetUser() profile: TeachersEntity,
   ) {
     return this.financeService.updateFees(id, createFeesDto, profile);
+  }
+
+  @Delete('fees/:id')
+  deleteFees(@Param('id', ParseIntPipe) id: number) {
+    return this.financeService.deleteFees(id);
   }
 }

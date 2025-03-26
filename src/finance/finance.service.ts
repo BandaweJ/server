@@ -81,4 +81,12 @@ export class FinanceService {
       ...createFeesDto,
     });
   }
+
+  async deleteFees(id: number): Promise<number> {
+    const result = await this.feesRepository.delete({ id });
+
+    if (result.affected === 0)
+      throw new NotAcceptableException(`Fees not removed`);
+    else return id;
+  }
 }
