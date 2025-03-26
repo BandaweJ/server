@@ -31,6 +31,7 @@ import { Residence } from './models/residence.model';
 import { StudentsService } from 'src/profiles/students/students.service';
 import { UpdateEnrolDto } from './dtos/update-enrol.dto';
 import { profile } from 'console';
+import { FinanceService } from 'src/finance/finance.service';
 
 @Injectable()
 export class EnrolmentService {
@@ -46,8 +47,7 @@ export class EnrolmentService {
     @InjectRepository(AttendanceEntity)
     private attendanceRepository: Repository<AttendanceEntity>,
 
-    @InjectRepository(FeesEntity)
-    private feesRepository: Repository<FeesEntity>,
+    private financeService: FinanceService,
 
     private studentsService: StudentsService,
   ) {}
@@ -202,7 +202,11 @@ export class EnrolmentService {
   ) {
     const { studentNumber, name, num, year, residence } = updateEnrolDto;
 
-    const fees = await this.getFeeByResidence(residence, num, year);
+    const fees = await this.financeService.getFeeByResidence(
+      residence,
+      num,
+      year,
+    );
 
     if (!fees) {
       throw new NotImplementedException(
@@ -248,7 +252,11 @@ export class EnrolmentService {
     for (const enrolDto of enrolDtos) {
       const { name, num, year, residence, studentNumber } = enrolDto;
 
-      const fees = await this.getFeeByResidence(residence, num, year);
+      const fees = await this.financeService.getFeeByResidence(
+        residence,
+        num,
+        year,
+      );
       if (!fees) {
         throw new Error(
           `Fees not found for residence: ${residence}, term: ${num} ${year}`,
@@ -272,16 +280,6 @@ export class EnrolmentService {
     }
 
     return await this.enrolmentRepository.save(enrolEntities);
-  }
-
-  async getFeeByResidence(
-    residence: Residence,
-    num: number,
-    year: number,
-  ): Promise<FeesEntity | undefined> {
-    return this.feesRepository.findOne({
-      where: { residence, num, year },
-    });
   }
 
   async getAllEnrolments(

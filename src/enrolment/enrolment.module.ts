@@ -1,5 +1,5 @@
 /* eslint-disable prettier/prettier */
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { EnrolmentController } from './enrolment.controller';
 import { EnrolmentService } from './enrolment.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -9,11 +9,16 @@ import { AuthModule } from '../auth/auth.module';
 import { EnrolEntity } from './entities/enrol.entity';
 import { ResourceByIdModule } from '../resource-by-id/resource-by-id.module';
 import { AttendanceEntity } from './entities/attendance.entity';
+import { FinanceModule } from 'src/finance/finance.module';
+import { ProfilesModule } from 'src/profiles/profiles.module';
 
 @Module({
   imports: [
     AuthModule,
     ResourceByIdModule,
+    ProfilesModule,
+    // FinanceModule,
+    forwardRef(() => FinanceModule),
     TypeOrmModule.forFeature([
       TermsEntity,
       ClassEntity,
