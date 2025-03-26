@@ -257,11 +257,11 @@ export class EnrolmentService {
         num,
         year,
       );
-      if (!fees) {
-        throw new NotImplementedException(
-          `Fees not found for residence: ${residence}, term: ${num} ${year}`,
-        );
-      }
+      // if (!fees) {
+      //   throw new NotImplementedException(
+      //     `Fees not found for residence: ${residence}, term: ${num} ${year}`,
+      //   );
+      // }
 
       const student = await this.studentsService.getStudent(
         studentNumber,
@@ -273,7 +273,12 @@ export class EnrolmentService {
         year,
         residence,
         student: student,
-        fees,
+        fees: {
+          amount: 1700,
+          residence: Residence.Boarder,
+          num,
+          year,
+        },
       });
 
       enrolEntities.push(enrolEntity);
