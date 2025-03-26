@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { StudentsEntity } from '../../profiles/entities/students.entity';
 import { FeesEntity } from 'src/finance/entities/fees.entity';
+import { Residence } from '../models/residence.model';
 
 @Entity('enrol')
 export class EnrolEntity {
@@ -23,13 +24,8 @@ export class EnrolEntity {
   @Column()
   year: number;
 
-  @Column()
-  residence:
-    | 'Boarder'
-    | 'Day'
-    | 'DayTransport'
-    | 'DayFood'
-    | 'DayFoodTransport';
+  @Column({ default: 'Boarder' })
+  residence: Residence;
 
   @ManyToOne(() => StudentsEntity, (student) => student.enrols)
   student: StudentsEntity;

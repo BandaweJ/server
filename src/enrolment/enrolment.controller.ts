@@ -20,6 +20,7 @@ import { EnrolmentService } from './enrolment.service';
 import { EnrolDto } from './dtos/enrol.dto';
 import { MarkRegisterDto } from './dtos/mark-register.dto';
 import { CreateTermDto } from './dtos/create-term.dto';
+import { UpdateEnrolDto } from './dtos/update-enrol.dto';
 
 @Controller('enrolment')
 @UseGuards(AuthGuard())
@@ -124,6 +125,14 @@ export class EnrolmentController {
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
     return this.enrolmentService.enrolStudent(enrolsDto, profile);
+  }
+
+  @Patch('enrol')
+  updateEnrolment(
+    @Body() updateEnrolDto: UpdateEnrolDto,
+    @GetUser() profile: TeachersEntity,
+  ) {
+    return this.enrolmentService.updateEnrolment(updateEnrolDto, profile);
   }
 
   @Get('enrol')

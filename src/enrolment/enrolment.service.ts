@@ -26,6 +26,11 @@ import { MarkRegisterDto } from './dtos/mark-register.dto';
 import { AttendanceEntity } from './entities/attendance.entity';
 import { StudentsSummary } from './models/students-summary.model';
 import { map } from 'rxjs';
+import { FeesEntity } from 'src/finance/entities/fees.entity';
+import { Residence } from './models/residence.model';
+import { StudentsService } from 'src/profiles/students/students.service';
+import { UpdateEnrolDto } from './dtos/update-enrol.dto';
+import { profile } from 'console';
 
 @Injectable()
 export class EnrolmentService {
@@ -40,6 +45,11 @@ export class EnrolmentService {
 
     @InjectRepository(AttendanceEntity)
     private attendanceRepository: Repository<AttendanceEntity>,
+
+    @InjectRepository(FeesEntity)
+    private feesRepository: Repository<FeesEntity>,
+
+    private studentsService: StudentsService,
   ) {}
 
   async getAllClasses(): Promise<ClassEntity[]> {
@@ -186,8 +196,40 @@ export class EnrolmentService {
 
   //Enrolmnt
 
+  async updateEnrolment(
+    updateEnrolDto: UpdateEnrolDto,
+    profile: TeachersEntity,
+  ) {
+    const { studentNumber, name, num, year, residence } = updateEnrolDto;
+
+    const fees = await this.getFeeByResidence(residence, num, year);
+
+    if (!fees) {
+      throw new NotImplementedException(
+        `Fees for term ${num} ${year} not found`,
+      );
+    }
+
+    const student = await this.studentsService.getStudent(
+      studentNumber,
+      profile,
+    );
+    const enrol = await this.enrolmentRepository.findOne({
+      where: {
+        name,
+        num,
+        year,
+        student: {
+          studentNumber: student.studentNumber,
+        },
+      },
+    });
+
+    return await this.enrolmentRepository.save({ ...enrol, ...updateEnrolDto });
+  }
+
   async enrolStudent(
-    enrolDto: EnrolDto[],
+    enrolDtos: EnrolDto[],
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ): Promise<EnrolEntity[]> {
     // const { studentNumber, name, num, year } = enrolDto;
@@ -200,9 +242,46 @@ export class EnrolmentService {
         );
       }
     }
-    // //check if student is already enroled in any class for the same term
 
-    return await this.enrolmentRepository.save(enrolDto);
+    const enrolEntities: EnrolEntity[] = [];
+
+    for (const enrolDto of enrolDtos) {
+      const { name, num, year, residence, studentNumber } = enrolDto;
+
+      const fees = await this.getFeeByResidence(residence, num, year);
+      if (!fees) {
+        throw new Error(
+          `Fees not found for residence: ${residence}, term: ${num} ${year}`,
+        );
+      }
+
+      const student = await this.studentsService.getStudent(
+        studentNumber,
+        profile,
+      );
+      const enrolEntity = await this.enrolmentRepository.create({
+        name,
+        num,
+        year,
+        residence,
+        student: student,
+        fees,
+      });
+
+      enrolEntities.push(enrolEntity);
+    }
+
+    return await this.enrolmentRepository.save(enrolEntities);
+  }
+
+  async getFeeByResidence(
+    residence: Residence,
+    num: number,
+    year: number,
+  ): Promise<FeesEntity | undefined> {
+    return this.feesRepository.findOne({
+      where: { residence, num, year },
+    });
   }
 
   async getAllEnrolments(

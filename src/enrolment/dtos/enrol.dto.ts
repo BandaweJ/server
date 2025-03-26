@@ -1,5 +1,7 @@
+/* eslint-disable prettier/prettier */
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsNumber, IsString } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { Residence } from '../models/residence.model';
 
 export class EnrolDto {
   @ApiProperty()
@@ -21,4 +23,9 @@ export class EnrolDto {
   @IsNumber()
   @IsNotEmpty()
   year: number;
+
+  @ApiProperty()
+  @IsString()
+  @IsOptional()
+  residence: Residence;
 }
