@@ -46,6 +46,6 @@ export class FinanceController {
 
   @Delete('fees/:id')
   deleteFees(@Param('id', ParseIntPipe) id: number) {
-    return this.financeService.deleteFees(id);
+    return this.financeService.delete(id);
   }
 }
