@@ -2,6 +2,7 @@
 import {
   Injectable,
   NotAcceptableException,
+  NotFoundException,
   NotImplementedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -25,6 +26,10 @@ export class FinanceService {
 
   async getAllFees(): Promise<FeesEntity[]> {
     return await this.feesRepository.find();
+  }
+
+  async findOne(id: number): Promise<FeesEntity | undefined> {
+    return this.feesRepository.findOne({ where: { id } });
   }
 
   async createFees(createFeesDto: CreateFeesDto, profile: TeachersEntity) {
@@ -86,18 +91,10 @@ export class FinanceService {
     });
   }
 
-  async deleteFees(id: number): Promise<number> {
-    const fee = await this.feesRepository.findOne({ where: { id } });
-
-    if (!fee) {
-      throw new NotAcceptableException(
-        `Fees you are trying to delete does not exist`,
-      );
-    }
-    const result = await this.feesRepository.delete({ id });
-
-    if (result.affected === 0)
-      throw new NotImplementedException(`Fees not removed`);
-    else return id;
+  async delete(id: number): Promise<number> {
+    const result = await this.feesRepository.delete(id);
+    if (result.affected === 0) {
+      throw new NotFoundException(`Fees with ID ${id} not found`);
+    } else return result.affected;
   }
 }
