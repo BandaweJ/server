@@ -17,8 +17,8 @@ import { ProfilesModule } from 'src/profiles/profiles.module';
     AuthModule,
     ResourceByIdModule,
     ProfilesModule,
-    FinanceModule,
-    // forwardRef(() => FinanceModule),
+    // FinanceModule,
+    forwardRef(() => FinanceModule),
     TypeOrmModule.forFeature([
       TermsEntity,
       ClassEntity,

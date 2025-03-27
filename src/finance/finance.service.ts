@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier */
 import {
+  ConflictException,
   Injectable,
   NotAcceptableException,
   NotFoundException,
@@ -13,6 +14,7 @@ import { Residence } from 'src/enrolment/models/residence.model';
 import { CreateFeesDto } from './dtos/fees.dto';
 import { profile } from 'console';
 import { TeachersEntity } from 'src/profiles/entities/teachers.entity';
+import { EnrolEntity } from 'src/enrolment/entities/enrol.entity';
 
 /* eslint-disable prettier/prettier */
 @Injectable()
@@ -21,8 +23,9 @@ export class FinanceService {
     // private enrolmentService: EnrolmentService,
 
     @InjectRepository(FeesEntity)
-    private feesRepository: Repository<FeesEntity>,
-  ) {}
+    private feesRepository: Repository<FeesEntity>, // @InjectRepository(EnrolEntity)
+  ) // private enrolmentRepository: Repository<EnrolEntity>,
+  {}
 
   async getAllFees(): Promise<FeesEntity[]> {
     return await this.feesRepository.find();
@@ -92,9 +95,28 @@ export class FinanceService {
   }
 
   async delete(id: number): Promise<number> {
-    const result = await this.feesRepository.delete(id);
-    if (result.affected === 0) {
+    const fee = await this.feesRepository.findOne({ where: { id } });
+    if (!fee) {
       throw new NotFoundException(`Fees with ID ${id} not found`);
-    } else return result.affected;
+    }
+
+    // Check for related enrol rows
+    // const relatedEnrols = await this.enrolmentRepository.find({
+    //   where: { fees: { id: id } },
+    // });
+    // if (relatedEnrols.length > 0) {
+    //   throw new ConflictException(
+    //     `Cannot delete fees with ID ${id} because there are related enrolments.`,
+    //   );
+    // }
+
+    try {
+      const result = await this.feesRepository.delete(id);
+      if (result.affected === 0) {
+        throw new NotFoundException(`Fees with ID ${id} not found`);
+      } else return result.affected;
+    } catch (e) {
+      throw new NotImplementedException(e);
+    }
   }
 }
