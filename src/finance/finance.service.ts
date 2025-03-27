@@ -83,6 +83,13 @@ export class FinanceService {
   }
 
   async deleteFees(id: number): Promise<number> {
+    const fee = await this.feesRepository.findOne({ where: { id } });
+
+    if (!fee) {
+      throw new NotAcceptableException(
+        `Fees for Term ${fee.num} ${fee.year} for residence ${fee.residence} does not exist`,
+      );
+    }
     const result = await this.feesRepository.delete({ id });
 
     if (result.affected === 0)
