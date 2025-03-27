@@ -1,5 +1,9 @@
 /* eslint-disable prettier/prettier */
-import { Injectable, NotAcceptableException } from '@nestjs/common';
+import {
+  Injectable,
+  NotAcceptableException,
+  NotImplementedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EnrolmentService } from 'src/enrolment/enrolment.service';
 import { FeesEntity } from './entities/fees.entity';
@@ -87,13 +91,13 @@ export class FinanceService {
 
     if (!fee) {
       throw new NotAcceptableException(
-        `Fees for Term ${fee.num} ${fee.year} for residence ${fee.residence} does not exist`,
+        `Fees you are trying to delete does not exist`,
       );
     }
     const result = await this.feesRepository.delete({ id });
 
     if (result.affected === 0)
-      throw new NotAcceptableException(`Fees not removed`);
+      throw new NotImplementedException(`Fees not removed`);
     else return id;
   }
 }
