@@ -13,6 +13,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import * as path from 'path';
 import { FinanceModule } from './finance/finance.module';
+import { PaymentModule } from './payment/payment.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { FinanceModule } from './finance/finance.module';
     MarksModule,
     ReportsModule,
     FinanceModule,
+    PaymentModule,
   ],
   controllers: [AppController],
   providers: [AppService],

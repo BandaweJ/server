@@ -16,6 +16,7 @@ import { MarksEntity } from '../../marks/entities/marks.entity';
 import { AccountsEntity } from 'src/auth/entities/accounts.entity';
 import { AttendanceEntity } from 'src/enrolment/entities/attendance.entity';
 import { TeacherCommentEntity } from 'src/marks/entities/teacher-comments.entity';
+import { PaymentEntity } from 'src/payment/entities/payment.entity';
 
 @Entity('students')
 export class StudentsEntity extends BaseEntity {
@@ -65,6 +66,9 @@ export class StudentsEntity extends BaseEntity {
     cascade: true,
   })
   enrols: EnrolEntity[];
+
+  @OneToMany(() => PaymentEntity, (enrol) => enrol.student)
+  payments: PaymentEntity[];
 
   @OneToMany(() => AttendanceEntity, (attendance) => attendance.student, {
     cascade: true,

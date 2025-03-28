@@ -23,9 +23,8 @@ export class FinanceService {
     // private enrolmentService: EnrolmentService,
 
     @InjectRepository(FeesEntity)
-    private feesRepository: Repository<FeesEntity>, // @InjectRepository(EnrolEntity)
-  ) // private enrolmentRepository: Repository<EnrolEntity>,
-  {}
+    private feesRepository: Repository<FeesEntity>, // @InjectRepository(EnrolEntity) // private enrolmentRepository: Repository<EnrolEntity>,
+  ) {}
 
   async getAllFees(): Promise<FeesEntity[]> {
     return await this.feesRepository.find();
@@ -116,7 +115,9 @@ export class FinanceService {
         throw new NotFoundException(`Fees with ID ${id} not found`);
       } else return result.affected;
     } catch (e) {
-      throw new NotImplementedException(e);
+      throw new NotImplementedException(
+        'Fees was set for an enroled student so cannot be deleted',
+      );
     }
   }
 }

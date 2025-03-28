@@ -435,6 +435,25 @@ export class EnrolmentService {
     });
   }
 
+  async getEnrolmentsByStudent(
+    studentNumber: string,
+    profile: TeachersEntity | StudentsEntity | ParentsEntity,
+  ): Promise<EnrolEntity[]> {
+    const student = await this.studentsService.getStudent(
+      studentNumber,
+      profile,
+    );
+    if (!student) {
+      // Handle the case where the student is not found
+      return []; // or throw an error
+    }
+
+    return this.enrolmentRepository.find({
+      where: { student: { studentNumber } },
+      relations: ['student', 'fees'], // Include related entities
+    });
+  }
+
   async unenrolStudent(id: number) {
     const enrol = await this.enrolmentRepository.findOne({
       where: { id },
