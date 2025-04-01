@@ -42,7 +42,7 @@ export class PaymentService {
         throw new UnauthorizedException('You are not allowed to define fees');
     }
 
-    const { student, amount, description, receiptBookNumber } =
+    const { student, amount, description, receiptBookNumber, paymentMethod } =
       createPaymentDto;
 
     const payment = this.paymentRepository.create({
@@ -50,6 +50,7 @@ export class PaymentService {
       amount,
       description,
       receiptBookNumber,
+      paymentMethod,
     });
     return this.paymentRepository.save(payment);
   }

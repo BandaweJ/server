@@ -22,7 +22,7 @@ export class FeesEntity {
   @Column()
   description: string;
 
-  @Column()
+  @Column({ type: 'enum', enum: FeesNames })
   name: FeesNames;
 
   @OneToMany(() => BillsEntity, (bill) => bill.fees)

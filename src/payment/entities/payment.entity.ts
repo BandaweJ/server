@@ -2,13 +2,13 @@
 // payment.entity.ts
 import {
   Entity,
-  PrimaryGeneratedColumn,
   Column,
   ManyToOne,
   CreateDateColumn,
   PrimaryColumn,
 } from 'typeorm';
 import { StudentsEntity } from '../../profiles/entities/students.entity';
+import { PaymentMethods } from 'src/finance/models/payment-methods.model';
 
 @Entity('payments')
 export class PaymentEntity {
@@ -32,4 +32,7 @@ export class PaymentEntity {
 
   @Column({ default: false })
   approved: boolean;
+
+  @Column({ type: 'enum', enum: PaymentMethods })
+  paymentMethod: PaymentMethods;
 }
