@@ -1,5 +1,14 @@
 /* eslint-disable prettier/prettier */
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { CreatePaymentDto } from './dtos/createPayment.dto';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
@@ -26,15 +35,9 @@ export class PaymentController {
     return this.paymentService.getPaymentsByStudent(studentNumber);
   }
 
-  @Get('balance/:studentNumber')
-  calculateOutstandingBalance(
-    @Param('studentNumber') studentNumber: string,
-    @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
-  ) {
-    return this.paymentService.calculateOutstandingBalance(
-      studentNumber,
-      profile,
-    );
+  @Get()
+  getNotApprovedPayments() {
+    return this.paymentService.getNotApprovedPayments();
   }
 
   @Get('invoice/:studentNumber')
@@ -42,6 +45,35 @@ export class PaymentController {
     @Param('studentNumber') studentNumber: string,
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
-    return this.paymentService.generateInvoice(studentNumber, profile);
+    return this.paymentService.generateInvoice(studentNumber);
+  }
+
+  @Get('receipt/:receiptNumber')
+  getPaymentByReceiptNumber(
+    @Param('receiptNumber', ParseIntPipe) receiptNumber: number,
+  ) {
+    return this.paymentService.getPaymentByReceiptNumber(receiptNumber);
+  }
+
+  @Get('/:num/:year')
+  getPaymentsInTerm(
+    @Param('num', ParseIntPipe) num: number,
+    @Param('year', ParseIntPipe) year: number,
+  ) {
+    return this.paymentService.getPaymentsInTerm(num, year);
+  }
+
+  @Get('/:year')
+  getPaymentsInYear(@Param('year', ParseIntPipe) year: number) {
+    return this.paymentService.getPaymentsByYear(year);
+  }
+
+  @Patch('/:receiptNumber/:approved')
+  updatePayment(
+    @Param('receiptNumber', ParseIntPipe) receiptNumber: number,
+    @Param('approved') approved: boolean,
+    @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
+  ) {
+    return this.paymentService.updatePayment(receiptNumber, approved, profile);
   }
 }

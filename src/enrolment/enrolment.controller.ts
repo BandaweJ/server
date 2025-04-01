@@ -135,6 +135,11 @@ export class EnrolmentController {
     return this.enrolmentService.updateEnrolment(updateEnrolDto, profile);
   }
 
+  @Get('enrol/newcomers')
+  getNewComers() {
+    return this.enrolmentService.getNewComers();
+  }
+
   @Get('enrol')
   getAllEnrolments(
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,

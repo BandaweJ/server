@@ -1,7 +1,15 @@
 /* eslint-disable prettier/prettier */
 import { EnrolEntity } from 'src/enrolment/entities/enrol.entity';
 import { Residence } from 'src/enrolment/models/residence.model';
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  ManyToOne,
+  OneToMany,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
+import { BillsEntity } from './bills.entity';
+import { FeesNames } from '../models/fees-names.enum';
 
 @Entity('fees')
 export class FeesEntity {
@@ -12,14 +20,11 @@ export class FeesEntity {
   amount: number;
 
   @Column()
-  num: number;
-
-  @Column()
-  year: number;
-
-  @Column()
-  residence: Residence;
-
-  @Column()
   description: string;
+
+  @Column()
+  name: FeesNames;
+
+  @OneToMany(() => BillsEntity, (bill) => bill.fees)
+  bills: BillsEntity[];
 }

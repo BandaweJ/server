@@ -6,6 +6,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { FeesEntity } from './entities/fees.entity';
 import { AuthModule } from 'src/auth/auth.module';
 import { EnrolmentModule } from 'src/enrolment/enrolment.module';
+import { BillsEntity } from './entities/bills.entity';
 
 @Module({
   controllers: [FinanceController],
@@ -15,7 +16,7 @@ import { EnrolmentModule } from 'src/enrolment/enrolment.module';
     AuthModule,
     // EnrolmentModule,
     forwardRef(() => EnrolmentModule),
-    TypeOrmModule.forFeature([FeesEntity]),
+    TypeOrmModule.forFeature([FeesEntity, BillsEntity]),
   ],
 })
 export class FinanceModule {}

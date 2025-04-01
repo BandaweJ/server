@@ -18,6 +18,8 @@ export class PaymentEntity {
   @ManyToOne(() => StudentsEntity, (student) => student.payments)
   student: StudentsEntity;
 
+  @Column({ nullable: true })
+  receiptBookNumber: string;
   //   @ManyToOne(() => EnrolEntity, (enrol) => enrol.payments, { nullable: true })
   //   enrolment: EnrolEntity | null; // Optional, payments can be made outside of specific enrolments
 
@@ -29,4 +31,7 @@ export class PaymentEntity {
 
   @CreateDateColumn({ type: 'timestamp' })
   paymentDate: Date;
+
+  @Column({ default: false })
+  approved: boolean;
 }

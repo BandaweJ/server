@@ -272,6 +272,10 @@ export class EnrolmentService {
     return await this.enrolmentRepository.save(enrolEntities);
   }
 
+  async getNewComers() {
+    return await this.studentsService.findNewComerStudentsQueryBuilder();
+  }
+
   async getAllEnrolments(
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ): Promise<EnrolStats> {
@@ -349,16 +353,6 @@ export class EnrolmentService {
       },
       relations: ['student'],
     });
-
-    // const enroledStudent = enroledStudents.filter(
-    //   (enrol) => enrol.student.studentNumber === studentNumber,
-    // );
-
-    // if (enroledStudent.length === 0) {
-    //   throw new NotFoundException(
-    //     `Student ${studentNumber} not enroled in term ${num} ${year}`,
-    //   );
-    // }
 
     if (!enroledStudent) {
       throw new NotFoundException(
@@ -616,5 +610,22 @@ export class EnrolmentService {
     } else {
       return await this.termRepository.save({ ...term });
     }
+  }
+
+  async findStudentsNotBilledForTermQueryBuilder(
+    num: number,
+    year: number,
+  ): Promise<StudentsEntity[]> {
+    const students = await this.enrolmentRepository
+      .createQueryBuilder('enrol')
+      .leftJoinAndSelect('enrol.student', 'student')
+      .leftJoin('bills', 'bill', 'bill.enrolId = enrol.id')
+      .where('enrol.num = :num AND enrol.year = :year', { num, year })
+      .andWhere('bill.id IS NULL')
+      .select('student.*')
+      .distinct(true)
+      .getRawMany();
+
+    return students;
   }
 }

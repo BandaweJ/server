@@ -183,4 +183,13 @@ export class StudentsService {
 
     return YY + NNN;
   }
+
+  async findNewComerStudentsQueryBuilder(): Promise<StudentsEntity[]> {
+    return await this.studentsRepository
+      .createQueryBuilder('student')
+      .leftJoinAndSelect('student.enrols', 'enrol')
+      .groupBy('student.id')
+      .having('COUNT(enrol.id) = 1')
+      .getMany();
+  }
 }
