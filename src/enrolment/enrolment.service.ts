@@ -1,6 +1,7 @@
 /* eslint-disable prettier/prettier */
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotImplementedException,
   UnauthorizedException,
@@ -252,7 +253,20 @@ export class EnrolmentService {
         student: student,
       });
 
-      enrolEntities.push(enrolEntity);
+      const existingEnrol = await this.enrolmentRepository.findOne({
+        where: {
+          name,
+          num,
+          year,
+          student: {
+            studentNumber: student.studentNumber,
+          },
+        },
+      });
+
+      if (!existingEnrol) {
+        enrolEntities.push(enrolEntity);
+      }
     }
 
     return await this.enrolmentRepository.save(enrolEntities);
@@ -327,26 +341,32 @@ export class EnrolmentService {
     num: number,
     year: number,
   ): Promise<EnrolEntity> {
-    const enroledStudents = await this.enrolmentRepository.find({
+    const enroledStudent = await this.enrolmentRepository.findOne({
       where: {
-        // studentNumber,
+        student: { studentNumber },
         num,
         year,
       },
       relations: ['student'],
     });
 
-    const enroledStudent = enroledStudents.filter(
-      (enrol) => enrol.student.studentNumber === studentNumber,
-    );
+    // const enroledStudent = enroledStudents.filter(
+    //   (enrol) => enrol.student.studentNumber === studentNumber,
+    // );
 
-    if (enroledStudent.length === 0) {
+    // if (enroledStudent.length === 0) {
+    //   throw new NotFoundException(
+    //     `Student ${studentNumber} not enroled in term ${num} ${year}`,
+    //   );
+    // }
+
+    if (!enroledStudent) {
       throw new NotFoundException(
         `Student ${studentNumber} not enroled in term ${num} ${year}`,
       );
     }
 
-    return enroledStudent[0];
+    return enroledStudent;
   }
 
   async getEnrolmentByClass(
