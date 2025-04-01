@@ -8,7 +8,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EnrolmentService } from 'src/enrolment/enrolment.service';
+// import { EnrolmentService } from 'src/enrolment/enrolment.service';
 import { FeesEntity } from './entities/fees.entity';
 import { Repository } from 'typeorm';
 
@@ -26,8 +26,8 @@ export class FinanceService {
 
     @InjectRepository(FeesEntity)
     private feesRepository: Repository<FeesEntity>,
-    private billsRepository: Repository<BillsEntity>,
-    private enrolmentService: EnrolmentService,
+    @InjectRepository(BillsEntity)
+    private billsRepository: Repository<BillsEntity>, // private enrolmentService: EnrolmentService,
   ) {}
 
   async getAllFees(): Promise<FeesEntity[]> {
@@ -206,10 +206,10 @@ export class FinanceService {
     return totalBill;
   }
 
-  async getStudentsNotBilledForTerm(num: number, year: number) {
-    return await this.enrolmentService.findStudentsNotBilledForTermQueryBuilder(
-      num,
-      year,
-    );
-  }
+  // async getStudentsNotBilledForTerm(num: number, year: number) {
+  //   return await this.enrolmentService.findStudentsNotBilledForTermQueryBuilder(
+  //     num,
+  //     year,
+  //   );
+  // }
 }

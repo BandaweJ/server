@@ -95,11 +95,11 @@ export class FinanceController {
     return this.financeService.getTotalBillsByYear(year);
   }
 
-  @Get('billing/tobill/:num/:year')
-  getStudentsNotBilledForTerm(
-    @Param('num', ParseIntPipe) num: number,
-    @Param('year', ParseIntPipe) year: number,
-  ) {
-    return this.financeService.getStudentsNotBilledForTerm(num, year);
-  }
+  //   @Get('billing/tobill/:num/:year')
+  //   getStudentsNotBilledForTerm(
+  //     @Param('num', ParseIntPipe) num: number,
+  //     @Param('year', ParseIntPipe) year: number,
+  //   ) {
+  //     return this.financeService.getStudentsNotBilledForTerm(num, year);
+  //   }
 }

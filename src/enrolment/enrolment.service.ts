@@ -26,13 +26,9 @@ import { EnrolStats } from './dtos/enrol-stats.dto';
 import { MarkRegisterDto } from './dtos/mark-register.dto';
 import { AttendanceEntity } from './entities/attendance.entity';
 import { StudentsSummary } from './models/students-summary.model';
-import { map } from 'rxjs';
-import { FeesEntity } from 'src/finance/entities/fees.entity';
-import { Residence } from './models/residence.model';
 import { StudentsService } from 'src/profiles/students/students.service';
 import { UpdateEnrolDto } from './dtos/update-enrol.dto';
-import { profile } from 'console';
-import { FinanceService } from 'src/finance/finance.service';
+// import { FinanceService } from 'src/finance/finance.service';
 
 @Injectable()
 export class EnrolmentService {
@@ -48,7 +44,7 @@ export class EnrolmentService {
     @InjectRepository(AttendanceEntity)
     private attendanceRepository: Repository<AttendanceEntity>,
 
-    private financeService: FinanceService,
+    // private financeService: FinanceService,
 
     private studentsService: StudentsService,
   ) {}

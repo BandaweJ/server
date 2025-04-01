@@ -7,6 +7,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { PaymentEntity } from './entities/payment.entity';
 import { ProfilesModule } from 'src/profiles/profiles.module';
 import { EnrolmentModule } from 'src/enrolment/enrolment.module';
+import { FinanceModule } from 'src/finance/finance.module';
 
 @Module({
   controllers: [PaymentController],
@@ -16,6 +17,7 @@ import { EnrolmentModule } from 'src/enrolment/enrolment.module';
     AuthModule,
     ProfilesModule,
     EnrolmentModule,
+    FinanceModule,
     TypeOrmModule.forFeature([PaymentEntity]),
   ],
 })

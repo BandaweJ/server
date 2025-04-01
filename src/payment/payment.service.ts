@@ -23,7 +23,7 @@ export class PaymentService {
   constructor(
     @InjectRepository(PaymentEntity)
     private readonly paymentRepository: Repository<PaymentEntity>,
-    private readonly studentsService: StudentsService,
+    // private readonly studentsService: StudentsService,
     private readonly enrolmentService: EnrolmentService,
     private readonly financeService: FinanceService,
   ) {}
