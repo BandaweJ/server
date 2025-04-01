@@ -57,9 +57,9 @@ export class PaymentService {
     );
     const payments = await this.getPaymentsByStudent(studentNumber);
 
-    let totalFees = 0;
+    const totalFees = 67;
     enrolments.forEach((enrolment) => {
-      totalFees += enrolment.fees.amount;
+      //   totalFees += enrolment.fees.amount;
     });
 
     let totalPayments = 0;

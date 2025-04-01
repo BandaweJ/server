@@ -22,7 +22,4 @@ export class FeesEntity {
 
   @Column()
   description: string;
-
-  @OneToMany(() => EnrolEntity, (enrol) => enrol.fees)
-  enrols: EnrolEntity;
 }

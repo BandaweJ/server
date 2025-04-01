@@ -29,7 +29,4 @@ export class EnrolEntity {
 
   @ManyToOne(() => StudentsEntity, (student) => student.enrols)
   student: StudentsEntity;
-
-  @ManyToOne(() => FeesEntity, (fees) => fees.enrols)
-  fees: FeesEntity;
 }

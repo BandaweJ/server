@@ -202,18 +202,6 @@ export class EnrolmentService {
   ) {
     const { studentNumber, name, num, year, residence } = updateEnrolDto;
 
-    const fees = await this.financeService.getFeeByResidence(
-      residence,
-      num,
-      year,
-    );
-
-    if (!fees) {
-      throw new NotImplementedException(
-        `Fees for term ${num} ${year} not found`,
-      );
-    }
-
     const student = await this.studentsService.getStudent(
       studentNumber,
       profile,
@@ -252,17 +240,6 @@ export class EnrolmentService {
     for (const enrolDto of enrolDtos) {
       const { name, num, year, residence, studentNumber } = enrolDto;
 
-      const fees = await this.financeService.getFeeByResidence(
-        residence,
-        num,
-        year,
-      );
-      if (!fees) {
-        throw new NotImplementedException(
-          `Fees not found for residence: ${residence}, term: ${num} ${year}`,
-        );
-      }
-
       const student = await this.studentsService.getStudent(
         studentNumber,
         profile,
@@ -273,7 +250,6 @@ export class EnrolmentService {
         year,
         residence,
         student: student,
-        fees,
       });
 
       enrolEntities.push(enrolEntity);
