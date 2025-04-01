@@ -17,6 +17,7 @@ import { ParentsEntity } from 'src/profiles/entities/parents.entity';
 import { CreatePaymentDto } from './dtos/createPayment.dto';
 import { ROLES } from 'src/auth/models/roles.enum';
 import { FinanceService } from 'src/finance/finance.service';
+import { Invoice } from './models/invoice.model';
 
 @Injectable()
 export class PaymentService {
@@ -65,7 +66,10 @@ export class PaymentService {
     //   const student = await this.studentsService.getStudent(studentNumber, profile);
 
     return await this.paymentRepository.find({
-      where: { student: { studentNumber } },
+      where: {
+        student: { studentNumber },
+      },
+      relations: ['student'],
     });
   }
 
@@ -118,12 +122,14 @@ export class PaymentService {
       0,
     );
 
-    return {
-      studentNumber,
+    const invoice: Invoice = {
+      student: payments[0].student,
       bills,
       payments,
       balance: totalBill - totalPayments,
     };
+
+    return invoice;
   }
 
   async updatePayment(

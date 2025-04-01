@@ -20,8 +20,6 @@ export class PaymentEntity {
 
   @Column({ nullable: true })
   receiptBookNumber: string;
-  //   @ManyToOne(() => EnrolEntity, (enrol) => enrol.payments, { nullable: true })
-  //   enrolment: EnrolEntity | null; // Optional, payments can be made outside of specific enrolments
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   amount: number;
