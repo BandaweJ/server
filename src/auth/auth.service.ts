@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import {
   BadRequestException,
   Injectable,
@@ -164,10 +165,26 @@ export class AuthService {
     const user = await this.accountsRepository.findOne({ where: { username } });
 
     if (user && (await user.validatePassword(password))) {
-      const role = user.role;
+      const rol = user.role;
       const id = user.id;
 
-      return { username, role, id };
+      switch (rol) {
+        case ROLES.admin:
+        case ROLES.hod:
+        case ROLES.reception:
+        case ROLES.teacher: {
+          const usr = await this.resourceById.getTeacherById(id);
+          return { username, role: usr.role, id };
+        }
+        case ROLES.parent: {
+          const usr = await this.resourceById.getParentByEmail(id);
+          return { username, role: usr.role, id };
+        }
+        case ROLES.student: {
+          const usr = await this.resourceById.getStudentByStudentNumber(id);
+          return { username, role: usr.role, id };
+        }
+      }
     } else {
       return null;
     }
