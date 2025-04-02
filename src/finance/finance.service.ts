@@ -208,9 +208,6 @@ export class FinanceService {
   }
 
   async getStudentsNotBilledForTerm(num: number, year: number) {
-    return await this.enrolmentService.findStudentsNotBilledForTermQueryBuilder(
-      num,
-      year,
-    );
+    return await this.enrolmentService.findStudentsNotBilledForTerm(num, year);
   }
 }

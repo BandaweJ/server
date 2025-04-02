@@ -28,6 +28,7 @@ import { AttendanceEntity } from './entities/attendance.entity';
 import { StudentsSummary } from './models/students-summary.model';
 import { StudentsService } from 'src/profiles/students/students.service';
 import { UpdateEnrolDto } from './dtos/update-enrol.dto';
+import { FinanceService } from 'src/finance/finance.service';
 // import { FinanceService } from 'src/finance/finance.service';
 
 @Injectable()
@@ -44,7 +45,7 @@ export class EnrolmentService {
     @InjectRepository(AttendanceEntity)
     private attendanceRepository: Repository<AttendanceEntity>,
 
-    // private financeService: FinanceService,
+    private financeService: FinanceService,
 
     private studentsService: StudentsService,
   ) {}
@@ -548,16 +549,6 @@ export class EnrolmentService {
     toNum: number,
     toYear: number,
   ) {
-    // const currentClassEnrolments = await this.enrolmentRepository.find({
-    //   select: ['name', 'num', 'year'],
-    //   where: {
-    //     name: fromName,
-    //     num: fromNum,
-    //     year: fromYear,
-    //   },
-    //   relations: ['student'],
-    // });
-
     let currentClassEnrolments = await this.getEnrolmentByClass(
       fromName,
       fromNum,
@@ -582,10 +573,6 @@ export class EnrolmentService {
 
       await this.enrolmentRepository.save([...newClassEnrolment]);
       return { result: true };
-      //   enrol.name = toName;
-      //   enrol.num = toNum;
-      //   enrol.year = toYear;
-      // });
 
       await this.enrolmentRepository.save([...currentClassEnrolments]);
       return { result: true };
@@ -608,42 +595,41 @@ export class EnrolmentService {
     }
   }
 
-  // async findStudentsNotBilledForTermQueryBuilder(
-  //   num: number,
-  //   year: number,
-  // ): Promise<StudentsEntity[]> {
-  //   const students = await this.enrolmentRepository
-  //     .createQueryBuilder('enrol')
-  //     .leftJoinAndSelect('enrol.student', 'student')
-  //     .leftJoin('bills', 'bill', 'bill.enrolId = enrol.id')
-  //     .where('enrol.num = :num AND enrol.year = :year', { num, year })
-  //     .andWhere('bill.id IS NULL')
-  //     .select('student.*')
-  //     .distinct(true)
-  //     .getRawMany();
-
-  //   return students;
-  // }
-
-  async findStudentsNotBilledForTermQueryBuilder(
+  async findStudentsNotBilledForTerm(
     num: number,
     year: number,
   ): Promise<StudentsEntity[]> {
-    const students = await this.enrolmentRepository
-      .createQueryBuilder('enrol')
-      .leftJoinAndSelect('enrol.student', 'student')
-      .leftJoin('bills', 'bill', 'bill.enrolId = enrol.id')
-      .where('enrol.num = :num AND enrol.year = :year', { num, year })
-      .andWhere('bill.id IS NULL')
-      .select([
-        'student.id',
-        'student.studentNumber',
-        'student.firstName',
-        'student.lastName',
-      ])
-      .distinct(true)
-      .getRawMany();
+    // 1. Find all enrolments for the given term.
+    const enrolments = await this.enrolmentRepository.find({
+      where: { num, year },
+      relations: ['student'],
+    });
 
-    return students;
+    // 2. Extract student IDs from the enrolments.
+    const enrolledStudentIds = enrolments.map(
+      (enrol) => enrol.student.studentNumber,
+    );
+
+    // 3. Find all bills for the given term.
+    const bills = await this.financeService.getBillsByEnrolment(num, year);
+
+    // 4. Extract student IDs from the bills.
+    const billedStudentIds = bills.map((bill) => bill.student.studentNumber);
+
+    // 5. Filter enrolled students to find those not billed.
+    const studentsNotBilled = enrolments
+      .filter(
+        (enrol) => !billedStudentIds.includes(enrol.student.studentNumber),
+      )
+      .map((enrol) => enrol.student);
+
+    //6. remove duplicates
+    const uniqueStudentsNotBilled = studentsNotBilled.filter(
+      (student, index, self) =>
+        index ===
+        self.findIndex((s) => s.studentNumber === student.studentNumber),
+    );
+
+    return uniqueStudentsNotBilled;
   }
 }
