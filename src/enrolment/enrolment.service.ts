@@ -608,6 +608,23 @@ export class EnrolmentService {
     }
   }
 
+  // async findStudentsNotBilledForTermQueryBuilder(
+  //   num: number,
+  //   year: number,
+  // ): Promise<StudentsEntity[]> {
+  //   const students = await this.enrolmentRepository
+  //     .createQueryBuilder('enrol')
+  //     .leftJoinAndSelect('enrol.student', 'student')
+  //     .leftJoin('bills', 'bill', 'bill.enrolId = enrol.id')
+  //     .where('enrol.num = :num AND enrol.year = :year', { num, year })
+  //     .andWhere('bill.id IS NULL')
+  //     .select('student.*')
+  //     .distinct(true)
+  //     .getRawMany();
+
+  //   return students;
+  // }
+
   async findStudentsNotBilledForTermQueryBuilder(
     num: number,
     year: number,
@@ -618,7 +635,12 @@ export class EnrolmentService {
       .leftJoin('bills', 'bill', 'bill.enrolId = enrol.id')
       .where('enrol.num = :num AND enrol.year = :year', { num, year })
       .andWhere('bill.id IS NULL')
-      .select('student.*')
+      .select([
+        'student.id',
+        'student.studentNumber',
+        'student.firstName',
+        'student.lastName',
+      ])
       .distinct(true)
       .getRawMany();
 
