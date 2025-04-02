@@ -9,7 +9,7 @@ import {
 import { FeesEntity } from './fees.entity';
 import { EnrolEntity } from 'src/enrolment/entities/enrol.entity';
 
-@Entity()
+@Entity('bills')
 export class BillsEntity {
   @PrimaryGeneratedColumn({ type: 'bigint' })
   id: number;
