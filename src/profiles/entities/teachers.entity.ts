@@ -55,8 +55,8 @@ export class TeachersEntity extends BaseEntity {
   @Column({ default: Timestamp })
   dateOfLeaving: Date;
 
-  @Column({ type: 'enum', enum: ROLES })
-  role: ROLES;
+  @Column()
+  role: string;
 
   @OneToOne(() => AccountsEntity, (account) => account.teacher)
   account: AccountsEntity;

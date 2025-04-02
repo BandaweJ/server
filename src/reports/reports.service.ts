@@ -128,7 +128,10 @@ export class ReportsService {
         subjectInfo.position = subjectMark.position;
         subjectInfo.subjectCode = subjectMark.subject.code;
         subjectInfo.subjectName = subjectMark.subject.name;
-        subjectInfo.grade = this.computeGrade(subjectMark.mark);
+        subjectInfo.grade = this.computeGrade(
+          subjectMark.mark,
+          report.className,
+        );
         subjectInfo.averageMark = Array.from(subjectsSet).find(
           (subject) => subject.code === subjectInfo.subjectCode,
         ).average;
@@ -256,15 +259,33 @@ export class ReportsService {
     return reps;
   }
 
-  private computeGrade(mark: number): string {
-    if (mark >= 90) return 'A*';
-    else if (mark >= 80) return 'A';
-    else if (mark >= 70) return 'B';
-    else if (mark >= 60) return 'C';
-    else if (mark >= 50) return 'D';
-    else if (mark >= 40) return 'E';
-    else if (mark >= 30) return 'F';
-    else return 'G';
+  private computeGrade(mark: number, clas: string): string {
+    const form = clas.charAt(0);
+
+    switch (form) {
+      case '5':
+      case '6': {
+        if (mark >= 90) return 'A*';
+        else if (mark >= 75) return 'A';
+        else if (mark >= 65) return 'B';
+        else if (mark >= 50) return 'C';
+        else if (mark >= 40) return 'D';
+        else if (mark >= 35) return 'E';
+        else return 'F';
+      }
+      case '1':
+      case '2':
+      case '3':
+      case '4': {
+        if (mark >= 90) return 'A*';
+        else if (mark >= 70) return 'A';
+        else if (mark >= 60) return 'B';
+        else if (mark >= 50) return 'C';
+        else if (mark >= 40) return 'D';
+        else if (mark >= 35) return 'E';
+        else return 'U';
+      }
+    }
   }
 
   private computePoints(mark: number): number {
