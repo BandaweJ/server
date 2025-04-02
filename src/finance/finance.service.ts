@@ -218,33 +218,28 @@ export class FinanceService {
       year,
     );
 
-    // 2. Extract student IDs from the enrolments.
-    const enrolledStudentIds = enrolments.map(
-      (enrol) => enrol.student.studentNumber,
-    );
-
-    // 3. Find all bills for the given term.
+    //2. Get all bills for the term
     const bills = await this.billsRepository.find({
       where: { enrol: { num, year } },
+      relations: ['enrol', 'student'],
     });
 
-    // 4. Extract student IDs from the bills.
+    // Extract student IDs from bills
     const billedStudentIds = bills.map((bill) => bill.student.studentNumber);
 
-    // 5. Filter enrolled students to find those not billed.
+    // Filter enrolments to find students not in bills
     const studentsNotBilled = enrolments
       .filter(
         (enrol) => !billedStudentIds.includes(enrol.student.studentNumber),
       )
       .map((enrol) => enrol.student);
 
-    //6. remove duplicates
+    //remove duplicate students
     const uniqueStudentsNotBilled = studentsNotBilled.filter(
       (student, index, self) =>
         index ===
         self.findIndex((s) => s.studentNumber === student.studentNumber),
     );
-
     return uniqueStudentsNotBilled;
   }
 }
