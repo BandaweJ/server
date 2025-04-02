@@ -17,12 +17,13 @@ import { TeachersEntity } from 'src/profiles/entities/teachers.entity';
 import { BillsEntity } from './entities/bills.entity';
 import { ROLES } from 'src/auth/models/roles.enum';
 import { FeesNames } from './models/fees-names.enum';
+import { EnrolmentService } from 'src/enrolment/enrolment.service';
 
 /* eslint-disable prettier/prettier */
 @Injectable()
 export class FinanceService {
   constructor(
-    // private enrolmentService: EnrolmentService,
+    private enrolmentService: EnrolmentService,
 
     @InjectRepository(FeesEntity)
     private feesRepository: Repository<FeesEntity>,
@@ -206,10 +207,10 @@ export class FinanceService {
     return totalBill;
   }
 
-  // async getStudentsNotBilledForTerm(num: number, year: number) {
-  //   return await this.enrolmentService.findStudentsNotBilledForTermQueryBuilder(
-  //     num,
-  //     year,
-  //   );
-  // }
+  async getStudentsNotBilledForTerm(num: number, year: number) {
+    return await this.enrolmentService.findStudentsNotBilledForTermQueryBuilder(
+      num,
+      year,
+    );
+  }
 }

@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 export enum ROLES {
   teacher = 'teacher',
   student = 'student',

@@ -1,5 +1,7 @@
+/* eslint-disable prettier/prettier */
 import { type } from 'os';
 import { AccountsEntity } from 'src/auth/entities/accounts.entity';
+import { ROLES } from 'src/auth/models/roles.enum';
 import { TeacherCommentEntity } from 'src/marks/entities/teacher-comments.entity';
 import {
   Column,
@@ -53,8 +55,8 @@ export class TeachersEntity extends BaseEntity {
   @Column({ default: Timestamp })
   dateOfLeaving: Date;
 
-  @Column({ default: 'teacher' })
-  role: string;
+  @Column({ type: 'enum', enum: ROLES })
+  role: ROLES;
 
   @OneToOne(() => AccountsEntity, (account) => account.teacher)
   account: AccountsEntity;

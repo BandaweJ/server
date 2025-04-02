@@ -11,7 +11,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { EnrolmentService } from 'src/enrolment/enrolment.service';
 import { CreateFeesDto } from './dtos/fees.dto';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { TeachersEntity } from 'src/profiles/entities/teachers.entity';
@@ -95,11 +94,11 @@ export class FinanceController {
     return this.financeService.getTotalBillsByYear(year);
   }
 
-  //   @Get('billing/tobill/:num/:year')
-  //   getStudentsNotBilledForTerm(
-  //     @Param('num', ParseIntPipe) num: number,
-  //     @Param('year', ParseIntPipe) year: number,
-  //   ) {
-  //     return this.financeService.getStudentsNotBilledForTerm(num, year);
-  //   }
+  @Get('billing/tobill/:num/:year')
+  getStudentsNotBilledForTerm(
+    @Param('num', ParseIntPipe) num: number,
+    @Param('year', ParseIntPipe) year: number,
+  ) {
+    return this.financeService.getStudentsNotBilledForTerm(num, year);
+  }
 }

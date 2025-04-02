@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import {
   Body,
   Controller,
@@ -14,7 +15,6 @@ import { UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { TeachersEntity } from '../entities/teachers.entity';
-import { profile } from 'console';
 import { ParentsEntity } from '../entities/parents.entity';
 import { StudentsEntity } from '../entities/students.entity';
 

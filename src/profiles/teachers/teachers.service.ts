@@ -1,6 +1,8 @@
+/* eslint-disable prettier/prettier */
 import {
   BadRequestException,
   Injectable,
+  NotFoundException,
   NotImplementedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -94,7 +96,16 @@ export class TeachersService {
     updateTeacherDto: UpdateTeacherDto,
     profile: TeachersEntity,
   ): Promise<TeachersEntity> {
-    const teacher = await this.getTeacher(id, profile);
+    // const teacher = await this.getTeacher(id, profile);
+    const teacher = await this.teachersRespository.findOne({
+      where: {
+        id,
+      },
+    });
+
+    if (!teacher) {
+      throw new NotFoundException(`Teacher with ID ${id} not found`);
+    }
 
     if (teacher.id === profile.id || profile.role === ROLES.admin) {
       return await this.teachersRespository.save({

@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsArray,
@@ -9,6 +10,7 @@ import {
   IsString,
   MinLength,
 } from 'class-validator';
+import { ROLES } from 'src/auth/models/roles.enum';
 
 export class CreateTeacherDto {
   @ApiProperty()
@@ -74,5 +76,5 @@ export class CreateTeacherDto {
   @ApiProperty()
   @IsOptional()
   @IsString()
-  role?: string;
+  role?: ROLES;
 }
