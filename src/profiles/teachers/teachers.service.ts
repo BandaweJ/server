@@ -107,14 +107,16 @@ export class TeachersService {
       throw new NotFoundException(`Teacher with ID ${id} not found`);
     }
 
-    if (teacher.id === profile.id || profile.role === ROLES.admin) {
-      return await this.teachersRespository.save({
-        ...teacher,
-        ...updateTeacherDto,
-      });
-    } else
-      throw new BadRequestException(
-        'Only admins or owner of account can make these changes',
-      );
+    return await this.teachersRespository.save({
+      ...teacher,
+      ...updateTeacherDto,
+    });
+
+    // if (teacher.id === profile.id || profile.role === ROLES.admin) {
+
+    // } else
+    //   throw new BadRequestException(
+    //     'Only admins or owner of account can make these changes',
+    //   );
   }
 }
