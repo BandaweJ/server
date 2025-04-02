@@ -19,6 +19,7 @@ import { ROLES } from 'src/auth/models/roles.enum';
 import { FeesNames } from './models/fees-names.enum';
 import { EnrolmentService } from 'src/enrolment/enrolment.service';
 import { StudentsEntity } from 'src/profiles/entities/students.entity';
+import { EnrolEntity } from 'src/enrolment/entities/enrol.entity';
 
 /* eslint-disable prettier/prettier */
 @Injectable()
@@ -211,7 +212,7 @@ export class FinanceService {
   async findStudentsNotBilledForTerm(
     num: number,
     year: number,
-  ): Promise<StudentsEntity[]> {
+  ): Promise<EnrolEntity[]> {
     // 1. Find all enrolments for the given term.
     const enrolments = await this.enrolmentService.getEnrolmentByTerm(
       num,
@@ -232,13 +233,15 @@ export class FinanceService {
       .filter(
         (enrol) => !billedStudentIds.includes(enrol.student.studentNumber),
       )
-      .map((enrol) => enrol.student);
+      .map((enrol) => enrol);
 
     //remove duplicate students
     const uniqueStudentsNotBilled = studentsNotBilled.filter(
-      (student, index, self) =>
+      (enrol, index, self) =>
         index ===
-        self.findIndex((s) => s.studentNumber === student.studentNumber),
+        self.findIndex(
+          (s) => s.student.studentNumber === enrol.student.studentNumber,
+        ),
     );
     return uniqueStudentsNotBilled;
   }
