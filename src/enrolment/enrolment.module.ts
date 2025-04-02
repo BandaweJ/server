@@ -11,6 +11,7 @@ import { ResourceByIdModule } from '../resource-by-id/resource-by-id.module';
 import { AttendanceEntity } from './entities/attendance.entity';
 import { FinanceModule } from 'src/finance/finance.module';
 import { ProfilesModule } from 'src/profiles/profiles.module';
+import { FinanceService } from 'src/finance/finance.service';
 
 @Module({
   imports: [

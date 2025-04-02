@@ -29,6 +29,7 @@ import { StudentsSummary } from './models/students-summary.model';
 import { StudentsService } from 'src/profiles/students/students.service';
 import { UpdateEnrolDto } from './dtos/update-enrol.dto';
 import { FinanceService } from 'src/finance/finance.service';
+import { BillsEntity } from 'src/finance/entities/bills.entity';
 // import { FinanceService } from 'src/finance/finance.service';
 
 @Injectable()
@@ -44,8 +45,6 @@ export class EnrolmentService {
 
     @InjectRepository(AttendanceEntity)
     private attendanceRepository: Repository<AttendanceEntity>,
-
-    private financeService: FinanceService,
 
     private studentsService: StudentsService,
   ) {}
@@ -593,43 +592,5 @@ export class EnrolmentService {
     } else {
       return await this.termRepository.save({ ...term });
     }
-  }
-
-  async findStudentsNotBilledForTerm(
-    num: number,
-    year: number,
-  ): Promise<StudentsEntity[]> {
-    // 1. Find all enrolments for the given term.
-    const enrolments = await this.enrolmentRepository.find({
-      where: { num, year },
-      relations: ['student'],
-    });
-
-    // 2. Extract student IDs from the enrolments.
-    const enrolledStudentIds = enrolments.map(
-      (enrol) => enrol.student.studentNumber,
-    );
-
-    // 3. Find all bills for the given term.
-    const bills = await this.financeService.getBillsByEnrolment(num, year);
-
-    // 4. Extract student IDs from the bills.
-    const billedStudentIds = bills.map((bill) => bill.student.studentNumber);
-
-    // 5. Filter enrolled students to find those not billed.
-    const studentsNotBilled = enrolments
-      .filter(
-        (enrol) => !billedStudentIds.includes(enrol.student.studentNumber),
-      )
-      .map((enrol) => enrol.student);
-
-    //6. remove duplicates
-    const uniqueStudentsNotBilled = studentsNotBilled.filter(
-      (student, index, self) =>
-        index ===
-        self.findIndex((s) => s.studentNumber === student.studentNumber),
-    );
-
-    return uniqueStudentsNotBilled;
   }
 }

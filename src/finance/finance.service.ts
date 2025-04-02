@@ -18,6 +18,7 @@ import { BillsEntity } from './entities/bills.entity';
 import { ROLES } from 'src/auth/models/roles.enum';
 import { FeesNames } from './models/fees-names.enum';
 import { EnrolmentService } from 'src/enrolment/enrolment.service';
+import { StudentsEntity } from 'src/profiles/entities/students.entity';
 
 /* eslint-disable prettier/prettier */
 @Injectable()
@@ -207,7 +208,43 @@ export class FinanceService {
     return totalBill;
   }
 
-  async getStudentsNotBilledForTerm(num: number, year: number) {
-    return await this.enrolmentService.findStudentsNotBilledForTerm(num, year);
+  async findStudentsNotBilledForTerm(
+    num: number,
+    year: number,
+  ): Promise<StudentsEntity[]> {
+    // 1. Find all enrolments for the given term.
+    const enrolments = await this.enrolmentService.getEnrolmentByTerm(
+      num,
+      year,
+    );
+
+    // 2. Extract student IDs from the enrolments.
+    const enrolledStudentIds = enrolments.map(
+      (enrol) => enrol.student.studentNumber,
+    );
+
+    // 3. Find all bills for the given term.
+    const bills = await this.billsRepository.find({
+      where: { enrol: { num, year } },
+    });
+
+    // 4. Extract student IDs from the bills.
+    const billedStudentIds = bills.map((bill) => bill.student.studentNumber);
+
+    // 5. Filter enrolled students to find those not billed.
+    const studentsNotBilled = enrolments
+      .filter(
+        (enrol) => !billedStudentIds.includes(enrol.student.studentNumber),
+      )
+      .map((enrol) => enrol.student);
+
+    //6. remove duplicates
+    const uniqueStudentsNotBilled = studentsNotBilled.filter(
+      (student, index, self) =>
+        index ===
+        self.findIndex((s) => s.studentNumber === student.studentNumber),
+    );
+
+    return uniqueStudentsNotBilled;
   }
 }

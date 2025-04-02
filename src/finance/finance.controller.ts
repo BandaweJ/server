@@ -99,6 +99,6 @@ export class FinanceController {
     @Param('num', ParseIntPipe) num: number,
     @Param('year', ParseIntPipe) year: number,
   ) {
-    return this.financeService.getStudentsNotBilledForTerm(num, year);
+    return this.financeService.findStudentsNotBilledForTerm(num, year);
   }
 }
