@@ -197,12 +197,8 @@ export class EnrolmentService {
     updateEnrolDto: UpdateEnrolDto,
     profile: TeachersEntity,
   ) {
-    const { studentNumber, name, num, year, residence } = updateEnrolDto;
+    const { student, name, num, year, residence } = updateEnrolDto;
 
-    const student = await this.studentsService.getStudent(
-      studentNumber,
-      profile,
-    );
     const enrol = await this.enrolmentRepository.findOne({
       where: {
         name,
