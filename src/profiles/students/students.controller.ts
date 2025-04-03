@@ -61,7 +61,7 @@ export class StudentsController {
 
   @Delete(':studentNumber')
   deleteStudent(@Param('studentNumber') studentnumber: string) {
-    console.log('here' + studentnumber);
+    // console.log('here' + studentnumber);
     return this.studentsService.deleteStudent(studentnumber);
   }
 }

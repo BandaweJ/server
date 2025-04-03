@@ -2,6 +2,7 @@
 import {
   BadRequestException,
   Injectable,
+  NotFoundException,
   NotImplementedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -114,9 +115,21 @@ export class StudentsService {
   async deleteStudent(
     studentNumber: string,
   ): Promise<{ studentNumber: string }> {
+    const student = await this.studentsRepository.findOne({
+      where: {
+        studentNumber,
+      },
+    });
+
+    if (!student) {
+      throw new NotFoundException(
+        `Student with StudentNumer ${studentNumber} not found`,
+      );
+    }
+
     const result = await this.studentsRepository.delete(studentNumber);
 
-    if (result.affected === 0)
+    if (!result.affected)
       throw new NotImplementedException(
         `Student with StudentNumer ${studentNumber} not deleted`,
       );
