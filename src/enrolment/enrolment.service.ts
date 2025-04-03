@@ -235,18 +235,14 @@ export class EnrolmentService {
     const enrolEntities: EnrolEntity[] = [];
 
     for (const enrolDto of enrolDtos) {
-      const { name, num, year, residence, studentNumber } = enrolDto;
+      const { name, num, year, residence, student } = enrolDto;
 
-      const student = await this.studentsService.getStudent(
-        studentNumber,
-        profile,
-      );
       const enrolEntity = await this.enrolmentRepository.create({
         name,
         num,
         year,
         residence,
-        student: student,
+        student,
       });
 
       const existingEnrol = await this.enrolmentRepository.findOne({
@@ -443,7 +439,7 @@ export class EnrolmentService {
   async unenrolStudent(id: number) {
     const enrol = await this.enrolmentRepository.findOne({
       where: { id },
-      relations: ['student'],
+      // relations: ['student'],
     });
 
     const result = await this.enrolmentRepository.delete(id);
