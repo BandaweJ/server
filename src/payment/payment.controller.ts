@@ -45,7 +45,7 @@ export class PaymentController {
     @Param('studentNumber') studentNumber: string,
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
-    return this.paymentService.generateInvoice(studentNumber);
+    return this.paymentService.generateInvoice(studentNumber, profile);
   }
 
   @Get('receipt/:receiptNumber')

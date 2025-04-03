@@ -1,3 +1,4 @@
+import { ProfilesModule } from './../profiles/profiles.module';
 /* eslint-disable prettier/prettier */
 import { Module } from '@nestjs/common';
 import { PaymentController } from './payment.controller';
@@ -5,7 +6,6 @@ import { PaymentService } from './payment.service';
 import { AuthModule } from 'src/auth/auth.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { PaymentEntity } from './entities/payment.entity';
-import { ProfilesModule } from 'src/profiles/profiles.module';
 import { EnrolmentModule } from 'src/enrolment/enrolment.module';
 import { FinanceModule } from 'src/finance/finance.module';
 
@@ -18,6 +18,7 @@ import { FinanceModule } from 'src/finance/finance.module';
     ProfilesModule,
     EnrolmentModule,
     FinanceModule,
+    ProfilesModule,
     TypeOrmModule.forFeature([PaymentEntity]),
   ],
 })
