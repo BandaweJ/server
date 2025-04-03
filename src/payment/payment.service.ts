@@ -27,6 +27,7 @@ export class PaymentService {
     // private readonly studentsService: StudentsService,
     private readonly enrolmentService: EnrolmentService,
     private readonly financeService: FinanceService,
+    private studentsService: StudentsService,
   ) {}
 
   async createPayment(
@@ -110,9 +111,16 @@ export class PaymentService {
     });
   }
 
-  async generateInvoice(studentNumber: string): Promise<any> {
+  async generateInvoice(
+    studentNumber: string,
+    profile: TeachersEntity | StudentsEntity | ParentsEntity,
+  ): Promise<any> {
     const payments = await this.getPaymentsByStudent(studentNumber);
     const bills = await this.financeService.getStudentBills(studentNumber);
+    const student = await this.studentsService.getStudent(
+      studentNumber,
+      profile,
+    );
 
     const totalPayments = payments.reduce(
       (sum, payment) => sum + Number(payment.amount),
@@ -124,7 +132,7 @@ export class PaymentService {
     );
 
     const invoice: Invoice = {
-      student: payments[0].student,
+      student,
       bills,
       payments,
       balance: totalBill - totalPayments,
