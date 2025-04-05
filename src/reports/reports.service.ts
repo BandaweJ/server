@@ -182,7 +182,7 @@ export class ReportsService {
     reports.map((report) => {
       report.subjectsPassed = 0;
       report.subjectsTable.map((subj) => {
-        if (subj.mark >= 60) {
+        if (subj.mark >= 50) {
           report.subjectsPassed += 1;
         }
       });
