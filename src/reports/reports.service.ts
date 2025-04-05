@@ -289,12 +289,12 @@ export class ReportsService {
   }
 
   private computePoints(mark: number): number {
-    if (mark >= 80) return 5;
-    else if (mark >= 70) return 4;
-    else if (mark >= 60) return 3;
-    else if (mark >= 50) return 2;
-    else if (mark >= 40) return 1;
-    else if (mark < 40) return 0;
+    if (mark >= 75) return 5;
+    else if (mark >= 65) return 4;
+    else if (mark >= 50) return 3;
+    else if (mark >= 40) return 2;
+    else if (mark >= 35) return 1;
+    else if (mark < 34) return 0;
   }
 
   async saveReports(
