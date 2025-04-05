@@ -309,7 +309,7 @@ export class ReportsService {
       case ROLES.parent:
       case ROLES.reception:
       case ROLES.student:
-      case ROLES.teacher:
+        // case ROLES.teacher:
         throw new UnauthorizedException(
           'Only Admins are allowed to save reports',
         );
