@@ -43,7 +43,7 @@ export class ReportsService {
       case ROLES.parent:
       case ROLES.reception:
       case ROLES.student:
-      case ROLES.teacher:
+        // case ROLES.teacher:
         throw new UnauthorizedException('Only admins can generate new reports');
     }
     // create an array to store all reports
