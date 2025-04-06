@@ -257,6 +257,10 @@ export class FinanceService {
         studentNumber,
       },
     });
+
+    if (!balance) {
+      balance.amount = 0;
+    }
     return balance.amount;
   }
 
