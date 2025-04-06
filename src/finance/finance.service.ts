@@ -251,12 +251,13 @@ export class FinanceService {
     return uniqueStudentsNotBilled;
   }
 
-  async findStudentBalance(studentNumber: string): Promise<BalancesEntity> {
-    return await this.balancesRepository.findOne({
+  async findStudentBalance(studentNumber: string): Promise<number> {
+    const balance = await this.balancesRepository.findOne({
       where: {
         studentNumber,
       },
     });
+    return balance.amount;
   }
 
   async createBalance(
