@@ -259,7 +259,7 @@ export class FinanceService {
     });
 
     if (!balance) {
-      balance.amount = 0;
+      return 0;
     }
     return balance.amount;
   }
