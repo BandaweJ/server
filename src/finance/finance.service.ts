@@ -20,12 +20,17 @@ import { FeesNames } from './models/fees-names.enum';
 import { EnrolmentService } from 'src/enrolment/enrolment.service';
 import { StudentsEntity } from 'src/profiles/entities/students.entity';
 import { EnrolEntity } from 'src/enrolment/entities/enrol.entity';
+import { BalancesEntity } from './entities/balances.entity';
+import { createBalancesDto } from './dtos/balances.dto';
 
 /* eslint-disable prettier/prettier */
 @Injectable()
 export class FinanceService {
   constructor(
     private enrolmentService: EnrolmentService,
+
+    @InjectRepository(BalancesEntity)
+    private balancesRepository: Repository<BalancesEntity>,
 
     @InjectRepository(FeesEntity)
     private feesRepository: Repository<FeesEntity>,
@@ -244,5 +249,47 @@ export class FinanceService {
         ),
     );
     return uniqueStudentsNotBilled;
+  }
+
+  async findStudentBalance(studentNumber: string): Promise<BalancesEntity> {
+    return await this.balancesRepository.findOne({
+      where: {
+        studentNumber,
+      },
+    });
+  }
+
+  async createBalance(
+    createBalanceDto: createBalancesDto,
+  ): Promise<BalancesEntity> {
+    const { studentNumber } = createBalanceDto;
+
+    const savedBalance = await this.findStudentBalance(studentNumber);
+
+    if (savedBalance) {
+      throw new NotImplementedException(
+        'Balance for this student was already set',
+      );
+    }
+
+    return await this.balancesRepository.save({
+      ...createBalanceDto,
+    });
+  }
+
+  async updateBalance(
+    studentNumber: string,
+    amount: number,
+  ): Promise<BalancesEntity> {
+    const savedBalance = await this.findStudentBalance(studentNumber);
+    if (!savedBalance) {
+      throw new NotFoundException('Balance for this student was not found');
+    }
+
+    savedBalance.amount = amount;
+
+    return await this.balancesRepository.save({
+      ...savedBalance,
+    });
   }
 }

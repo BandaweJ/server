@@ -131,7 +131,12 @@ export class PaymentService {
       0,
     );
 
+    const balanceBfwd = await this.financeService.findStudentBalance(
+      studentNumber,
+    );
+
     const invoice: Invoice = {
+      balanceBfwd,
       student,
       bills,
       payments,
