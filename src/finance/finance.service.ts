@@ -282,7 +282,11 @@ export class FinanceService {
     studentNumber: string,
     amount: number,
   ): Promise<BalancesEntity> {
-    const savedBalance = await this.findStudentBalance(studentNumber);
+    const savedBalance = await this.balancesRepository.findOne({
+      where: {
+        studentNumber,
+      },
+    });
     if (!savedBalance) {
       throw new NotFoundException('Balance for this student was not found');
     }
