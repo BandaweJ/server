@@ -131,16 +131,16 @@ export class PaymentService {
       0,
     );
 
-    const balanceBfwd = await this.financeService.findStudentBalance(
-      studentNumber,
-    );
+    // const balanceBfwd = await this.financeService.findStudentBalance(
+    //   studentNumber,
+    // );
 
     const invoice: Invoice = {
-      balanceBfwd,
+      // balanceBfwd,
       student,
       bills,
       payments,
-      balance: totalBill + balanceBfwd.amount - totalPayments,
+      balance: totalBill - totalPayments,
     };
 
     return invoice;
