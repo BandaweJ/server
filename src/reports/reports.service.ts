@@ -37,7 +37,7 @@ export class ReportsService {
     year: number,
     examType: string,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
-  ): Promise<ReportsModel[] | ReportsModel> {
+  ): Promise<ReportsModel[]> {
     switch (profile.role) {
       case ROLES.hod:
       case ROLES.parent:
@@ -257,7 +257,9 @@ export class ReportsService {
     });
 
     if (profile.role === ROLES.student && profile instanceof StudentsEntity) {
-      const repo = reps.find((r) => r.studentNumber === profile.studentNumber);
+      const repo = reps.filter(
+        (r) => r.studentNumber === profile.studentNumber,
+      );
       return repo;
     }
 
