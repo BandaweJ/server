@@ -35,6 +35,13 @@ export class FinanceController {
   ) {
     return this.financeService.createFees(createFeesDto, profile);
   }
+  @Post('fees/balance')
+  createFeesBalance(
+    @Body() createBalanceDto: CreateBalancesDto,
+    @GetUser() profile: TeachersEntity,
+  ) {
+    return this.financeService.createBalance(createBalanceDto);
+  }
 
   @Patch('fees/:id')
   updateFees(
@@ -110,12 +117,4 @@ export class FinanceController {
   // ): Promise<BalancesEntity> {
   //   return this.financeService.createBalance(createBalance);
   // }
-
-  @Post('balance')
-  createBalance(
-    @Body() createBalanceDto: CreateBalancesDto,
-    @GetUser() profile: TeachersEntity,
-  ) {
-    return this.financeService.createBalance(createBalanceDto);
-  }
 }
