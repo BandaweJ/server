@@ -472,15 +472,17 @@ export class ReportsService {
     studentNumber,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
-    const reps = await this.reportsRepository.find({
-      where: {
-        name,
-        num,
-        year,
-        examType,
-        studentNumber,
-      },
-    });
+    // const reps = await this.reportsRepository.find({
+    //   where: {
+    //     name,
+    //     num,
+    //     year,
+    //     examType,
+    //     studentNumber,
+    //   },
+    // });
+
+    const reps = await this.generateReports(name, num, year, examType, profile);
 
     const reportToDownload = reps.find(
       (rep) => rep.studentNumber === studentNumber,
