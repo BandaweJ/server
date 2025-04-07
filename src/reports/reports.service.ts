@@ -325,16 +325,35 @@ export class ReportsService {
     }
 
     const reportsArray: ReportsEntity[] = [];
-    reports.map((report) => {
-      const rep: ReportsEntity = new ReportsEntity();
+    reports.map(async (report) => {
+      const studentNumber = report.studentNumber;
+      const found = await this.reportsRepository.findOne({
+        where: {
+          name,
+          num,
+          year,
+          examType,
+          studentNumber,
+        },
+      });
 
-      rep.name = name;
-      rep.num = num;
-      rep.year = year;
-      rep.studentNumber = report.studentNumber;
-      rep.report = report;
-      rep.examType = examType;
-      reportsArray.push(rep);
+      if (found) {
+        found.report = report;
+
+        reportsArray.push({
+          ...found,
+        });
+      } else {
+        const newReport = await this.reportsRepository.create();
+        newReport.examType = examType;
+        newReport.name = name;
+        newReport.num = num;
+        newReport.studentNumber = report.studentNumber;
+        newReport.year = year;
+        newReport.report = report;
+
+        reportsArray.push(newReport);
+      }
     });
 
     return await this.reportsRepository.save(reportsArray);
