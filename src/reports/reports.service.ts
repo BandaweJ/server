@@ -37,12 +37,12 @@ export class ReportsService {
     year: number,
     examType: string,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
-  ): Promise<ReportsModel[]> {
+  ): Promise<ReportsModel[] | ReportsModel> {
     switch (profile.role) {
       case ROLES.hod:
       case ROLES.parent:
-      case ROLES.reception:
-      case ROLES.student:
+        // case ROLES.reception:
+        // case ROLES.student:
         // case ROLES.teacher:
         throw new UnauthorizedException('Only admins can generate new reports');
     }
@@ -255,6 +255,11 @@ export class ReportsService {
         }
       });
     });
+
+    if (profile.role === ROLES.student && profile instanceof StudentsEntity) {
+      const repo = reps.find((r) => r.studentNumber === profile.studentNumber);
+      return repo;
+    }
 
     return reps;
   }
