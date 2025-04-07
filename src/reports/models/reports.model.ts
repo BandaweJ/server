@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import { ReportModel } from './report.model';
 
 export class ReportsModel {

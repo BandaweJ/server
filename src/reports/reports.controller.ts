@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import {
   Body,
   Controller,
@@ -17,6 +18,7 @@ import { StudentsEntity } from 'src/profiles/entities/students.entity';
 import { ParentsEntity } from 'src/profiles/entities/parents.entity';
 import { HeadCommentDto } from './dtos/head-comment.dto';
 import { ReportsModel } from './models/reports.model';
+import { ExamType } from 'src/marks/models/examtype.enum';
 
 @Controller('reports')
 @UseGuards(AuthGuard())
@@ -41,16 +43,24 @@ export class ReportsController {
     );
   }
 
-  @Post('/save/:name/:num/:year')
+  @Post('/save/:name/:num/:year/:examType')
   saveReports(
     @Param('name') name: string,
 
     @Param('num') num: number,
     @Param('year') year: number,
+    @Param('examType') examType: ExamType,
     @Body() reports: ReportModel[],
     @GetUser() profile,
   ) {
-    return this.reportsService.saveReports(num, year, name, reports, profile);
+    return this.reportsService.saveReports(
+      num,
+      year,
+      name,
+      reports,
+      examType,
+      profile,
+    );
   }
 
   @Post('/save/')
@@ -71,6 +81,11 @@ export class ReportsController {
     @GetUser() profile,
   ) {
     return this.reportsService.viewReports(name, num, year, examType, profile);
+  }
+
+  @Get('/view/:studentNumber')
+  getStudentReports(@Param('studentNumber') studentNumber: string) {
+    return this.reportsService.getStudentReports(studentNumber);
   }
 
   // @Get('view')

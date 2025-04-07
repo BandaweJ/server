@@ -18,6 +18,7 @@ import * as fs from 'fs';
 import { ReportsModel } from './models/reports.model';
 import { HeadCommentDto } from './dtos/head-comment.dto';
 import * as path from 'path';
+import { ExamType } from 'src/marks/models/examtype.enum';
 // import bannerImagePath from '../assets/images/banner3.png';
 
 @Injectable()
@@ -41,8 +42,8 @@ export class ReportsService {
     switch (profile.role) {
       case ROLES.hod:
       case ROLES.parent:
-        // case ROLES.reception:
-        // case ROLES.student:
+      // case ROLES.reception:
+      case ROLES.student:
         // case ROLES.teacher:
         throw new UnauthorizedException('Only admins can generate new reports');
     }
@@ -256,12 +257,12 @@ export class ReportsService {
       });
     });
 
-    if (profile.role === ROLES.student && profile instanceof StudentsEntity) {
-      const repo = reps.filter(
-        (r) => r.studentNumber === profile.studentNumber,
-      );
-      return repo;
-    }
+    // if (profile.role === ROLES.student && profile instanceof StudentsEntity) {
+    //   const repo = reps.filter(
+    //     (r) => r.studentNumber === profile.studentNumber,
+    //   );
+    //   return repo;
+    // }
 
     return reps;
   }
@@ -309,6 +310,7 @@ export class ReportsService {
     year: number,
     name: string,
     reports: ReportModel[],
+    examType: ExamType,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
     switch (profile.role) {
@@ -331,11 +333,19 @@ export class ReportsService {
       rep.year = year;
       rep.studentNumber = report.studentNumber;
       rep.report = report;
-
+      rep.examType = examType;
       reportsArray.push(rep);
     });
 
     return await this.reportsRepository.save(reportsArray);
+  }
+
+  async getStudentReports(studentNumber: string): Promise<ReportsEntity[]> {
+    return await this.reportsRepository.find({
+      where: {
+        studentNumber,
+      },
+    });
   }
 
   async saveHeadComment(
@@ -393,26 +403,15 @@ export class ReportsService {
     studentNumber,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
-    // switch (profile.role) {
-    //   case ROLES.parent:
-    //   case ROLES.student:
-    //   case ROLES.teacher:
-    //     throw new UnauthorizedException(
-    //       'Only admins are allowed to download reports for now',
-    //     );
-    // }
-
-    // if (studentNumber) {
-    //   const report = await this.reportsRepository.findOne({
-    //     where: {
-    //       name,
-    //       num,
-    //       year,
-    //       studentNumber,
-    //     },
-    //   });
-
-    const reps = await this.generateReports(name, num, year, examType, profile);
+    const reps = await this.reportsRepository.find({
+      where: {
+        name,
+        num,
+        year,
+        examType,
+        studentNumber,
+      },
+    });
 
     const reportToDownload = reps.find(
       (rep) => rep.studentNumber === studentNumber,
