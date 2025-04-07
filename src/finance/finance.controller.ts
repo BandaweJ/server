@@ -104,10 +104,18 @@ export class FinanceController {
     return this.financeService.findStudentsNotBilledForTerm(num, year);
   }
 
+  // @Post('balance')
+  // createBalance(
+  //   @Body() createBalance: CreateBalancesDto,
+  // ): Promise<BalancesEntity> {
+  //   return this.financeService.createBalance(createBalance);
+  // }
+
   @Post('balance')
   createBalance(
-    @Body() createBalance: CreateBalancesDto,
-  ): Promise<BalancesEntity> {
-    return this.financeService.createBalance(createBalance);
+    @Body() createBalanceDto: CreateBalancesDto,
+    @GetUser() profile: TeachersEntity,
+  ) {
+    return this.financeService.createBalance(createBalanceDto);
   }
 }
