@@ -15,6 +15,8 @@ import { CreateFeesDto } from './dtos/fees.dto';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { TeachersEntity } from 'src/profiles/entities/teachers.entity';
 import { FinanceService } from './finance.service';
+import { BalancesEntity } from './entities/balances.entity';
+import { CreateBalancesDto } from './dtos/balances.dto';
 
 @Controller('finance')
 @UseGuards(AuthGuard())
@@ -100,5 +102,12 @@ export class FinanceController {
     @Param('year', ParseIntPipe) year: number,
   ) {
     return this.financeService.findStudentsNotBilledForTerm(num, year);
+  }
+
+  @Post('balance')
+  createBalance(
+    @Body() createBalance: CreateBalancesDto,
+  ): Promise<BalancesEntity> {
+    return this.financeService.createBalance(createBalance);
   }
 }

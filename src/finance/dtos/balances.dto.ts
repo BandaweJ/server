@@ -1,12 +1,9 @@
 /* eslint-disable prettier/prettier */
 import { ApiProperty } from '@nestjs/swagger';
 
-export class createBalancesDto {
+export class CreateBalancesDto {
   @ApiProperty()
   amount: number;
-
-  @ApiProperty()
-  descriptiom?: string;
 
   @ApiProperty()
   studentNumber: string;

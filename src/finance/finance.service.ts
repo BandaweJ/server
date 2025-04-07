@@ -21,7 +21,7 @@ import { EnrolmentService } from 'src/enrolment/enrolment.service';
 import { StudentsEntity } from 'src/profiles/entities/students.entity';
 import { EnrolEntity } from 'src/enrolment/entities/enrol.entity';
 import { BalancesEntity } from './entities/balances.entity';
-import { createBalancesDto } from './dtos/balances.dto';
+import { CreateBalancesDto } from './dtos/balances.dto';
 
 /* eslint-disable prettier/prettier */
 @Injectable()
@@ -267,7 +267,7 @@ export class FinanceService {
   }
 
   async createBalance(
-    createBalanceDto: createBalancesDto,
+    createBalanceDto: CreateBalancesDto,
   ): Promise<BalancesEntity> {
     const { studentNumber } = createBalanceDto;
 

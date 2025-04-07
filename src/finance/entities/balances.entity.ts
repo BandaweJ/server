@@ -20,8 +20,5 @@ export class BalancesEntity {
   dateCreated: Date;
 
   @Column()
-  descrpition: string;
-
-  @Column()
   studentNumber: string;
 }
