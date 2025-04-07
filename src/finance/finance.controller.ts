@@ -40,7 +40,7 @@ export class FinanceController {
     @Body() createBalanceDto: CreateBalancesDto,
     @GetUser() profile: TeachersEntity,
   ) {
-    console.log('create balance');
+    // console.log('create balance');
     return this.financeService.createBalance(createBalanceDto, profile);
   }
 

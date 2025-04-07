@@ -273,7 +273,11 @@ export class FinanceService {
   ): Promise<BalancesEntity> {
     const { studentNumber } = createBalanceDto;
 
-    const savedBalance = await this.findStudentBalance(studentNumber);
+    const savedBalance = await this.balancesRepository.findOne({
+      where: {
+        studentNumber,
+      },
+    });
 
     if (savedBalance) {
       throw new NotImplementedException(
