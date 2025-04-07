@@ -305,6 +305,60 @@ export class ReportsService {
     else if (mark < 34) return 0;
   }
 
+  // async saveReports(
+  //   num: number,
+  //   year: number,
+  //   name: string,
+  //   reports: ReportModel[],
+  //   examType: ExamType,
+  //   profile: TeachersEntity | StudentsEntity | ParentsEntity,
+  // ) {
+  //   switch (profile.role) {
+  //     case ROLES.hod:
+  //     case ROLES.parent:
+  //     case ROLES.reception:
+  //     case ROLES.student:
+  //       // case ROLES.teacher:
+  //       throw new UnauthorizedException(
+  //         'Only Admins are allowed to save reports',
+  //       );
+  //   }
+
+  //   const reportsArray: ReportsEntity[] = [];
+  //   reports.map(async (report) => {
+  //     const studentNumber = report.studentNumber;
+  //     const found = await this.reportsRepository.findOne({
+  //       where: {
+  //         name,
+  //         num,
+  //         year,
+  //         examType,
+  //         studentNumber,
+  //       },
+  //     });
+
+  //     if (found) {
+  //       found.report = report;
+
+  //       reportsArray.push({
+  //         ...found,
+  //       });
+  //     } else {
+  //       const newReport = await this.reportsRepository.create();
+  //       newReport.examType = examType;
+  //       newReport.name = name;
+  //       newReport.num = num;
+  //       newReport.studentNumber = report.studentNumber;
+  //       newReport.year = year;
+  //       newReport.report = report;
+
+  //       reportsArray.push(newReport);
+  //     }
+  //   });
+
+  //   return await this.reportsRepository.save(reportsArray);
+  // }
+
   async saveReports(
     num: number,
     year: number,
@@ -312,20 +366,18 @@ export class ReportsService {
     reports: ReportModel[],
     examType: ExamType,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
-  ) {
+  ): Promise<ReportsEntity[]> {
     switch (profile.role) {
       case ROLES.hod:
       case ROLES.parent:
       case ROLES.reception:
       case ROLES.student:
-        // case ROLES.teacher:
         throw new UnauthorizedException(
           'Only Admins are allowed to save reports',
         );
     }
 
-    const reportsArray: ReportsEntity[] = [];
-    reports.map(async (report) => {
+    const promises = reports.map(async (report) => {
       const studentNumber = report.studentNumber;
       const found = await this.reportsRepository.findOne({
         where: {
@@ -339,23 +391,21 @@ export class ReportsService {
 
       if (found) {
         found.report = report;
-
-        reportsArray.push({
-          ...found,
-        });
+        return { ...found };
       } else {
-        const newReport = await this.reportsRepository.create();
-        newReport.examType = examType;
-        newReport.name = name;
-        newReport.num = num;
-        newReport.studentNumber = report.studentNumber;
-        newReport.year = year;
-        newReport.report = report;
-
-        reportsArray.push(newReport);
+        const newReport = this.reportsRepository.create({
+          examType,
+          name,
+          num,
+          studentNumber: report.studentNumber,
+          year,
+          report,
+        });
+        return newReport;
       }
     });
 
+    const reportsArray = await Promise.all(promises);
     return await this.reportsRepository.save(reportsArray);
   }
 
