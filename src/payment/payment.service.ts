@@ -140,7 +140,7 @@ export class PaymentService {
       student,
       bills,
       payments,
-      balance: totalBill - totalPayments,
+      balance: totalBill + balanceBfwd.amount - totalPayments,
     };
 
     return invoice;

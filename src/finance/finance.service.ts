@@ -251,7 +251,7 @@ export class FinanceService {
     return uniqueStudentsNotBilled;
   }
 
-  async findStudentBalance(studentNumber: string): Promise<number> {
+  async findStudentBalance(studentNumber: string): Promise<BalancesEntity> {
     const balance = await this.balancesRepository.findOne({
       where: {
         studentNumber,
@@ -259,9 +259,11 @@ export class FinanceService {
     });
 
     if (!balance) {
-      return 0;
+      throw new NotFoundException(
+        `Balance for student ${studentNumber} not found`,
+      );
     }
-    return balance.amount;
+    return balance;
   }
 
   async createBalance(
