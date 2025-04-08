@@ -215,7 +215,28 @@ export class ReportsService {
     //   profile,
     // );
 
-    const savedReports = await this.reportsRepository.find({
+    // const savedReports = await this.reportsRepository.find({
+    //   where: {
+    //     name,
+    //     num,
+    //     year,
+    //     examType,
+    //     report: { headComment: Not(IsNull()) },
+    //   },
+    // });
+    // savedReports.map((rep) => {
+    //   reps.map((rp) => {
+    //     if (rep.studentNumber === rp.studentNumber) {
+    //       if (rep.report.headComment) {
+    //         rp.report.headComment = rep.report.headComment;
+    //         rp.id = rep.id;
+    //       }
+    //     }
+    //   });
+    // });
+
+    // **Corrected Logic: Fetch existing head comments and assign them**
+    const existingHeadComments = await this.reportsRepository.find({
       where: {
         name,
         num,
@@ -223,16 +244,17 @@ export class ReportsService {
         examType,
         report: { headComment: Not(IsNull()) },
       },
+      select: ['studentNumber', 'report'], // Only select necessary fields
     });
-    savedReports.map((rep) => {
-      reps.map((rp) => {
-        if (rep.studentNumber === rp.studentNumber) {
-          if (rep.report.headComment) {
-            rp.report.headComment = rep.report.headComment;
-            rp.id = rep.id;
-          }
-        }
-      });
+
+    reps.forEach((rep) => {
+      const existingComment = existingHeadComments.find(
+        (ec) => ec.studentNumber === rep.studentNumber,
+      );
+      if (existingComment?.report?.headComment) {
+        rep.report.headComment = existingComment.report.headComment;
+        rep.id = existingComment.id; // Assign the ID if it exists
+      }
     });
 
     //assign point for A level students
