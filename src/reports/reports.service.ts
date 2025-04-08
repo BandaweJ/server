@@ -467,10 +467,14 @@ export class ReportsService {
         studentNumber,
       },
     });
-
+    console.log('Reports from database:', JSON.stringify(reports, null, 2)); // Log the initial structure
     const normalizedReports = reports.map((rep) =>
       this.normalizeReportStructure(rep),
     );
+    console.log(
+      'Normalized Reports:',
+      JSON.stringify(normalizedReports, null, 2),
+    ); // Log the structure after normalization
 
     return normalizedReports;
   }
