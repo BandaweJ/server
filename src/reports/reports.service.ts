@@ -259,6 +259,9 @@ export class ReportsService {
             generatedRep.report.headComment =
               savedRepEntity.report.report.headComment;
             generatedRep.id = savedRepEntity.id;
+          } else if (savedRepEntity.report?.headComment) {
+            generatedRep.report.headComment = savedRepEntity.report.headComment;
+            generatedRep.id = savedRepEntity.id;
           }
         }
       });
