@@ -280,9 +280,13 @@ export class FinanceService {
     });
 
     if (savedBalance) {
-      throw new NotImplementedException(
-        'Balance for this student was already set',
-      );
+      // throw new NotImplementedException(
+      //   'Balance for this student was already set',
+      // );
+      return await this.balancesRepository.save({
+        ...savedBalance,
+        ...createBalanceDto,
+      });
     }
 
     return await this.balancesRepository.save({
