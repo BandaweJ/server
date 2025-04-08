@@ -447,15 +447,15 @@ export class ReportsService {
     });
 
     const reportsArray = await Promise.all(promises);
-    const result = await this.reportsRepository.save(reportsArray);
+    return await this.reportsRepository.save(reportsArray);
 
-    const reps: ReportModel[] = [];
+    // const reps: ReportsModel[] = [];
 
-    result.forEach((res) => {
-      reps.push(res.report);
-    });
+    // result.forEach((res) => {
+    //   reps.push(res.report);
+    // });
 
-    return reps;
+    // return reps;
   }
 
   async getStudentReports(studentNumber: string): Promise<ReportsEntity[]> {
