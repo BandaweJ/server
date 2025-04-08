@@ -207,23 +207,14 @@ export class ReportsService {
     });
 
     // check if reports already saved and assign id and head's comment
-    // const savedReports = await this.viewReports(
-    //   name,
-    //   num,
-    //   year,
-    //   examType,
-    //   profile,
-    // );
+    const savedReports = await this.viewReports(
+      name,
+      num,
+      year,
+      examType,
+      profile,
+    );
 
-    const savedReports = await this.reportsRepository.find({
-      where: {
-        name,
-        num,
-        year,
-        examType,
-        report: { headComment: Not(IsNull()) },
-      },
-    });
     return savedReports;
     savedReports.map((rep) => {
       reps.map((rp) => {
