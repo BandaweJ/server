@@ -255,11 +255,7 @@ export class ReportsService {
       reps.forEach((generatedRep) => {
         if (savedRepEntity.studentNumber === generatedRep.studentNumber) {
           // Access the headComment from the inner 'report' property
-          if (savedRepEntity.report?.report?.headComment) {
-            generatedRep.report.headComment =
-              savedRepEntity.report.report.headComment;
-            generatedRep.id = savedRepEntity.id;
-          } else if (savedRepEntity.report?.headComment) {
+          if (savedRepEntity.report?.headComment) {
             generatedRep.report.headComment = savedRepEntity.report.headComment;
             generatedRep.id = savedRepEntity.id;
           }
@@ -467,14 +463,9 @@ export class ReportsService {
         studentNumber,
       },
     });
-    console.log('Reports from database:', JSON.stringify(reports, null, 2)); // Log the initial structure
     const normalizedReports = reports.map((rep) =>
       this.normalizeReportStructure(rep),
     );
-    console.log(
-      'Normalized Reports:',
-      JSON.stringify(normalizedReports, null, 2),
-    ); // Log the structure after normalization
 
     return normalizedReports;
   }
@@ -507,8 +498,10 @@ export class ReportsService {
         );
     }
 
+    let reports;
+
     if (examType) {
-      return await this.reportsRepository.find({
+      reports = await this.reportsRepository.find({
         where: {
           name,
           num,
@@ -517,13 +510,19 @@ export class ReportsService {
         },
       });
     } else
-      return await this.reportsRepository.find({
+      reports = await this.reportsRepository.find({
         where: {
           name,
           num,
           year,
         },
       });
+
+    const normalizedReports = reports.map((rep) =>
+      this.normalizeReportStructure(rep),
+    );
+
+    return normalizedReports;
   }
 
   async downloadReport(
