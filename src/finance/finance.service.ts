@@ -260,9 +260,9 @@ export class FinanceService {
     });
 
     if (!balance) {
-      throw new NotFoundException(
-        `Balance for student ${studentNumber} not found`,
-      );
+      const b = await this.balancesRepository.create();
+      b.amount = 0;
+      return b;
     }
     return balance;
   }
