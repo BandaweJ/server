@@ -462,11 +462,17 @@ export class ReportsService {
   }
 
   async getStudentReports(studentNumber: string): Promise<ReportsEntity[]> {
-    return await this.reportsRepository.find({
+    const reports = await this.reportsRepository.find({
       where: {
         studentNumber,
       },
     });
+
+    const normalizedReports = reports.map((rep) =>
+      this.normalizeReportStructure(rep),
+    );
+
+    return normalizedReports;
   }
 
   async saveHeadComment(
@@ -1087,5 +1093,39 @@ export class ReportsService {
     // 1 point = (1 inch / 72) * (25.4 mm / 1 inch)
     const pointsPerMm = 25.4 / 72;
     return mm * pointsPerMm;
+  }
+
+  private normalizeReportStructure(reportEntity: any): any {
+    if (
+      reportEntity &&
+      reportEntity.report &&
+      reportEntity.report.report &&
+      reportEntity.report.report.subjectsTable !== undefined
+    ) {
+      // It has the extra nested layers, so restructure it
+      const originalReportData = reportEntity.report.report;
+      return {
+        ...reportEntity,
+        report: {
+          ...originalReportData,
+          id: reportEntity.report.id,
+          num: reportEntity.report.num,
+          year: reportEntity.report.year,
+          name: reportEntity.report.name,
+          studentNumber: reportEntity.report.studentNumber,
+          examType: reportEntity.report.examType,
+        },
+      };
+    } else if (
+      reportEntity &&
+      reportEntity.report &&
+      reportEntity.report.subjectsTable !== undefined
+    ) {
+      // It already has the correct structure
+      return reportEntity;
+    } else {
+      // Handle cases where report or its properties might be missing
+      return reportEntity;
+    }
   }
 }
