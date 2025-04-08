@@ -407,7 +407,7 @@ export class ReportsService {
     reports: ReportModel[],
     examType: ExamType,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
-  ): Promise<ReportsEntity[]> {
+  ): Promise<ReportsModel[]> {
     switch (profile.role) {
       case ROLES.hod:
       case ROLES.parent:
@@ -454,6 +454,8 @@ export class ReportsService {
     result.forEach((res) => {
       reps.push(res.report);
     });
+
+    return reps;
   }
 
   async getStudentReports(studentNumber: string): Promise<ReportsEntity[]> {
