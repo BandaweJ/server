@@ -243,25 +243,13 @@ export class ReportsService {
     });
 
     // check if reports already saved and assign id and head's comment
-    // const savedReports = await this.viewReports(
-    //   name,
-    //   num,
-    //   year,
-    //   examType,
-    //   profile,
-    // );
-
-    const savedReports: any = await this.reportsRepository.find({
-      where: {
-        name,
-        num,
-        year,
-        examType,
-        report: {
-          headComment: Not(IsNull()),
-        },
-      },
-    });
+    const savedReports = await this.viewReports(
+      name,
+      num,
+      year,
+      examType,
+      profile,
+    );
 
     savedReports.forEach((savedRepEntity) => {
       reps.forEach((generatedRep) => {
@@ -275,8 +263,6 @@ export class ReportsService {
         }
       });
     });
-
-    return reps;
 
     //assign point for A level students
     reps.map((rep) => {
@@ -461,7 +447,13 @@ export class ReportsService {
     });
 
     const reportsArray = await Promise.all(promises);
-    return await this.reportsRepository.save(reportsArray);
+    const result = await this.reportsRepository.save(reportsArray);
+
+    const reps: ReportModel[] = [];
+
+    result.forEach((res) => {
+      reps.push(res.report);
+    });
   }
 
   async getStudentReports(studentNumber: string): Promise<ReportsEntity[]> {
