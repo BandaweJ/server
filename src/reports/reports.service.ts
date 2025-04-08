@@ -526,7 +526,7 @@ export class ReportsService {
       //Document Colors
       const blueColor = '#27aae1';
       const blackColor = '#000';
-      const redColor = '#ff0000'; //'#ff4a95';
+      const redColor = '#27aae1'; //'#ff0000'; //'#ff4a95';
       const redAccentColor = '#ff4a95';
 
       //default fontSize
