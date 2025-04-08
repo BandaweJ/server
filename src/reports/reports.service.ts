@@ -11,7 +11,7 @@ import { SubjectSetItem } from './models/subject-set-item';
 import { ROLES } from 'src/auth/models/roles.enum';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ReportsEntity } from './entities/report.entity';
-import { Repository } from 'typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
 import { TeacherCommentEntity } from 'src/marks/entities/teacher-comments.entity';
 import * as PDFDocument from 'pdfkit';
 import * as fs from 'fs';
@@ -207,13 +207,23 @@ export class ReportsService {
     });
 
     //check if reports already saved and assign id and head's comment
-    const savedReports = await this.viewReports(
-      name,
-      num,
-      year,
-      examType,
-      profile,
-    );
+    // const savedReports = await this.viewReports(
+    //   name,
+    //   num,
+    //   year,
+    //   examType,
+    //   profile,
+    // );
+
+    const savedReports = await this.reportsRepository.find({
+      where: {
+        name,
+        num,
+        year,
+        examType,
+        report: { headComment: Not(IsNull()) },
+      },
+    });
     savedReports.map((rep) => {
       reps.map((rp) => {
         if (rep.studentNumber === rp.studentNumber) {
