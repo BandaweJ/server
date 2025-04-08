@@ -191,6 +191,42 @@ export class ReportsService {
 
     //create an array of reportsModel objects to encapsulate each report with much accessed data
     //so that it becomes easy to access that data without accessing the actual report
+    // const reps: ReportsModel[] = [];
+
+    // reports.map((report) => {
+    //   const rep: ReportsModel = new ReportsModel();
+
+    //   rep.name = name;
+    //   rep.num = num;
+    //   rep.report = report;
+    //   rep.studentNumber = report.studentNumber;
+    //   rep.year = year;
+    //   rep.examType = examType;
+
+    //   reps.push(rep);
+    // });
+
+    // // check if reports already saved and assign id and head's comment
+    // const savedReports = await this.viewReports(
+    //   name,
+    //   num,
+    //   year,
+    //   examType,
+    //   profile,
+    // );
+
+    // // return savedReports;
+    // savedReports.map((rep) => {
+    //   reps.map((rp) => {
+    //     if (rep.studentNumber === rp.studentNumber) {
+    //       if (rep.report.headComment) {
+    //         rp.report.headComment = rep.report.headComment;
+    //         rp.id = rep.id;
+    //       }
+    //     }
+    //   });
+    // });
+
     const reps: ReportsModel[] = [];
 
     reports.map((report) => {
@@ -215,17 +251,20 @@ export class ReportsService {
       profile,
     );
 
-    return savedReports;
-    savedReports.map((rep) => {
-      reps.map((rp) => {
-        if (rep.studentNumber === rp.studentNumber) {
-          if (rep.report.headComment) {
-            rp.report.headComment = rep.report.headComment;
-            rp.id = rep.id;
+    savedReports.forEach((savedRepEntity) => {
+      reps.forEach((generatedRep) => {
+        if (savedRepEntity.studentNumber === generatedRep.studentNumber) {
+          // Access the headComment from the inner 'report' property
+          if (savedRepEntity.report?.report?.headComment) {
+            generatedRep.report.headComment =
+              savedRepEntity.report.report.headComment;
+            generatedRep.id = savedRepEntity.id;
           }
         }
       });
     });
+
+    return reps;
 
     //assign point for A level students
     reps.map((rep) => {
@@ -440,7 +479,7 @@ export class ReportsService {
     year: number,
     examType: string,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
-  ): Promise<ReportsEntity[]> {
+  ): Promise<any[]> {
     switch (profile.role) {
       case ROLES.parent:
       case ROLES.student:
