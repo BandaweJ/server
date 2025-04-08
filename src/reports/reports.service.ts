@@ -1102,30 +1102,18 @@ export class ReportsService {
       reportEntity.report.report &&
       reportEntity.report.report.subjectsTable !== undefined
     ) {
-      // It has the extra nested layers, so restructure it
+      // It has the extra nested layers, so restructure it in place
       const originalReportData = reportEntity.report.report;
-      return {
-        ...reportEntity,
-        report: {
-          ...originalReportData,
-          id: reportEntity.report.id,
-          num: reportEntity.report.num,
-          year: reportEntity.report.year,
-          name: reportEntity.report.name,
-          studentNumber: reportEntity.report.studentNumber,
-          examType: reportEntity.report.examType,
-        },
+      reportEntity.report = {
+        ...originalReportData,
+        id: reportEntity.report.id,
+        num: reportEntity.report.num,
+        year: reportEntity.report.year,
+        name: reportEntity.report.name,
+        studentNumber: reportEntity.report.studentNumber,
+        examType: reportEntity.report.examType,
       };
-    } else if (
-      reportEntity &&
-      reportEntity.report &&
-      reportEntity.report.subjectsTable !== undefined
-    ) {
-      // It already has the correct structure
-      return reportEntity;
-    } else {
-      // Handle cases where report or its properties might be missing
-      return reportEntity;
     }
+    return reportEntity; // Return the modified (or original) entity
   }
 }
