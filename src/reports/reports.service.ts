@@ -1104,20 +1104,12 @@ export class ReportsService {
       reportEntity &&
       reportEntity.report &&
       reportEntity.report.report &&
-      reportEntity.report.report.subjectsTable !== undefined
+      reportEntity.report.report.report // Check for the deeper nesting
     ) {
-      // It has the extra nested layers, so restructure it in place
-      const originalReportData = reportEntity.report.report;
-      reportEntity.report = {
-        ...originalReportData,
-        id: reportEntity.report.id,
-        num: reportEntity.report.num,
-        year: reportEntity.report.year,
-        name: reportEntity.report.name,
-        studentNumber: reportEntity.report.studentNumber,
-        examType: reportEntity.report.examType,
-      };
+      // If deeply nested, assign the content of the innermost 'report'
+      reportEntity.report = reportEntity.report.report.report;
     }
-    return reportEntity; // Return the modified (or original) entity
+    // If it's already in the single nested structure, 'reportEntity.report' remains as is.
+    return reportEntity;
   }
 }
