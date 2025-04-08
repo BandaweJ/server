@@ -217,8 +217,10 @@ export class ReportsService {
     savedReports.map((rep) => {
       reps.map((rp) => {
         if (rep.studentNumber === rp.studentNumber) {
-          rp.id = rep.id;
-          rp.report.headComment = rep.report.headComment;
+          if (rep.report.headComment) {
+            rp.report.headComment = rep.report.headComment;
+            rp.id = rep.id;
+          }
         }
       });
     });
