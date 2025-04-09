@@ -540,12 +540,17 @@ export class ReportsService {
     let reps: ReportsModel[] = [];
 
     switch (profile.role) {
+      case ROLES.parent:
       case ROLES.student: {
         reps = await this.getStudentReports(studentNumber);
       }
+      case ROLES.admin:
+      case ROLES.hod:
+      case ROLES.reception:
+      case ROLES.teacher: {
+        reps = await this.generateReports(name, num, year, examType, profile);
+      }
     }
-
-    reps = await this.generateReports(name, num, year, examType, profile);
 
     const reportToDownload = reps.find(
       (rep) => rep.studentNumber === studentNumber,
