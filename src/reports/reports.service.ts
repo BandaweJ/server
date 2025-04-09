@@ -543,6 +543,7 @@ export class ReportsService {
       case ROLES.parent:
       case ROLES.student: {
         reps = await this.getStudentReports(studentNumber);
+        break;
       }
       case ROLES.admin:
       case ROLES.hod:
@@ -600,18 +601,6 @@ export class ReportsService {
         },
       });
 
-      // }
-
-      //insert banner
-
-      // const base64Image = './banner3.jpg';
-      ///opt/render/project/src/src/reports/reports.service.ts:385:13
-      // const imagePath = '../../../../public/banner3.jpg'; // Assuming the public folder is at the root
-
-      // Add an image, constrain it to a given size, and center it vertically and horizontally
-
-      // Add an image
-
       try {
         const imgPath = path.join(__dirname, '../../public/banner.jpeg');
         const imgBuffer = fs.readFileSync(imgPath);
@@ -625,10 +614,6 @@ export class ReportsService {
         console.log('Failed to add image: ', err);
       }
 
-      // const imageBuffer = Buffer.from(base64Image, 'base64');
-      // doc.image(base64Image, 0, 0, { fit: [250, 300] });
-
-      //draw a horizontal blue line
       doc
         .strokeColor(blueColor)
         .lineWidth(2)
@@ -1043,35 +1028,6 @@ export class ReportsService {
         .lineTo(0, 0)
         .stroke();
 
-      // // Load the watermark image
-      // try {
-      //   const watermarkImg = path.join(__dirname, '../../public/logo.png');
-      //   const watermarkBuffer = fs.readFileSync(watermarkImg);
-
-      //   const x = doc.page.width / 2 - 50;
-      //   const y = doc.page.height / 2 - 75;
-
-      //   doc
-      //     .rect(x, y, 100, 100)
-      //     .fillOpacity(0.2) // Set opacity to 50%
-      //     .fill();
-
-      //   doc.image(
-      //     watermarkBuffer,
-      //     x,
-      //     y,
-
-      //     {
-      //       width: 100,
-      //       height: 100,
-      //     },
-      //   );
-      //   doc.restore();
-      // } catch (e) {}
-
-      // doc.rect(42.5197, 160.079, 510.236, 42.5197).stroke();
-
-      //close the document
       doc.end();
 
       const buffer = [];
