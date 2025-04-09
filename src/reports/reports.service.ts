@@ -541,7 +541,7 @@ export class ReportsService {
 
     switch (profile.role) {
       case ROLES.student: {
-        reps = await this.viewReports(name, num, year, examType, profile);
+        reps = await this.getStudentReports(studentNumber);
       }
     }
 
