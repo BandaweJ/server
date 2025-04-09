@@ -537,36 +537,21 @@ export class ReportsService {
     studentNumber,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
-    // const reps = await this.reportsRepository.find({
-    //   where: {
-    //     name,
-    //     num,
-    //     year,
-    //     examType,
-    //     studentNumber,
-    //   },
-    // });
+    let reps: ReportsModel[] = [];
 
-    const reps = await this.generateReports(name, num, year, examType, profile);
+    switch (profile.role) {
+      case ROLES.student: {
+        reps = await this.viewReports(name, num, year, examType, profile);
+      }
+    }
+
+    reps = await this.generateReports(name, num, year, examType, profile);
 
     const reportToDownload = reps.find(
       (rep) => rep.studentNumber === studentNumber,
     );
 
     return await this.generatePDF(reportToDownload);
-    // } else {
-    //   const reports = await this.reportsRepository.find({
-    //     where: {
-    //       name,
-    //       num,
-    //       year,
-    //     },
-    //   });
-
-    //   reports.map(async (rep) => {
-    //     return await this.generatePDF(rep);
-    //   });
-    // }
   }
 
   async generatePDF(
