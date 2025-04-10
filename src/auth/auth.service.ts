@@ -60,15 +60,15 @@ export class AuthService {
   async signup(accountsDto: AccountsDto): Promise<SignupResponse> {
     const { role, id, username, password } = accountsDto;
 
-    const found = await this.accountsRepository.findOne({
-      where: { id },
-    });
+    // const found = await this.accountsRepository.findOne({
+    //   where: { id },
+    // });
 
-    if (found) {
-      throw new BadRequestException(
-        `User with ID ${id} already has an account`,
-      );
-    }
+    // if (found) {
+    //   throw new BadRequestException(
+    //     `User with ID ${id} already has an account`,
+    //   );
+    // }
 
     const salt = await bcrypt.genSalt();
 
