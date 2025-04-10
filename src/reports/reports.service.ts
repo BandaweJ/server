@@ -1,5 +1,9 @@
 /* eslint-disable prettier/prettier */
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { EnrolmentService } from '../enrolment/enrolment.service';
 import { MarksService } from '../marks/marks.service';
 import { ReportModel } from './models/report.model';
@@ -11,7 +15,7 @@ import { SubjectSetItem } from './models/subject-set-item';
 import { ROLES } from 'src/auth/models/roles.enum';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ReportsEntity } from './entities/report.entity';
-import { IsNull, Not, Repository } from 'typeorm';
+import { In, IsNull, Not, Repository } from 'typeorm';
 import { TeacherCommentEntity } from 'src/marks/entities/teacher-comments.entity';
 import * as PDFDocument from 'pdfkit';
 import * as fs from 'fs';
@@ -403,62 +407,149 @@ export class ReportsService {
   //   return await this.reportsRepository.save(reportsArray);
   // }
 
+  // async saveReports(
+  //   num: number,
+  //   year: number,
+  //   name: string,
+  //   reports: ReportsModel[],
+  //   examType: ExamType,
+  //   profile: TeachersEntity | StudentsEntity | ParentsEntity,
+  // ): Promise<ReportsModel[]> {
+  //   switch (profile.role) {
+  //     case ROLES.hod:
+  //     case ROLES.parent:
+  //     case ROLES.reception:
+  //     case ROLES.student:
+  //       throw new UnauthorizedException(
+  //         'Only Admins are allowed to save reports',
+  //       );
+  //   }
+
+  //   const promises = reports.map(async (report) => {
+  //     const studentNumber = report.studentNumber;
+  //     const found = await this.reportsRepository.findOne({
+  //       where: {
+  //         name,
+  //         num,
+  //         year,
+  //         examType,
+  //         studentNumber,
+  //       },
+  //     });
+
+  //     if (found) {
+  //       found.report = report;
+  //       return { ...found };
+  //     } else {
+  //       const newReport = this.reportsRepository.create({
+  //         examType,
+  //         name,
+  //         num,
+  //         studentNumber: report.studentNumber,
+  //         year,
+  //         report,
+  //       });
+  //       return newReport;
+  //     }
+  //   });
+
+  //   const reportsArray = await Promise.all(promises);
+  //   return await this.reportsRepository.save(reportsArray);
+  // }
+
   async saveReports(
     num: number,
     year: number,
-    name: string,
-    reports: ReportModel[],
+    name: string, // e.g., Class Name like 'Form 1 Green'
+    reports: ReportsModel[], // Array of report data objects
     examType: ExamType,
-    profile: TeachersEntity | StudentsEntity | ParentsEntity,
-  ): Promise<ReportsModel[]> {
-    switch (profile.role) {
-      case ROLES.hod:
-      case ROLES.parent:
-      case ROLES.reception:
-      case ROLES.student:
-        throw new UnauthorizedException(
-          'Only Admins are allowed to save reports',
-        );
+    profile: TeachersEntity | StudentsEntity | ParentsEntity, // The user performing the action
+  ): Promise<ReportsEntity[]> {
+    // Return the saved/updated TypeORM entities
+
+    // 1. Authorization Check (More Direct)
+    // Define allowed roles explicitly or check against disallowed roles
+    // const allowedRoles: ROLES[] = [ROLES.admin]; // Add other roles like Principal if needed
+    // if (!allowedRoles.includes(profile.role)) {
+    //   throw new UnauthorizedException(
+    //     `User role '${profile.role}' is not authorized to save reports. Allowed roles: ${allowedRoles.join(', ')}.`
+    //   );
+    // }
+
+    // Handle empty input
+    if (!reports || reports.length === 0) {
+      return []; // Nothing to process
     }
 
-    const promises = reports.map(async (report) => {
-      const studentNumber = report.studentNumber;
-      const found = await this.reportsRepository.findOne({
+    // 2. Batch Fetch Existing Reports
+    const studentNumbers = reports.map((report) => report.studentNumber);
+
+    let existingReports: ReportsEntity[] = [];
+    try {
+      // Find all reports matching the criteria and the student numbers in the input batch
+      existingReports = await this.reportsRepository.find({
         where: {
           name,
           num,
           year,
           examType,
-          studentNumber,
+          studentNumber: In(studentNumbers), // Use TypeORM's 'In' operator
         },
       });
+    } catch (dbError) {
+      console.error('Database error fetching existing reports:', dbError);
+      throw new InternalServerErrorException(
+        'Could not retrieve existing reports data.',
+      );
+    }
 
-      if (found) {
-        found.report = report;
-        return { ...found };
+    // Create a Map for efficient lookup: Map<studentNumber, existingReportEntity>
+    const existingReportsMap = new Map<string, ReportsEntity>(
+      existingReports.map((report) => [report.studentNumber, report]),
+    );
+
+    // 3. Prepare Data for Save (Update existing or Create new)
+    const reportsToSave: ReportsEntity[] = [];
+
+    for (const inputReport of reports) {
+      const existingReport = existingReportsMap.get(inputReport.studentNumber);
+
+      if (existingReport) {
+        // --- UPDATE ---
+        // Modify the existing entity fetched from the database
+        existingReport.report = inputReport.report; // Update the report data field
+        // You might want to update other fields, e.g., an 'updatedBy' timestamp or user ID
+        // existingReport.updatedBy = profile.id;
+
+        reportsToSave.push(existingReport); // Add the modified entity to the list
       } else {
+        // --- CREATE ---
+        // Create a new entity instance using the repository's create method
         const newReport = this.reportsRepository.create({
-          examType,
           name,
           num,
-          studentNumber: report.studentNumber,
           year,
-          report,
+          examType,
+          studentNumber: inputReport.studentNumber,
+          report: inputReport.report, // Assign the full report data from input
+          // You might want to set 'createdBy' field here
+          // createdBy: profile.id,
         });
-        return newReport;
+        reportsToSave.push(newReport); // Add the new entity to the list
       }
-    });
+    }
 
-    const reportsArray = await Promise.all(promises);
-    return await this.reportsRepository.save(reportsArray);
-
-    // const reps: ReportsModel[] = [];
-
-    // result.forEach((res) => {
-    //   reps.push(res.report);
-    // });
-
-    // return reps;
+    // 4. Save Prepared Data in Bulk
+    try {
+      // TypeORM's save method intelligently handles inserts and updates for the provided array
+      const savedReports = await this.reportsRepository.save(reportsToSave);
+      // console.log(`Successfully saved/updated ${savedReports.length} reports.`);
+      return savedReports; // Return the array of saved/updated entities
+    } catch (dbError) {
+      console.error('Database error saving reports:', dbError);
+      // Catch potential errors like unique constraint violations if not handled by the pre-fetch logic
+      throw new InternalServerErrorException('Failed to save report data.');
+    }
   }
 
   async getStudentReports(studentNumber: string): Promise<ReportsEntity[]> {
