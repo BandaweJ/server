@@ -609,7 +609,7 @@ export class EnrolmentService {
         endDate: MoreThanOrEqual(currentDate), // End date is greater than or equal to today
       },
     });
-
+    console.log('current term: ', currentTerm);
     // Handle case where no current term is found (e.g., between terms)
     if (!currentTerm) {
       // console.log(
@@ -634,6 +634,7 @@ export class EnrolmentService {
       // Optionally load relations if you need them immediately
       // relations: ['student', 'bills'],
     });
+    console.log('currentEnrollment: ', currentEnrollment);
 
     // if (!currentEnrollment) {
     //   console.log(
