@@ -39,14 +39,14 @@ export class ReportsService {
     examType: string,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ): Promise<ReportsModel[]> {
-    switch (profile.role) {
-      case ROLES.hod:
-      case ROLES.parent:
-      // case ROLES.reception:
-      case ROLES.student:
-        // case ROLES.teacher:
-        throw new UnauthorizedException('Only admins can generate new reports');
-    }
+    // switch (profile.role) {
+    //   case ROLES.hod:
+    //   case ROLES.parent:
+    //   // case ROLES.reception:
+    //   case ROLES.student:
+    //     // case ROLES.teacher:
+    //     throw new UnauthorizedException('Only admins can generate new reports');
+    // }
     // create an array to store all reports
     const reports: ReportModel[] = [];
 
@@ -494,13 +494,13 @@ export class ReportsService {
     examType: string,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ): Promise<any[]> {
-    switch (profile.role) {
-      case ROLES.parent:
-      case ROLES.student:
-        throw new UnauthorizedException(
-          'Students and Parents are not allowed to view all reports',
-        );
-    }
+    // switch (profile.role) {
+    //   case ROLES.parent:
+    //   case ROLES.student:
+    //     throw new UnauthorizedException(
+    //       'Students and Parents are not allowed to view all reports',
+    //     );
+    // }
 
     let reports;
 
@@ -1052,8 +1052,8 @@ export class ReportsService {
     if (
       reportEntity &&
       reportEntity.report &&
-      reportEntity.report.report &&
-      reportEntity.report.report.report // Check for the deeper nesting
+      reportEntity.report.report //&&
+      // reportEntity.report.report.report // Check for the deeper nesting
     ) {
       // If deeply nested, assign the content of the innermost 'report'
       reportEntity.report = reportEntity.report.report.report;
