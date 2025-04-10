@@ -50,7 +50,7 @@ export class ReportsController {
     @Param('num') num: number,
     @Param('year') year: number,
     @Param('examType') examType: ExamType,
-    @Body() reports: ReportModel[],
+    @Body() reports: ReportsModel[],
     @GetUser() profile,
   ) {
     return this.reportsService.saveReports(
