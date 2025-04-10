@@ -8,7 +8,13 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ClassEntity } from './entities/class.entity';
-import { LessThan, MoreThan, Repository } from 'typeorm';
+import {
+  LessThan,
+  LessThanOrEqual,
+  MoreThan,
+  MoreThanOrEqual,
+  Repository,
+} from 'typeorm';
 import { CreateClassDto } from './dtos/create-class.dto';
 import { TeachersEntity } from '../profiles/entities/teachers.entity';
 import { ParentsEntity } from '../profiles/entities/parents.entity';
@@ -585,4 +591,59 @@ export class EnrolmentService {
       return await this.termRepository.save({ ...term });
     }
   }
+
+  /**
+   * Finds the current enrollment for a given student based on the current date.
+   * @param studentNumber The ID of the student.
+   * @returns The current EnrolEntity or null if not found.
+   */
+  async getCurrentEnrollment(
+    studentNumber: string,
+  ): Promise<EnrolEntity | null> {
+    const currentDate = new Date(); // Get today's date
+
+    // 1. Find the current term
+    const currentTerm = await this.termRepository.findOne({
+      where: {
+        startDate: LessThanOrEqual(currentDate), // Start date is less than or equal to today
+        endDate: MoreThanOrEqual(currentDate), // End date is greater than or equal to today
+      },
+    });
+
+    // Handle case where no current term is found (e.g., between terms)
+    if (!currentTerm) {
+      // console.log(
+      //   `No active term found for date: ${currentDate.toISOString()}`,
+      // );
+      // You might want to throw an error or return null depending on your requirements
+      // throw new NotFoundException('No active academic term found.');
+      return null;
+    }
+
+    // console.log(
+    //   `Current term found: Year=${currentTerm.year}, Num=${currentTerm.num}`,
+    // );
+
+    // 2. Find the enrollment for the student in the current term
+    const currentEnrollment = await this.enrolmentRepository.findOne({
+      where: {
+        student: { studentNumber }, // Filter by the student's ID
+        year: currentTerm.year, // Match the year from the current term
+        num: currentTerm.num, // Match the term number from the current term
+      },
+      // Optionally load relations if you need them immediately
+      // relations: ['student', 'bills'],
+    });
+
+    // if (!currentEnrollment) {
+    //   console.log(
+    //     `No enrollment found for student ${studentId} in term Year=${currentTerm.year}, Num=${currentTerm.num}`,
+    //   );
+    // Return null if the student wasn't enrolled in the current term
+    // return null;
+    return currentEnrollment;
+  }
+  // console.log(
+  //   `Current enrollment found for student ${studentId}: ID=${currentEnrollment.id}`,
+  // );
 }

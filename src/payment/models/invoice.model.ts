@@ -7,6 +7,8 @@ import { BalancesEntity } from 'src/finance/entities/balances.entity';
 /* eslint-disable prettier/prettier */
 export class Invoice {
   constructor(
+    public totalBill: number,
+    public totalPayments: number,
     public balanceBfwd: BalancesEntity,
     public student: StudentsEntity,
     public bills: BillsEntity[],

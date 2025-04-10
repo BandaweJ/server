@@ -140,6 +140,11 @@ export class EnrolmentController {
     return this.enrolmentService.getNewComers();
   }
 
+  @Get('enrol/:studentNumber')
+  getCurrentEnrolment(@Param('studentNumber') studentNumber: string) {
+    return this.enrolmentService.getCurrentEnrollment(studentNumber);
+  }
+
   @Get('enrol')
   getAllEnrolments(
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,

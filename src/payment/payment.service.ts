@@ -136,6 +136,8 @@ export class PaymentService {
     );
 
     const invoice: Invoice = {
+      totalBill,
+      totalPayments,
       balanceBfwd,
       student,
       bills,
