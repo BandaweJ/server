@@ -1056,7 +1056,7 @@ export class ReportsService {
       // reportEntity.report.report.report // Check for the deeper nesting
     ) {
       // If deeply nested, assign the content of the innermost 'report'
-      reportEntity.report = reportEntity.report.report.report;
+      reportEntity.report = reportEntity.report.report; //.report;
     }
     // If it's already in the single nested structure, 'reportEntity.report' remains as is.
     return reportEntity;
