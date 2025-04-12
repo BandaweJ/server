@@ -632,7 +632,7 @@ export class EnrolmentService {
         num: currentTerm.num, // Match the term number from the current term
       },
       // Optionally load relations if you need them immediately
-      // relations: ['student', 'bills'],
+      relations: ['student'],
     });
     // console.log('currentEnrollment: ', currentEnrollment);
 

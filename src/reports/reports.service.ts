@@ -43,15 +43,7 @@ export class ReportsService {
     examType: string,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ): Promise<ReportsModel[]> {
-    // switch (profile.role) {
-    //   case ROLES.hod:
-    //   case ROLES.parent:
-    //   // case ROLES.reception:
-    //   case ROLES.student:
-    //     // case ROLES.teacher:
-    //     throw new UnauthorizedException('Only admins can generate new reports');
-    // }
-    // create an array to store all reports
+
     const reports: ReportModel[] = [];
 
     // get class list
@@ -123,6 +115,7 @@ export class ReportsService {
         (mark) => mark.student.studentNumber === enrol.student.studentNumber,
       );
 
+      
       // create a row for the Reports Table and push it to the report table
       //report table is a table if subjects and marks and comments in each report
       studentMarks.forEach((subjectMark) => {
