@@ -43,7 +43,6 @@ export class ReportsService {
     examType: string,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ): Promise<ReportsModel[]> {
-
     const reports: ReportModel[] = [];
 
     // get class list
@@ -115,7 +114,6 @@ export class ReportsService {
         (mark) => mark.student.studentNumber === enrol.student.studentNumber,
       );
 
-      
       // create a row for the Reports Table and push it to the report table
       //report table is a table if subjects and marks and comments in each report
       studentMarks.forEach((subjectMark) => {
@@ -255,11 +253,12 @@ export class ReportsService {
           if (savedRepEntity.report?.headComment) {
             generatedRep.report.headComment = savedRepEntity.report.headComment;
             generatedRep.id = savedRepEntity.id;
-          } else if (savedRepEntity?.report?.report.headComment) {
-            generatedRep.report.headComment =
-              savedRepEntity.report.report.headComment;
-            generatedRep.id = savedRepEntity.id;
           }
+          // else if (savedRepEntity?.report?.report.headComment) {
+          //   generatedRep.report.headComment =
+          //     savedRepEntity.report.report.headComment;
+          //   generatedRep.id = savedRepEntity.id;
+          // }
         }
       });
     });
