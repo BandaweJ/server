@@ -195,12 +195,12 @@ export class MarksService {
     examType: string,
     profile: StudentsEntity | ParentsEntity | TeachersEntity,
   ): Promise<MarksEntity[]> {
-    // switch (profile.role) {
-    //   case ROLES.parent:
-    //   case ROLES.student: {
-    //     throw new UnauthorizedException('You are not allowed');
-    //   }
-    // }
+    switch (profile.role) {
+      case ROLES.parent:
+      case ROLES.student: {
+        throw new UnauthorizedException('You are not allowed');
+      }
+    }
 
     if (examType) {
       return await this.marksRepository.find({
@@ -212,15 +212,16 @@ export class MarksService {
         },
         relations: ['subject', 'student'],
       });
-    } else
-      return await this.marksRepository.find({
-        where: {
-          num,
-          year,
-          name,
-        },
-        relations: ['subject', 'student'],
-      });
+    }
+    // else
+    //   return await this.marksRepository.find({
+    //     where: {
+    //       num,
+    //       year,
+    //       name,
+    //     },
+    //     relations: ['subject', 'student'],
+    //   });
   }
 
   async getSubjectMarksInClass(

@@ -644,7 +644,17 @@ export class EnrolmentService {
     // return null;
     return currentEnrollment;
   }
-  // console.log(
-  //   `Current enrollment found for student ${studentId}: ID=${currentEnrollment.id}`,
-  // );
+
+  async isNewcomer(studentNumber: string): Promise<boolean> {
+    try {
+      const enrolCount = await this.enrolmentRepository.count({
+        where: { student: { studentNumber } },
+      });
+      return enrolCount === 1;
+    } catch (error) {
+      // console.error('Error checking newcomer status:', error);
+      // Handle the error appropriately, maybe return false or throw an exception
+      return false;
+    }
+  }
 }
