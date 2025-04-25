@@ -17,5 +17,5 @@ export class CreateBillDto {
   fees: FeesEntity;
 
   @ApiProperty()
-  enrolment: EnrolEntity;
+  enrol: EnrolEntity;
 }
