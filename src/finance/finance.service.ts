@@ -23,6 +23,7 @@ import { EnrolEntity } from 'src/enrolment/entities/enrol.entity';
 import { BalancesEntity } from './entities/balances.entity';
 import { CreateBalancesDto } from './dtos/balances.dto';
 import { profile } from 'console';
+import { CreateBillDto } from './dtos/bills.dto';
 
 /* eslint-disable prettier/prettier */
 @Injectable()
@@ -124,6 +125,34 @@ export class FinanceService {
     } catch (e) {
       throw new NotImplementedException('Fees was not deleted');
     }
+  }
+
+  async createBills(bills: CreateBillDto[]): Promise<BillsEntity[]> {
+    const savedBills: BillsEntity[] = [];
+
+    for (const billDto of bills) {
+      // Check if a bill with the same student, fees, and enrolment already exists
+      const existingBill = await this.billsRepository.findOne({
+        where: {
+          student: { studentNumber: billDto.student.studentNumber },
+          fees: { id: billDto.fees.id },
+          enrol: { id: billDto.enrol.id },
+        },
+      });
+
+      if (!existingBill) {
+        // If no duplicate exists, create and save the new bill
+        const newBill = this.billsRepository.create();
+        newBill.student = billDto.student;
+        newBill.enrol = billDto.enrol;
+        newBill.fees = billDto.fees;
+
+        const savedBill = await this.billsRepository.save(newBill);
+        savedBills.push(savedBill);
+      }
+    }
+
+    return savedBills;
   }
 
   async getAllBills(): Promise<BillsEntity[]> {

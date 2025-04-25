@@ -16,6 +16,7 @@ import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { TeachersEntity } from 'src/profiles/entities/teachers.entity';
 import { FinanceService } from './finance.service';
 import { CreateBalancesDto } from './dtos/balances.dto';
+import { CreateBillDto } from './dtos/bills.dto';
 
 @Controller('finance')
 @UseGuards(AuthGuard())
@@ -61,6 +62,11 @@ export class FinanceController {
   @Get('fees/:id')
   getFeesById(@Param('id', ParseIntPipe) id: number) {
     return this.financeService.findOneFee(id);
+  }
+
+  @Post('billing')
+  createBills(@Body() bills: CreateBillDto[]) {
+    return this.financeService.createBills(bills);
   }
 
   @Get('billing')
