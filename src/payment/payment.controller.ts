@@ -47,12 +47,7 @@ export class PaymentController {
     @Param('year', ParseIntPipe) year: number,
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
-    return this.paymentService.generateInvoice(
-      studentNumber,
-      num,
-      year,
-      profile,
-    );
+    return this.paymentService.generateInvoice(studentNumber, num, year);
   }
 
   @Get('statement/:studentNumber')
