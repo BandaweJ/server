@@ -149,13 +149,8 @@ export class PaymentService {
     return invoice;
   }
 
-  async generateInvoice(
-    studentNumber: string,
-    num: number,
-    year: number,
-    profile: TeachersEntity | StudentsEntity | ParentsEntity,
-  ) {
-    const bills = await this.financeService.getStudentBillByTerm(
+  async generateInvoice(studentNumber: string, num: number, year: number) {
+    const bills = await this.financeService.getStudentBillsByTerm(
       studentNumber,
       num,
       year,
