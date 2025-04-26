@@ -155,6 +155,19 @@ export class FinanceService {
     return savedBills;
   }
 
+  async removeBill(id: number): Promise<BillsEntity> {
+    const bill = await this.billsRepository.findOne({ where: { id } });
+
+    if (!bill) {
+      throw new NotFoundException(`Bill with ID ${id} not found`);
+    } else {
+      const result = await this.billsRepository.delete(id);
+      if (result.affected === 0) {
+        throw new NotFoundException(`Bill with ID ${id} not found`);
+      } else return bill;
+    }
+  }
+
   async getAllBills(): Promise<BillsEntity[]> {
     return await this.billsRepository.find();
   }

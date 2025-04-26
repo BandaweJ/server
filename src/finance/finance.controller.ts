@@ -69,6 +69,11 @@ export class FinanceController {
     return this.financeService.createBills(bills);
   }
 
+  @Delete('billing/:id')
+  removeBill(@Param('id', ParseIntPipe) id: number) {
+    return this.financeService.removeBill(id);
+  }
+
   @Get('billing')
   getAllBills() {
     return this.financeService.getAllBills();
