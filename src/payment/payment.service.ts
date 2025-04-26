@@ -19,6 +19,7 @@ import { ROLES } from 'src/auth/models/roles.enum';
 import { FinanceService } from 'src/finance/finance.service';
 import { Invoice } from './models/invoice.model';
 import { profile } from 'console';
+import { ResourceByIdService } from 'src/resource-by-id/resource-by-id.service';
 
 @Injectable()
 export class PaymentService {
@@ -29,6 +30,7 @@ export class PaymentService {
     private readonly enrolmentService: EnrolmentService,
     private readonly financeService: FinanceService,
     private studentsService: StudentsService,
+    private resourceById: ResourceByIdService,
   ) {}
 
   async createPayment(
@@ -167,7 +169,9 @@ export class PaymentService {
 
     const totalPayments = 0;
 
-    const student = bills[0].student;
+    const student = await this.resourceById.getStudentByStudentNumber(
+      studentNumber,
+    );
 
     const invoice: Invoice = {
       totalBill: totalBills,
