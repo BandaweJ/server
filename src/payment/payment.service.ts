@@ -18,6 +18,7 @@ import { CreatePaymentDto } from './dtos/createPayment.dto';
 import { ROLES } from 'src/auth/models/roles.enum';
 import { FinanceService } from 'src/finance/finance.service';
 import { Invoice } from './models/invoice.model';
+import { profile } from 'console';
 
 @Injectable()
 export class PaymentService {
@@ -111,7 +112,7 @@ export class PaymentService {
     });
   }
 
-  async generateInvoice(
+  async generateStatementOfAccount(
     studentNumber: string,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ): Promise<any> {
@@ -143,6 +144,47 @@ export class PaymentService {
       bills,
       payments,
       balance: totalBill + balanceBfwd.amount - totalPayments,
+    };
+
+    return invoice;
+  }
+
+  async generateInvoice(
+    studentNumber: string,
+    num: number,
+    year: number,
+    profile: TeachersEntity | StudentsEntity | ParentsEntity,
+  ) {
+    const bills = await this.financeService.getStudentBillByTerm(
+      studentNumber,
+      num,
+      year,
+    );
+
+    const balanceBfwd = await this.financeService.findStudentBalance(
+      studentNumber,
+    );
+
+    const totalBills = bills.reduce(
+      (sum, bill) => sum + Number(bill.fees.amount),
+      0,
+    );
+
+    const totalPayments = 0;
+
+    const student = await this.studentsService.getStudent(
+      studentNumber,
+      profile,
+    );
+
+    const invoice: Invoice = {
+      totalBill: totalBills,
+      totalPayments: 0,
+      balanceBfwd,
+      student,
+      bills,
+      payments: [],
+      balance: totalBills + balanceBfwd.amount - totalPayments,
     };
 
     return invoice;

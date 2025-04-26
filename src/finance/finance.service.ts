@@ -212,6 +212,19 @@ export class FinanceService {
     });
   }
 
+  async getStudentBillByTerm(studentNumber: string, num: number, year: number) {
+    return await this.billsRepository.find({
+      where: {
+        student: { studentNumber },
+        enrol: {
+          num,
+          year,
+        },
+      },
+      relations: ['fees', 'enrol'],
+    });
+  }
+
   async getBillsByYear(year: number): Promise<BillsEntity[]> {
     return await this.billsRepository.find({
       where: {

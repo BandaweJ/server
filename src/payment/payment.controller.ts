@@ -40,12 +40,30 @@ export class PaymentController {
     return this.paymentService.getNotApprovedPayments();
   }
 
-  @Get('invoice/:studentNumber')
+  @Get('invoice/:studentNumber/:num/:year')
   generateInvoice(
+    @Param('studentNumber') studentNumber: string,
+    @Param('num', ParseIntPipe) num: number,
+    @Param('year', ParseIntPipe) year: number,
+    @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
+  ) {
+    return this.paymentService.generateInvoice(
+      studentNumber,
+      num,
+      year,
+      profile,
+    );
+  }
+
+  @Get('statement/:studentNumber')
+  generateStatement(
     @Param('studentNumber') studentNumber: string,
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
-    return this.paymentService.generateInvoice(studentNumber, profile);
+    return this.paymentService.generateStatementOfAccount(
+      studentNumber,
+      profile,
+    );
   }
 
   @Get('receipt/:receiptNumber')
