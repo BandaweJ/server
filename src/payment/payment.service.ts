@@ -172,10 +172,7 @@ export class PaymentService {
 
     const totalPayments = 0;
 
-    const student = await this.studentsService.getStudent(
-      studentNumber,
-      profile,
-    );
+    const student = bills[0].student;
 
     const invoice: Invoice = {
       totalBill: totalBills,
