@@ -351,7 +351,7 @@ export class PaymentService {
     doc.pipe(stream);
 
     // --- Document Header ---
-    const logo = 'path/to/your/logo.png'; // Replace with the actual path to your logo
+    const logo = '../../public/jhs_logo.png'; // Replace with the actual path to your logo
     const companyName = 'Your Company Name'; // Replace
     const companyAddress = '123 Main Street, Anytown, USA'; // Replace
     const companyPhone = '123-456-7890'; // Replace
