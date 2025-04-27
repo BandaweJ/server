@@ -22,6 +22,7 @@ import { ResourceByIdService } from 'src/resource-by-id/resource-by-id.service';
 import * as PDFDocument from 'pdfkit';
 import { Stream } from 'stream';
 import * as fs from 'fs';
+import path from 'path';
 
 @Injectable()
 export class PaymentService {
@@ -351,19 +352,19 @@ export class PaymentService {
     doc.pipe(stream);
 
     // --- Document Header ---
-    const logo = '../../public/jhs_logo.png'; // Replace with the actual path to your logo
     const companyName = 'Your Company Name'; // Replace
     const companyAddress = '123 Main Street, Anytown, USA'; // Replace
     const companyPhone = '123-456-7890'; // Replace
     const companyEmail = 'info@yourcompany.com'; // Replace
 
     // Add logo (replace with your logo path)
-    if (fs.existsSync(logo)) {
-      try {
-        doc.image(logo, 50, 50, { width: 100 });
-      } catch (e) {
-        console.log('Error adding image', e);
-      }
+    try {
+      const imgPath = path.join(__dirname, '../../public/jhs_logo.png');
+      const imgBuffer = fs.readFileSync(imgPath);
+
+      doc.image(imgPath, 50, 50, { width: 100 });
+    } catch (e) {
+      console.log('Error adding image', e);
     }
 
     // Add company info
