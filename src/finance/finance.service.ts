@@ -156,7 +156,10 @@ export class FinanceService {
   }
 
   async removeBill(id: number): Promise<BillsEntity> {
-    const bill = await this.billsRepository.findOne({ where: { id } });
+    const bill = await this.billsRepository.findOne({
+      where: { id },
+      relations: ['fees'],
+    });
 
     if (!bill) {
       throw new NotFoundException(`Bill with ID ${id} not found`);
