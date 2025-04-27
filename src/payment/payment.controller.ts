@@ -3,10 +3,13 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Param,
   ParseIntPipe,
   Patch,
   Post,
+  Res,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -16,6 +19,7 @@ import { StudentsEntity } from 'src/profiles/entities/students.entity';
 import { PaymentService } from './payment.service';
 import { TeachersEntity } from 'src/profiles/entities/teachers.entity';
 import { ParentsEntity } from 'src/profiles/entities/parents.entity';
+import { Response } from 'express';
 
 @Controller('payment')
 @UseGuards(AuthGuard())
@@ -45,9 +49,26 @@ export class PaymentController {
     @Param('studentNumber') studentNumber: string,
     @Param('num', ParseIntPipe) num: number,
     @Param('year', ParseIntPipe) year: number,
-    @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
     return this.paymentService.generateInvoice(studentNumber, num, year);
+  }
+
+  @Get('invoicepdf/:studentNumber/:num/:year')
+  @Header('Content-Type', 'application/pdf')
+  @Header('Content-Disposition', 'attachment; filename=invoice.pdf')
+  async getInvoicePdf(
+    @Res() res: Response,
+    @Param('studentNumber') studentNumber: string,
+    @Param('num', ParseIntPipe) num: number,
+    @Param('year', ParseIntPipe) year: number,
+  ): Promise<any> {
+    const invoice = await this.paymentService.generateInvoice(
+      studentNumber,
+      num,
+      year,
+    );
+    const pdfBuffer = await this.paymentService.generateInvoicePdf(invoice);
+    res.end(pdfBuffer);
   }
 
   @Get('statement/:studentNumber')

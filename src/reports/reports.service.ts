@@ -15,7 +15,7 @@ import { SubjectSetItem } from './models/subject-set-item';
 import { ROLES } from 'src/auth/models/roles.enum';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ReportsEntity } from './entities/report.entity';
-import { In, IsNull, Not, Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { TeacherCommentEntity } from 'src/marks/entities/teacher-comments.entity';
 import * as PDFDocument from 'pdfkit';
 import * as fs from 'fs';
