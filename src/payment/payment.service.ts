@@ -180,7 +180,8 @@ export class PaymentService {
       student,
       bills,
       payments: [],
-      balance: totalBills + balanceBfwd.amount - totalPayments,
+      balance:
+        Number(totalBills) + Number(balanceBfwd.amount) - Number(totalPayments), //totalBills + balanceBfwd.amount - totalPayments,
     };
 
     return invoice;
