@@ -399,6 +399,7 @@ export class PaymentService {
       50,
       companyName,
       companyAddress,
+      invoiceData.enrol.name,
       companyPhone,
       companyEmail,
     );
@@ -458,7 +459,7 @@ export class PaymentService {
     const billToAddress = invoiceData.student.studentNumber; //
     const billToPhone = invoiceData.student.cell || 'Student Cell Number'; // Replace
     const billToEmail = invoiceData.student.email || 'Student Email'; // Replace
-
+    const billToClass = invoiceData.enrol.name;
     doc
       .font('Helvetica-Bold')
       .fontSize(12)
