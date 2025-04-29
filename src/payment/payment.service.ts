@@ -24,6 +24,7 @@ import { Stream } from 'stream';
 import * as fs from 'fs';
 import path from 'path';
 import { BillsEntity } from 'src/finance/entities/bills.entity';
+import { FeesNames } from 'src/finance/models/fees-names.enum';
 
 @Injectable()
 export class PaymentService {
@@ -252,6 +253,7 @@ export class PaymentService {
     y: number,
     name: string,
     address: string,
+    clas: string,
     phone: string,
     email: string,
   ): void {
@@ -261,8 +263,9 @@ export class PaymentService {
       .text(name, x, y)
       .font('Helvetica')
       .text(address, x, y + lineHeight)
-      .text(`Phone: ${phone}`, x, y + 2 * lineHeight)
-      .text(`Email: ${email}`, x, y + 3 * lineHeight);
+      .text(clas, x, y + 2 * lineHeight)
+      .text(`Phone: ${phone}`, x, y + 3 * lineHeight)
+      .text(`Email: ${email}`, x, y + 4 * lineHeight);
   }
 
   // Helper function to draw a table with headers and data
@@ -319,7 +322,7 @@ export class PaymentService {
         if (i === 0) {
           text =
             row.fees && row.fees.name !== undefined && row.fees.name !== null
-              ? row.fees.name.toString()
+              ? this.feesNamesToString(row.fees.name)
               : '';
         } else if (i === 1) {
           text =
@@ -380,7 +383,7 @@ export class PaymentService {
 
     // Add logo (replace with your logo path)
     try {
-      const imgPath = path.join(__dirname, '../../public/jhs_logo.png');
+      const imgPath = path.join(__dirname, '../../public/jhs_logo.jpg');
       const imgBuffer = fs.readFileSync(imgPath);
 
       doc.image(imgBuffer, 50, 50, { width: 100 });
@@ -405,7 +408,7 @@ export class PaymentService {
       .font('Helvetica-Bold')
       .fontSize(18)
       .text(
-        'SCHOOL FEES INVOICE FOR TERM ' +
+        'SCHOOL FEES INVOICE TERM ' +
           invoiceData.enrol.num +
           ' ' +
           invoiceData.enrol.year,
@@ -418,10 +421,22 @@ export class PaymentService {
     const invoiceDetailsX = 350; // Adjust
     const invoiceNumber = invoiceData.invoiceNumber || 'INV-001'; // Replace
     const invoiceDate =
-      invoiceData.invoiceDate || new Date().toLocaleDateString(); // Replace
+      invoiceData.invoiceDate ||
+      new Date().toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: '2-digit',
+        year: '2-digit',
+      }); // Replace
     const dueDate =
       invoiceData.invoiceDueDate ||
-      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString(); // 30 days from now
+      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString(
+        'en-GB',
+        {
+          day: '2-digit',
+          month: '2-digit',
+          year: '2-digit',
+        },
+      ); // 30 days from now
 
     doc
       .font('Helvetica-Bold')
@@ -455,6 +470,7 @@ export class PaymentService {
       235,
       billToName,
       billToAddress,
+      billToClass,
       billToPhone,
       billToEmail,
     );
@@ -530,5 +546,34 @@ export class PaymentService {
       stream.on('end', () => resolve(Buffer.concat(chunks)));
       stream.on('error', reject);
     });
+  }
+
+  feesNamesToString(feesName: FeesNames) {
+    switch (feesName) {
+      case FeesNames.aLevelApplicationFee:
+        return 'A Level Application Fee';
+      case FeesNames.aLevelTuitionBoarder:
+        return 'A Level Boarder Tuition';
+      case FeesNames.aLevelTuitionDay:
+        return 'A Level Day Tuition';
+      case FeesNames.alevelScienceFee:
+        return 'A Level Science Fee';
+      case FeesNames.deskFee:
+        return 'Desk Fee';
+      case FeesNames.developmentFee:
+        return 'Development Fee';
+      case FeesNames.foodFee:
+        return 'Food Fee';
+      case FeesNames.oLevelApplicationFee:
+        return 'O Level Application Fee';
+      case FeesNames.oLevelScienceFee:
+        return 'O Level Science Fee';
+      case FeesNames.oLevelTuitionBoarder:
+        return 'O Level Boarder Tuition';
+      case FeesNames.oLevelTuitionDay:
+        return 'O Level Day Tuition';
+      case FeesNames.transportFee:
+        return 'Transport Fee';
+    }
   }
 }
