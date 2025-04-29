@@ -4,6 +4,7 @@ import { StudentsEntity } from 'src/profiles/entities/students.entity';
 import { PaymentEntity } from '../entities/payment.entity';
 import { BalancesEntity } from 'src/finance/entities/balances.entity';
 import * as crypto from 'crypto';
+import { EnrolEntity } from 'src/enrolment/entities/enrol.entity';
 
 /* eslint-disable prettier/prettier */
 export class Invoice {
@@ -15,7 +16,9 @@ export class Invoice {
     public bills: BillsEntity[],
     public payments: PaymentEntity[],
     public balance: number,
+    public enrol?: EnrolEntity,
     public invoiceNumber?: string,
+
     public invoiceDate: Date = new Date(),
     public invoiceDueDate: Date = new Date(),
   ) {

@@ -23,6 +23,7 @@ import * as PDFDocument from 'pdfkit';
 import { Stream } from 'stream';
 import * as fs from 'fs';
 import path from 'path';
+import { BillsEntity } from 'src/finance/entities/bills.entity';
 
 @Injectable()
 export class PaymentService {
@@ -128,6 +129,10 @@ export class PaymentService {
       profile,
     );
 
+    const enrol = await this.enrolmentService.getCurrentEnrollment(
+      studentNumber,
+    );
+
     const totalPayments = payments.reduce(
       (sum, payment) => sum + Number(payment.amount),
       0,
@@ -165,6 +170,9 @@ export class PaymentService {
   }
 
   async generateInvoice(studentNumber: string, num: number, year: number) {
+    const enrol = await this.enrolmentService.getCurrentEnrollment(
+      studentNumber,
+    );
     const bills = await this.financeService.getStudentBillsByTerm(
       studentNumber,
       num,
@@ -193,7 +201,9 @@ export class PaymentService {
       student,
       bills,
       [],
+
       Number(totalBills) + Number(balanceBfwd.amount) - totalPayments,
+      enrol,
     );
 
     // const invoice: Invoice = {
@@ -258,7 +268,7 @@ export class PaymentService {
   // Helper function to draw a table with headers and data
   drawTable(
     doc: PDFKit.PDFDocument,
-    data: any[],
+    data: BillsEntity[],
     startX: number,
     startY: number,
     columnWidths: number[],
@@ -305,10 +315,21 @@ export class PaymentService {
     doc.font(font).fontSize(fontSize).fillColor(textColor);
     data.forEach((row) => {
       headers.forEach((header, i) => {
-        const text =
-          row[header] !== undefined && row[header] !== null
-            ? row[header].toString()
-            : ''; //handle null or undefined
+        let text = '';
+        if (i === 0) {
+          text =
+            row.fees && row.fees.name !== undefined && row.fees.name !== null
+              ? row.fees.name.toString()
+              : '';
+        } else if (i === 1) {
+          text =
+            row.fees &&
+            row.fees.amount !== undefined &&
+            row.fees.amount !== null
+              ? row.fees.amount.toString()
+              : '';
+        }
+
         doc
           .rect(
             startX + columnWidths.slice(0, i).reduce((a, b) => a + b, 0),
@@ -352,17 +373,17 @@ export class PaymentService {
     doc.pipe(stream);
 
     // --- Document Header ---
-    const companyName = 'Your Company Name'; // Replace
-    const companyAddress = '123 Main Street, Anytown, USA'; // Replace
-    const companyPhone = '123-456-7890'; // Replace
-    const companyEmail = 'info@yourcompany.com'; // Replace
+    const companyName = 'Junior High School'; // Replace
+    const companyAddress = '30588 Lundi Drive, Rhodene, Masvingo'; // Replace
+    const companyPhone = '+263 392 263 293 / +263 78 223 8026'; // Replace
+    const companyEmail = 'info@juniorhighschool.ac.zw'; // Replace
 
     // Add logo (replace with your logo path)
     try {
       const imgPath = path.join(__dirname, '../../public/jhs_logo.png');
       const imgBuffer = fs.readFileSync(imgPath);
 
-      doc.image(imgPath, 50, 50, { width: 100 });
+      doc.image(imgBuffer, 50, 50, { width: 100 });
     } catch (e) {
       console.log('Error adding image', e);
     }
@@ -383,10 +404,18 @@ export class PaymentService {
     doc
       .font('Helvetica-Bold')
       .fontSize(18)
-      .text('INVOICE', 50, 150, { align: 'left' });
+      .text(
+        'SCHOOL FEES INVOICE FOR TERM ' +
+          invoiceData.enrol.num +
+          ' ' +
+          invoiceData.enrol.year,
+        50,
+        150,
+        { align: 'left' },
+      );
 
     // --- Invoice Details ---
-    const invoiceDetailsX = 400; // Adjust
+    const invoiceDetailsX = 350; // Adjust
     const invoiceNumber = invoiceData.invoiceNumber || 'INV-001'; // Replace
     const invoiceDate =
       invoiceData.invoiceDate || new Date().toLocaleDateString(); // Replace
@@ -410,11 +439,10 @@ export class PaymentService {
       .text(dueDate.toLocaleString(), invoiceDetailsX + 80, 190);
 
     // --- Bill To Address ---
-    const billToName =
-      invoiceData.student.surname + invoiceData.student.name || 'Customer Name'; // Replace
-    const billToAddress = invoiceData.student.address || 'Customer Address'; // Replace
-    const billToPhone = invoiceData.student.cell || 'Customer Phone'; // Replace
-    const billToEmail = invoiceData.student.email || 'customer@example.com'; // Replace
+    const billToName = invoiceData.student.surname + invoiceData.student.name; //
+    const billToAddress = invoiceData.student.studentNumber; //
+    const billToPhone = invoiceData.student.cell || 'Student Cell Number'; // Replace
+    const billToEmail = invoiceData.student.email || 'Student Email'; // Replace
 
     doc
       .font('Helvetica-Bold')
@@ -434,8 +462,8 @@ export class PaymentService {
     // --- Invoice Items Table ---
     const tableStartX = 50;
     const tableStartY = 300; // Adjust
-    const columnWidths = [180, 50, 80, 80, 100]; // Widths for Description, Qty, Rate, Tax, Amount
-    const headers = ['Description', 'Qty', 'Rate', 'Tax', 'Amount'];
+    const columnWidths = [390, 100]; // Widths for Description, Amount
+    const headers = ['Fee Description', 'Amount'];
     const items = invoiceData.bills || [];
 
     const tableEndY = this.drawTable(
@@ -452,13 +480,13 @@ export class PaymentService {
       tableStartX + columnWidths.slice(0, -1).reduce((a, b) => a + b, 0); // Start X of the amount column
     const subtotalY = tableEndY + 20; // Position after table
     const subtotal = items.reduce((sum, item) => sum + item.fees.amount, 0);
-    const tax = items.reduce((sum, item) => sum + item.fees.amount, 0);
-    const total = subtotal; // For this example, total = subtotal + tax
+    // const tax = items.reduce((sum, item) => sum + item.fees.amount, 0);
+    // const total = subtotal; // For this example, total = subtotal + tax
 
     doc
       .font('Helvetica-Bold')
       .fontSize(12)
-      .text('Subtotal:', subtotalX - 80, subtotalY, {
+      .text('Total:', subtotalX - 80, subtotalY, {
         align: 'left',
         width: 70,
       });
@@ -466,38 +494,13 @@ export class PaymentService {
       align: 'left',
       width: 100,
     });
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(12)
-      .text('Tax:', subtotalX - 80, subtotalY + 20, {
-        align: 'left',
-        width: 70,
-      });
-    doc.font('Helvetica').text(tax.toFixed(2), subtotalX, subtotalY + 20, {
-      align: 'left',
-      width: 100,
-    });
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(14)
-      .text('Total:', subtotalX - 80, subtotalY + 40, {
-        align: 'left',
-        width: 70,
-      });
-    doc
-      .font('Helvetica')
-      .fontSize(14)
-      .text(total.toFixed(2), subtotalX, subtotalY + 40, {
-        align: 'left',
-        width: 100,
-      });
 
     // --- Terms and Conditions ---
     const termsAndConditions = `Terms and Conditions:
-      Payment is due within 30 days.  Please include the invoice number on your payment.
-      Late payments may be subject to a 1.5% monthly finance charge.`; // Replace
+      Payment is due within 30 days or before schools open whichever comes first.  Please include the Student Number on your payment.
+      `; // Replace
 
-    const termsStartY = subtotalY + 70; // Adjust
+    const termsStartY = subtotalY + 20; // Adjust
     doc
       .font('Helvetica')
       .fontSize(10)
