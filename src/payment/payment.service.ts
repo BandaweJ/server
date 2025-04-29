@@ -409,7 +409,7 @@ export class PaymentService {
       .font('Helvetica-Bold')
       .fontSize(18)
       .text(
-        'SCHOOL FEES INVOICE TERM ' +
+        'INVOICE FOR TERM ' +
           invoiceData.enrol.num +
           ' ' +
           invoiceData.enrol.year,
@@ -422,22 +422,10 @@ export class PaymentService {
     const invoiceDetailsX = 350; // Adjust
     const invoiceNumber = invoiceData.invoiceNumber || 'INV-001'; // Replace
     const invoiceDate =
-      invoiceData.invoiceDate ||
-      new Date().toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: '2-digit',
-        year: '2-digit',
-      }); // Replace
+      invoiceData.invoiceDate || new Date().toLocaleDateString(); // Replace
     const dueDate =
       invoiceData.invoiceDueDate ||
-      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString(
-        'en-GB',
-        {
-          day: '2-digit',
-          month: '2-digit',
-          year: '2-digit',
-        },
-      ); // 30 days from now
+      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString(); // 30 days from now
 
     doc
       .font('Helvetica-Bold')
@@ -448,11 +436,27 @@ export class PaymentService {
       .font('Helvetica-Bold')
       .text(`Date:`, invoiceDetailsX, 170)
       .font('Helvetica')
-      .text(invoiceDate.toLocaleString(), invoiceDetailsX + 80, 170)
+      .text(
+        invoiceDate.toLocaleString('en-GB', {
+          day: '2-digit',
+          month: '2-digit',
+          year: '2-digit',
+        }),
+        invoiceDetailsX + 80,
+        170,
+      )
       .font('Helvetica-Bold')
       .text(`Due Date:`, invoiceDetailsX, 190)
       .font('Helvetica')
-      .text(dueDate.toLocaleString(), invoiceDetailsX + 80, 190);
+      .text(
+        dueDate.toLocaleString('en-GB', {
+          day: '2-digit',
+          month: '2-digit',
+          year: '2-digit',
+        }),
+        invoiceDetailsX + 80,
+        190,
+      );
 
     // --- Bill To Address ---
     const billToName = invoiceData.student.surname + invoiceData.student.name; //
@@ -478,7 +482,7 @@ export class PaymentService {
 
     // --- Invoice Items Table ---
     const tableStartX = 50;
-    const tableStartY = 300; // Adjust
+    const tableStartY = 330; // Adjust
     const columnWidths = [390, 100]; // Widths for Description, Amount
     const headers = ['Fee Description', 'Amount'];
     const items = invoiceData.bills || [];
