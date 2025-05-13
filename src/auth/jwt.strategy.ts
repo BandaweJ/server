@@ -39,6 +39,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       case ROLES.teacher:
       case ROLES.admin:
       case ROLES.hod:
+      case ROLES.reception:
         return await this.resourceById.getTeacherById(id);
         break;
       case 'parent':

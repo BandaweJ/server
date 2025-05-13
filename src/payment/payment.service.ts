@@ -253,7 +253,6 @@ export class PaymentService {
     y: number,
     name: string,
     address: string,
-    clas: string,
     phone: string,
     email: string,
   ): void {
@@ -263,9 +262,8 @@ export class PaymentService {
       .text(name, x, y)
       .font('Helvetica')
       .text(address, x, y + lineHeight)
-      .text(clas, x, y + 2 * lineHeight)
-      .text(`Phone: ${phone}`, x, y + 3 * lineHeight)
-      .text(`Email: ${email}`, x, y + 4 * lineHeight);
+      .text(`Phone: ${phone}`, x, y + 2 * lineHeight)
+      .text(`Email: ${email}`, x, y + 3 * lineHeight);
   }
 
   // Helper function to draw a table with headers and data
@@ -399,7 +397,6 @@ export class PaymentService {
       50,
       companyName,
       companyAddress,
-      invoiceData.enrol.name,
       companyPhone,
       companyEmail,
     );
@@ -419,7 +416,7 @@ export class PaymentService {
       );
 
     // --- Invoice Details ---
-    const invoiceDetailsX = 350; // Adjust
+    const invoiceDetailsX = 400; // Adjust
     const invoiceNumber = invoiceData.invoiceNumber || 'INV-001'; // Replace
     const invoiceDate =
       invoiceData.invoiceDate || new Date().toLocaleDateString(); // Replace
@@ -475,7 +472,6 @@ export class PaymentService {
       235,
       billToName,
       billToAddress,
-      billToClass,
       billToPhone,
       billToEmail,
     );
@@ -517,8 +513,7 @@ export class PaymentService {
     });
 
     // --- Terms and Conditions ---
-    const termsAndConditions = `Terms and Conditions:
-      Payment is due within 30 days or before schools open whichever comes first.  Please include the Student Number on your payment.
+    const termsAndConditions = `Terms and Conditions: Payment is due within 30 days or before schools open whichever comes first.  Please include the Student Number on your payment.
       `; // Replace
 
     const termsStartY = subtotalY + 20; // Adjust
@@ -540,6 +535,8 @@ export class PaymentService {
       .fontSize(10)
       .fillColor('#888888')
       .text(footerText, 50, footerY, { align: 'center' });
+
+    const accountName = 'JUNIOR HIGH SCHOOL';
 
     // Finalize the PDF and end the stream
     doc.end();
