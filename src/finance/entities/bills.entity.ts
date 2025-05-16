@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { FeesEntity } from './fees.entity';
 import { EnrolEntity } from 'src/enrolment/entities/enrol.entity';
+import { InvoiceEntity } from 'src/payment/entities/invoice.entity';
 
 @Entity('bills')
 export class BillsEntity {
@@ -25,4 +26,7 @@ export class BillsEntity {
 
   @ManyToOne(() => EnrolEntity, (enrol) => enrol.bills)
   enrol: EnrolEntity;
+
+  @ManyToOne(() => InvoiceEntity, (invoice) => invoice.bills)
+  invoice: InvoiceEntity;
 }

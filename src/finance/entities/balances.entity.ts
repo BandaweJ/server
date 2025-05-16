@@ -1,4 +1,5 @@
 /* eslint-disable prettier/prettier */
+import { InvoiceEntity } from 'src/payment/entities/invoice.entity';
 import { StudentsEntity } from 'src/profiles/entities/students.entity';
 import {
   Column,
@@ -21,4 +22,8 @@ export class BalancesEntity {
 
   @Column()
   studentNumber: string;
+
+  // One-to-One relationship with InvoiceEntity (inverse side)
+  @OneToOne(() => InvoiceEntity, (invoice) => invoice.balanceBfwd)
+  invoice: InvoiceEntity;
 }

@@ -25,10 +25,13 @@ import * as fs from 'fs';
 import path from 'path';
 import { BillsEntity } from 'src/finance/entities/bills.entity';
 import { FeesNames } from 'src/finance/models/fees-names.enum';
+import { InvoiceEntity } from './entities/invoice.entity';
 
 @Injectable()
 export class PaymentService {
   constructor(
+    @InjectRepository(InvoiceEntity)
+    private readonly invoiceRepository: Repository<InvoiceEntity>,
     @InjectRepository(PaymentEntity)
     private readonly paymentRepository: Repository<PaymentEntity>,
     // private readonly studentsService: StudentsService,
@@ -168,6 +171,64 @@ export class PaymentService {
     // };
 
     return invoice;
+  }
+
+  async saveInvoice(invoice: Invoice): Promise<InvoiceEntity> {
+    const {
+      totalBill,
+      totalPayments,
+      balanceBfwd,
+      student,
+      bills,
+      payments,
+      balance,
+      enrol,
+      invoiceNumber,
+      invoiceDate,
+      invoiceDueDate,
+    } = invoice;
+
+    const foundInvoice = await this.invoiceRepository.findOne({
+      where: {
+        student: {
+          studentNumber: student.studentNumber,
+        },
+        enrol: {
+          num: enrol.num,
+          year: enrol.year,
+        },
+      },
+    });
+
+    if (foundInvoice) {
+      foundInvoice.totalBill = totalBill;
+      foundInvoice.totalPayments = totalPayments;
+      foundInvoice.balanceBfwd = balanceBfwd;
+      foundInvoice.bills = bills;
+      // foundInvoice.payments = payments;
+      foundInvoice.balance = balance;
+      foundInvoice.invoiceNumber = invoiceNumber;
+      foundInvoice.invoiceDate = invoiceDate;
+      foundInvoice.invoiceDueDate = invoiceDueDate;
+      return this.invoiceRepository.save(foundInvoice);
+    } else {
+      const newInvoice = new InvoiceEntity();
+
+      newInvoice.totalBill = totalBill;
+      newInvoice.totalPayments = totalPayments;
+      newInvoice.balanceBfwd = balanceBfwd;
+      newInvoice.student = student;
+      newInvoice.bills = bills;
+      // newInvoice.payments = payments;
+      newInvoice.balance = balance;
+      newInvoice.enrol = enrol;
+      newInvoice.invoiceNumber = invoiceNumber;
+      newInvoice.invoiceDate = invoiceDate;
+      newInvoice.invoiceDueDate = invoiceDueDate;
+      return await this.invoiceRepository.save(newInvoice);
+    }
+
+    // return await this.invoiceRepository.save(invoice);
   }
 
   async generateInvoice(studentNumber: string, num: number, year: number) {

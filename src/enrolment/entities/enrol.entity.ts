@@ -4,6 +4,7 @@ import {
   Entity,
   ManyToOne,
   OneToMany,
+  OneToOne,
   PrimaryColumn,
   PrimaryGeneratedColumn,
 } from 'typeorm';
@@ -11,6 +12,7 @@ import { StudentsEntity } from '../../profiles/entities/students.entity';
 import { FeesEntity } from 'src/finance/entities/fees.entity';
 import { Residence } from '../models/residence.model';
 import { BillsEntity } from 'src/finance/entities/bills.entity';
+import { InvoiceEntity } from 'src/payment/entities/invoice.entity';
 
 @Entity('enrol')
 export class EnrolEntity {
@@ -34,4 +36,8 @@ export class EnrolEntity {
 
   @OneToMany(() => BillsEntity, (bill) => bill.enrol)
   bills: BillsEntity[];
+
+  // One-to-One relationship with InvoiceEntity (inverse side)
+  @OneToOne(() => InvoiceEntity, (invoice) => invoice.enrol)
+  invoice: InvoiceEntity;
 }

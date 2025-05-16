@@ -20,6 +20,7 @@ import { PaymentService } from './payment.service';
 import { TeachersEntity } from 'src/profiles/entities/teachers.entity';
 import { ParentsEntity } from 'src/profiles/entities/parents.entity';
 import { Response } from 'express';
+import { Invoice } from './models/invoice.model';
 
 @Controller('payment')
 @UseGuards(AuthGuard())
@@ -51,6 +52,11 @@ export class PaymentController {
     @Param('year', ParseIntPipe) year: number,
   ) {
     return this.paymentService.generateInvoice(studentNumber, num, year);
+  }
+
+  @Post('invoice')
+  saveInvoice(@Body() invoice: Invoice) {
+    return this.paymentService.saveInvoice(invoice);
   }
 
   @Get('invoicepdf/:studentNumber/:num/:year')

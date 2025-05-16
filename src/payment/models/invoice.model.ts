@@ -20,9 +20,10 @@ export class Invoice {
     public invoiceNumber?: string,
 
     public invoiceDate: Date = new Date(),
-    public invoiceDueDate: Date = new Date(),
+    public invoiceDueDate?: Date,
   ) {
     this.invoiceNumber = this.generateInvoiceNumber();
+    this.invoiceDueDate = this.calculateDueDate(30);
   }
 
   generateInvoiceNumber(): string {
@@ -35,5 +36,12 @@ export class Invoice {
       .slice(0, 6)
       .toUpperCase();
     return `INV-${hash}`;
+  }
+
+  private calculateDueDate(daysToAdd: number): Date {
+    const currentDate = new Date();
+    const futureDate = new Date(currentDate);
+    futureDate.setDate(currentDate.getDate() + daysToAdd);
+    return futureDate;
   }
 }
