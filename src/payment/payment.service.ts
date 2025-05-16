@@ -601,17 +601,43 @@ export class PaymentService {
         lineGap: 8,
       });
 
+    const bankingDetailsStartY = termsStartY + 50; // Adjust
+    const accountName = 'JUNIOR HIGH SCHOOL';
+    const bank = 'ZB BANK';
+    const brach = 'MASVINGO';
+    const accountNumber = '4564 00321642 405';
+
+    doc
+      .text('BANKING DETAILS', 50, bankingDetailsStartY, {
+        align: 'left',
+        lineGap: 8,
+      })
+      .text('Account Name: ' + accountName, 50, bankingDetailsStartY + 20, {
+        align: 'left',
+        lineGap: 8,
+      })
+      .text('Bank: ' + bank, 50, bankingDetailsStartY + 40, {
+        align: 'left',
+        lineGap: 8,
+      })
+      .text('Branch: ' + brach, 50, bankingDetailsStartY + 60, {
+        align: 'left',
+        lineGap: 8,
+      })
+      .text('Account Number: ' + accountNumber, 50, bankingDetailsStartY + 80, {
+        align: 'left',
+        lineGap: 8,
+      });
+
     // --- Footer ---
     const footerText = 'Thank you for your business!'; // Replace
-    const footerY = doc.page.height - 30; // 30 from the bottom
+    const footerY = doc.page.height - 20; // 20 from the bottom
 
     doc
       .font('Helvetica')
       .fontSize(10)
       .fillColor('#888888')
       .text(footerText, 50, footerY, { align: 'center' });
-
-    const accountName = 'JUNIOR HIGH SCHOOL';
 
     // Finalize the PDF and end the stream
     doc.end();
