@@ -608,6 +608,7 @@ export class PaymentService {
     const accountNumber = '4564 00321642 405';
 
     doc
+      .font('Helvetica-Bold')
       .text('BANKING DETAILS', 50, bankingDetailsStartY, {
         align: 'left',
         lineGap: 8,
@@ -631,7 +632,7 @@ export class PaymentService {
 
     // --- Footer ---
     const footerText = 'Thank you for your business!'; // Replace
-    const footerY = doc.page.height - 20; // 20 from the bottom
+    const footerY = bankingDetailsStartY + 100; // 20 from the bottom
 
     doc
       .font('Helvetica')
