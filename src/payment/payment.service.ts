@@ -316,15 +316,26 @@ export class PaymentService {
     address: string,
     phone: string,
     email: string,
+    className?: string,
+    residence?: string,
   ): void {
     const lineHeight = 15;
     doc
       .font('Helvetica-Bold')
       .text(name, x, y)
       .font('Helvetica')
-      .text(address, x, y + lineHeight)
-      .text(`Phone: ${phone}`, x, y + 2 * lineHeight)
-      .text(`Email: ${email}`, x, y + 3 * lineHeight);
+      .text(address, x, y + lineHeight);
+    if (className && residence) {
+      doc
+        .text(`Class: ${className}`, x, y + 2 * lineHeight)
+        .text(`Residence: ${residence}`, x, y + 3 * lineHeight)
+        .text(`Phone: ${phone}`, x, y + 4 * lineHeight)
+        .text(`Email: ${email}`, x, y + 5 * lineHeight);
+    } else
+      doc
+        .text(`Phone: ${phone}`, x, y + 2 * lineHeight)
+        .text(`Email: ${email}`, x, y + 3 * lineHeight)
+        .moveDown();
   }
 
   // Helper function to draw a table with headers and data
@@ -477,7 +488,7 @@ export class PaymentService {
       );
 
     // --- Invoice Details ---
-    const invoiceDetailsX = 400; // Adjust
+    const invoiceDetailsX = 380; // Adjust
     const invoiceNumber = invoiceData.invoiceNumber || 'INV-001'; // Replace
     const invoiceDate =
       invoiceData.invoiceDate || new Date().toLocaleDateString(); // Replace
@@ -521,7 +532,8 @@ export class PaymentService {
     const billToAddress = invoiceData.student.studentNumber; //
     const billToPhone = invoiceData.student.cell || 'Student Cell Number'; // Replace
     const billToEmail = invoiceData.student.email || 'Student Email'; // Replace
-    const billToClass = invoiceData.enrol.name;
+    const className = invoiceData.enrol.name;
+    const residence = invoiceData.enrol.residence;
     doc
       .font('Helvetica-Bold')
       .fontSize(12)
@@ -535,6 +547,8 @@ export class PaymentService {
       billToAddress,
       billToPhone,
       billToEmail,
+      className,
+      residence,
     );
 
     // --- Invoice Items Table ---
