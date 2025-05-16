@@ -9,6 +9,7 @@ import { PaymentEntity } from './entities/payment.entity';
 import { EnrolmentModule } from 'src/enrolment/enrolment.module';
 import { FinanceModule } from 'src/finance/finance.module';
 import { ResourceByIdModule } from 'src/resource-by-id/resource-by-id.module';
+import { InvoiceEntity } from './entities/invoice.entity';
 
 @Module({
   controllers: [PaymentController],
@@ -20,7 +21,7 @@ import { ResourceByIdModule } from 'src/resource-by-id/resource-by-id.module';
     EnrolmentModule,
     FinanceModule,
     ProfilesModule,
-    TypeOrmModule.forFeature([PaymentEntity]),
+    TypeOrmModule.forFeature([PaymentEntity, InvoiceEntity]),
     ResourceByIdModule,
   ],
 })
