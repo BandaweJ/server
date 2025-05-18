@@ -451,7 +451,6 @@ export class PaymentService {
       y += rowHeight;
     });
 
-    // Draw the black line below the table
     doc
       .strokeColor('#000000')
       .lineWidth(2)
