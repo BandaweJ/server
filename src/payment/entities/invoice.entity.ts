@@ -52,6 +52,6 @@ export class InvoiceEntity {
   @JoinColumn({ name: 'enrolId' }) // Foreign key column in the invoices table
   enrol: EnrolEntity;
 
-  @OneToMany(() => BillsEntity, (bill) => bill.invoice)
+  @OneToMany(() => BillsEntity, (bill) => bill.invoice, { cascade: true })
   bills: BillsEntity[];
 }

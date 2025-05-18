@@ -295,6 +295,7 @@ export class PaymentService {
           year: year,
         },
       },
+      relations: ['student', 'enrol', 'balanceBfwd', 'bills'],
     });
 
     if (!invoice) {
