@@ -44,4 +44,8 @@ export class Invoice {
     futureDate.setDate(currentDate.getDate() + daysToAdd);
     return futureDate;
   }
+
+  private calculateTotalBill(): number {
+    return this.bills.reduce((total, bill) => total + bill.fees.amount, 0);
+  }
 }

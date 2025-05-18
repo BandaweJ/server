@@ -45,13 +45,12 @@ export class PaymentController {
     return this.paymentService.getNotApprovedPayments();
   }
 
-  @Get('invoice/:studentNumber/:num/:year')
-  generateInvoice(
+  @Get('invoice/:studentNumber/:num/:year') generateInvoice(
     @Param('studentNumber') studentNumber: string,
     @Param('num', ParseIntPipe) num: number,
     @Param('year', ParseIntPipe) year: number,
   ) {
-    return this.paymentService.generateInvoice(studentNumber, num, year);
+    return this.paymentService.getInvoice(studentNumber, num, year);
   }
 
   @Post('invoice')
@@ -68,7 +67,7 @@ export class PaymentController {
     @Param('num', ParseIntPipe) num: number,
     @Param('year', ParseIntPipe) year: number,
   ): Promise<any> {
-    const invoice = await this.paymentService.generateInvoice(
+    const invoice = await this.paymentService.getInvoice(
       studentNumber,
       num,
       year,

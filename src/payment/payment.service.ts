@@ -231,15 +231,15 @@ export class PaymentService {
     // return await this.invoiceRepository.save(invoice);
   }
 
-  async generateInvoice(studentNumber: string, num: number, year: number) {
+  async generateEmptyInvoice(
+    studentNumber: string,
+    num: number,
+    year: number,
+  ): Promise<Invoice> {
     const enrol = await this.enrolmentService.getCurrentEnrollment(
       studentNumber,
     );
-    const bills = await this.financeService.getStudentBillsByTerm(
-      studentNumber,
-      num,
-      year,
-    );
+    const bills = [];
 
     const balanceBfwd = await this.financeService.findStudentBalance(
       studentNumber,
@@ -252,6 +252,8 @@ export class PaymentService {
 
     const totalPayments = 0;
 
+    const payments = [];
+
     const student = await this.resourceById.getStudentByStudentNumber(
       studentNumber,
     );
@@ -262,7 +264,7 @@ export class PaymentService {
       balanceBfwd,
       student,
       bills,
-      [],
+      payments,
 
       Number(totalBills) + Number(balanceBfwd.amount) - totalPayments,
       enrol,
@@ -280,6 +282,31 @@ export class PaymentService {
     // };
 
     return invoice;
+  }
+
+  async getInvoice(studentNumber: string, num: number, year: number) {
+    const invoice = await this.invoiceRepository.findOne({
+      where: {
+        student: {
+          studentNumber: studentNumber,
+        },
+        enrol: {
+          num: num,
+          year: year,
+        },
+      },
+    });
+
+    if (!invoice) {
+      const newInvoice = await this.generateEmptyInvoice(
+        studentNumber,
+        num,
+        year,
+      );
+      return this.saveInvoice(newInvoice);
+    } else {
+      return invoice;
+    }
   }
 
   async updatePayment(
@@ -435,7 +462,7 @@ export class PaymentService {
     return y; // Return the y-coordinate of the end of the table
   }
 
-  async generateInvoicePdf(invoiceData: Invoice): Promise<Buffer> {
+  async generateInvoicePdf(invoiceData: InvoiceEntity): Promise<Buffer> {
     const doc = new PDFDocument({
       size: 'A4',
       margins: { top: 50, bottom: 50, left: 50, right: 50 },
