@@ -203,6 +203,7 @@ export class PaymentService {
             year: enrol.year,
           },
         },
+        relations: ['student', 'enrol', 'balanceBfwd', 'bills', 'bills.fees'],
       });
 
       if (foundInvoice) {
