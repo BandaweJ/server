@@ -1,5 +1,9 @@
 /* eslint-disable prettier/prettier */
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  NotImplementedException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import {
   And,
   Between,
@@ -188,44 +192,51 @@ export class PaymentService {
       invoiceDueDate,
     } = invoice;
 
-    const foundInvoice = await this.invoiceRepository.findOne({
-      where: {
-        student: {
-          studentNumber: student.studentNumber,
+    try {
+      const foundInvoice = await this.invoiceRepository.findOne({
+        where: {
+          student: {
+            studentNumber: student.studentNumber,
+          },
+          enrol: {
+            num: enrol.num,
+            year: enrol.year,
+          },
         },
-        enrol: {
-          num: enrol.num,
-          year: enrol.year,
-        },
-      },
-    });
+      });
 
-    if (foundInvoice) {
-      foundInvoice.totalBill = totalBill;
-      foundInvoice.totalPayments = totalPayments;
-      foundInvoice.balanceBfwd = balanceBfwd;
-      foundInvoice.bills = bills;
-      // foundInvoice.payments = payments;
-      foundInvoice.balance = balance;
-      foundInvoice.invoiceNumber = invoiceNumber;
-      foundInvoice.invoiceDate = invoiceDate;
-      foundInvoice.invoiceDueDate = invoiceDueDate;
-      return this.invoiceRepository.save(foundInvoice);
-    } else {
-      const newInvoice = new InvoiceEntity();
+      if (foundInvoice) {
+        foundInvoice.totalBill = totalBill;
+        foundInvoice.totalPayments = totalPayments;
+        foundInvoice.balanceBfwd = balanceBfwd;
+        foundInvoice.bills = bills;
+        // foundInvoice.payments = payments;
+        foundInvoice.balance = balance;
+        foundInvoice.invoiceNumber = invoiceNumber;
+        foundInvoice.invoiceDate = invoiceDate;
+        foundInvoice.invoiceDueDate = invoiceDueDate;
+        return this.invoiceRepository.save(foundInvoice);
+      } else {
+        const newInvoice = new InvoiceEntity();
 
-      newInvoice.totalBill = totalBill;
-      newInvoice.totalPayments = totalPayments;
-      newInvoice.balanceBfwd = balanceBfwd;
-      newInvoice.student = student;
-      newInvoice.bills = bills;
-      // newInvoice.payments = payments;
-      newInvoice.balance = balance;
-      newInvoice.enrol = enrol;
-      newInvoice.invoiceNumber = invoiceNumber;
-      newInvoice.invoiceDate = invoiceDate;
-      newInvoice.invoiceDueDate = invoiceDueDate;
-      return await this.invoiceRepository.save(newInvoice);
+        newInvoice.totalBill = totalBill;
+        newInvoice.totalPayments = totalPayments;
+        newInvoice.balanceBfwd = balanceBfwd;
+        newInvoice.student = student;
+        newInvoice.bills = bills;
+        // newInvoice.payments = payments;
+        newInvoice.balance = balance;
+        newInvoice.enrol = enrol;
+        newInvoice.invoiceNumber = invoiceNumber;
+        newInvoice.invoiceDate = invoiceDate;
+        newInvoice.invoiceDueDate = invoiceDueDate;
+        return await this.invoiceRepository.save(newInvoice);
+      }
+    } catch (error) {
+      throw new NotImplementedException(
+        'Could not save Invoice due to ',
+        error,
+      );
     }
 
     // return await this.invoiceRepository.save(invoice);
