@@ -6,7 +6,6 @@ import { StudentsEntity } from 'src/profiles/entities/students.entity';
 
 export class EnrolDto {
   @ApiProperty()
-  @IsString()
   @IsNotEmpty()
   student: StudentsEntity;
 
@@ -26,7 +25,6 @@ export class EnrolDto {
   year: number;
 
   @ApiProperty()
-  @IsString()
   @IsOptional()
   residence: Residence;
 }

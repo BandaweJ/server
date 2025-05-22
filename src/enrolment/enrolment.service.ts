@@ -216,7 +216,9 @@ export class EnrolmentService {
       },
     });
 
-    return await this.enrolmentRepository.save({ ...enrol, ...updateEnrolDto });
+    enrol.residence = residence;
+
+    return await this.enrolmentRepository.save(enrol);
   }
 
   async enrolStudent(

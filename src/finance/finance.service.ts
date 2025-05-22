@@ -22,7 +22,7 @@ import { StudentsEntity } from 'src/profiles/entities/students.entity';
 import { EnrolEntity } from 'src/enrolment/entities/enrol.entity';
 import { BalancesEntity } from './entities/balances.entity';
 import { CreateBalancesDto } from './dtos/balances.dto';
-import { profile } from 'console';
+// import { profile } from 'console';
 import { CreateBillDto } from './dtos/bills.dto';
 
 /* eslint-disable prettier/prettier */
