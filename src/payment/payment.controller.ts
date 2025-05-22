@@ -45,12 +45,21 @@ export class PaymentController {
     return this.paymentService.getNotApprovedPayments();
   }
 
-  @Get('invoice/:studentNumber/:num/:year') generateInvoice(
+  @Get('invoice/:studentNumber/:num/:year')
+  generateInvoice(
     @Param('studentNumber') studentNumber: string,
     @Param('num', ParseIntPipe) num: number,
     @Param('year', ParseIntPipe) year: number,
   ) {
     return this.paymentService.getInvoice(studentNumber, num, year);
+  }
+
+  @Get('invoice/:num/:year')
+  getInvoiceStats(
+    @Param('num', ParseIntPipe) num: number,
+    @Param('year', ParseIntPipe) year: number,
+  ) {
+    return this.paymentService.getInvoiceStats(num, year);
   }
 
   @Post('invoice')

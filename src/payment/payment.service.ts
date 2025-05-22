@@ -30,6 +30,7 @@ import path from 'path';
 import { BillsEntity } from 'src/finance/entities/bills.entity';
 import { FeesNames } from 'src/finance/models/fees-names.enum';
 import { InvoiceEntity } from './entities/invoice.entity';
+import { InvoiceStatsModel } from 'src/finance/models/invoice-stats.model';
 
 @Injectable()
 export class PaymentService {
@@ -320,6 +321,187 @@ export class PaymentService {
     } else {
       return invoice;
     }
+  }
+
+  async getInvoiceStats(
+    num: number,
+    year: number,
+  ): Promise<InvoiceStatsModel[]> {
+    const term = await this.enrolmentService.getOneTerm(num, year);
+
+    const invoices = await this.invoiceRepository.find({
+      where: {
+        enrol: {
+          num: num,
+          year: year,
+        },
+      },
+      relations: ['student', 'enrol', 'balanceBfwd', 'bills', 'bills.fees'],
+    });
+
+    let invoiceState: InvoiceStatsModel;
+    const invoiceStats: InvoiceStatsModel[] = [];
+    const totalTitles = [
+      'amount',
+      'tuition',
+      'boarders',
+      'dayScholars',
+      'food',
+      'transport',
+      'science',
+      'desk',
+      'development',
+      'application',
+    ];
+    totalTitles.map((title) => {
+      invoiceState.title = title;
+      invoiceStats.push(invoiceState);
+    });
+
+    invoices.map((invoice) => {
+      invoice.bills.map((bill) => {
+        switch (bill.fees.name) {
+          case FeesNames.aLevelApplicationFee: {
+            const statIndex = totalTitles.indexOf('application');
+            invoiceStats[statIndex].aLevel += Number(bill.fees.amount);
+            invoiceStats[statIndex].total += Number(bill.fees.amount);
+            break;
+          }
+          case FeesNames.oLevelApplicationFee: {
+            const statIndex = totalTitles.indexOf('application');
+            invoiceStats[statIndex].oLevel += Number(bill.fees.amount);
+            invoiceStats[statIndex].total += Number(bill.fees.amount);
+            break;
+          }
+          case FeesNames.developmentFee: {
+            const statIndex = totalTitles.indexOf('development');
+            if (
+              invoice.enrol.name.charAt(0) === '5' ||
+              invoice.enrol.name.charAt(0) === '6'
+            ) {
+              invoiceStats[statIndex].aLevel += Number(bill.fees.amount);
+            } else {
+              invoiceStats[statIndex].oLevel += Number(bill.fees.amount);
+            }
+            invoiceStats[statIndex].total += Number(bill.fees.amount);
+            break;
+          }
+          case FeesNames.deskFee: {
+            const statIndex = totalTitles.indexOf('desk');
+            invoiceStats[statIndex].total += Number(bill.fees.amount);
+            if (
+              invoice.enrol.name.charAt(0) === '5' ||
+              invoice.enrol.name.charAt(0) === '6'
+            ) {
+              invoiceStats[statIndex].aLevel += Number(bill.fees.amount);
+            } else {
+              invoiceStats[statIndex].oLevel += Number(bill.fees.amount);
+            }
+            break;
+          }
+
+          case FeesNames.alevelScienceFee: {
+            const statIndex = totalTitles.indexOf('science');
+            invoiceStats[statIndex].aLevel += Number(bill.fees.amount);
+            invoiceStats[statIndex].total += Number(bill.fees.amount);
+            break;
+          }
+          case FeesNames.oLevelScienceFee: {
+            const statIndex = totalTitles.indexOf('science');
+            invoiceStats[statIndex].oLevel += Number(bill.fees.amount);
+            invoiceStats[statIndex].total += Number(bill.fees.amount);
+            break;
+          }
+          case FeesNames.transportFee: {
+            const statIndex = totalTitles.indexOf('transport');
+            invoiceStats[statIndex].total += Number(bill.fees.amount);
+            if (
+              invoice.enrol.name.charAt(0) === '5' ||
+              invoice.enrol.name.charAt(0) === '6'
+            ) {
+              invoiceStats[statIndex].aLevel += Number(bill.fees.amount);
+            } else {
+              invoiceStats[statIndex].oLevel += Number(bill.fees.amount);
+            }
+            break;
+          }
+          case FeesNames.foodFee: {
+            const statIndex = totalTitles.indexOf('food');
+            invoiceStats[statIndex].total += Number(bill.fees.amount);
+            if (
+              invoice.enrol.name.charAt(0) === '5' ||
+              invoice.enrol.name.charAt(0) === '6'
+            ) {
+              invoiceStats[statIndex].aLevel += Number(bill.fees.amount);
+            } else {
+              invoiceStats[statIndex].oLevel += Number(bill.fees.amount);
+            }
+            break;
+          }
+          case FeesNames.aLevelTuitionDay: {
+            const statIndex = totalTitles.indexOf('dayScholars');
+            invoiceStats[statIndex].aLevel += Number(bill.fees.amount);
+            invoiceStats[statIndex].total += Number(bill.fees.amount);
+            break;
+          }
+          case FeesNames.oLevelTuitionDay: {
+            const statIndex = totalTitles.indexOf('dayScholars');
+            invoiceStats[statIndex].oLevel += Number(bill.fees.amount);
+            invoiceStats[statIndex].total += Number(bill.fees.amount);
+            break;
+          }
+
+          case FeesNames.aLevelTuitionBoarder: {
+            const statIndex = totalTitles.indexOf('boarders');
+            invoiceStats[statIndex].aLevel += Number(bill.fees.amount);
+            invoiceStats[statIndex].total += Number(bill.fees.amount);
+            break;
+          }
+          case FeesNames.oLevelTuitionBoarder: {
+            const statIndex = totalTitles.indexOf('boarders');
+            invoiceStats[statIndex].oLevel += Number(bill.fees.amount);
+            invoiceStats[statIndex].total += Number(bill.fees.amount);
+            break;
+          }
+        }
+      });
+    });
+
+    //calculate and update the total tuition
+    const tuitionIndex = totalTitles.indexOf('tuition');
+    const boardersTuitionIndex = totalTitles.indexOf('boarders');
+    const dayScholarsTuitionIndex = totalTitles.indexOf('dayScholars');
+
+    const totalTuition =
+      invoiceStats[boardersTuitionIndex].total +
+      invoiceStats[dayScholarsTuitionIndex].total;
+    invoiceStats[tuitionIndex].total = totalTuition;
+
+    invoiceStats[tuitionIndex].aLevel =
+      invoiceStats[boardersTuitionIndex].aLevel +
+      invoiceStats[dayScholarsTuitionIndex].aLevel;
+    invoiceStats[tuitionIndex].oLevel =
+      invoiceStats[boardersTuitionIndex].oLevel +
+      invoiceStats[dayScholarsTuitionIndex].oLevel;
+
+    //calculate and update the total amounts
+    const totalAmount = invoiceStats.reduce(
+      (total, stat) => total + stat.total,
+      0,
+    );
+    invoiceStats[tuitionIndex].total = totalAmount;
+
+    const totalOLevelAmount =
+      invoiceStats.reduce((total, stat) => total + stat.oLevel, 0) -
+      invoiceStats[tuitionIndex].oLevel;
+    invoiceStats[tuitionIndex].oLevel = totalOLevelAmount;
+
+    const totalALevelAmount =
+      invoiceStats.reduce((total, stat) => total + stat.aLevel, 0) -
+      invoiceStats[tuitionIndex].aLevel;
+    invoiceStats[tuitionIndex].aLevel = totalALevelAmount;
+
+    return invoiceStats;
   }
 
   async updatePayment(
