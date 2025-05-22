@@ -214,6 +214,7 @@ export class EnrolmentService {
           studentNumber: student.studentNumber,
         },
       },
+      relations: ['student'],
     });
 
     enrol.residence = residence;
