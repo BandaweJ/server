@@ -238,7 +238,7 @@ export class PaymentService {
     } catch (error) {
       throw new NotImplementedException(
         'Could not save Invoice due to ',
-        error,
+        error.message,
       );
     }
 
