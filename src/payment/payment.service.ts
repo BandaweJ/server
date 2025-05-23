@@ -31,6 +31,7 @@ import { BillsEntity } from 'src/finance/entities/bills.entity';
 import { FeesNames } from 'src/finance/models/fees-names.enum';
 import { InvoiceEntity } from './entities/invoice.entity';
 import { InvoiceStatsModel } from 'src/finance/models/invoice-stats.model';
+import { Residence } from 'src/enrolment/models/residence.model';
 
 @Injectable()
 export class PaymentService {
@@ -364,8 +365,20 @@ export class PaymentService {
     });
 
     invoices.map((invoice) => {
+      const amountIndex = totalTitles.indexOf('amount');
+      invoiceStats[amountIndex].total += Number(invoice.totalBill);
+      if (
+        invoice.enrol.name.charAt(0) == '5' ||
+        invoice.enrol.name.charAt(0) == '6'
+      ) {
+        invoiceStats[amountIndex].aLevel += Number(invoice.totalBill);
+      } else {
+        invoiceStats[amountIndex].oLevel += Number(invoice.totalBill);
+      }
+
       invoice.bills.map((bill) => {
-        // console.log('bill: ', bill.);
+        // console.log('bill: ', bill.)
+
         switch (bill.fees.name) {
           case FeesNames.aLevelApplicationFee: {
             const statIndex = totalTitles.indexOf('application');
@@ -491,22 +504,22 @@ export class PaymentService {
       Number(invoiceStats[dayScholarsTuitionIndex].oLevel);
 
     //calculate and update the total amounts
-    const amountIndex = totalTitles.indexOf('amount');
-    const totalAmount = invoiceStats.reduce(
-      (total, stat) => total + stat.total,
-      0,
-    );
-    invoiceStats[amountIndex].total = totalAmount;
+    // const amountIndex = totalTitles.indexOf('amount');
+    // const totalAmount = invoiceStats.reduce(
+    //   (total, stat) => total + stat.total,
+    //   0,
+    // );
+    // invoiceStats[amountIndex].total = totalAmount;
 
-    const totalOLevelAmount =
-      invoiceStats.reduce((total, stat) => total + stat.oLevel, 0) -
-      invoiceStats[amountIndex].oLevel;
-    invoiceStats[amountIndex].oLevel = totalOLevelAmount;
+    // const totalOLevelAmount =
+    //   invoiceStats.reduce((total, stat) => total + stat.oLevel, 0) -
+    //   invoiceStats[amountIndex].oLevel;
+    // invoiceStats[amountIndex].oLevel = totalOLevelAmount;
 
-    const totalALevelAmount =
-      invoiceStats.reduce((total, stat) => total + stat.aLevel, 0) -
-      invoiceStats[amountIndex].aLevel;
-    invoiceStats[amountIndex].aLevel = totalALevelAmount;
+    // const totalALevelAmount =
+    //   invoiceStats.reduce((total, stat) => total + stat.aLevel, 0) -
+    //   invoiceStats[amountIndex].aLevel;
+    // invoiceStats[amountIndex].aLevel = totalALevelAmount;
 
     return invoiceStats;
   }
