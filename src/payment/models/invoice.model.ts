@@ -21,6 +21,7 @@ export class Invoice {
 
     public invoiceDate: Date = new Date(),
     public invoiceDueDate?: Date,
+    public id?: number,
   ) {
     this.invoiceNumber = this.generateInvoiceNumber();
     this.invoiceDueDate = this.calculateDueDate(30);

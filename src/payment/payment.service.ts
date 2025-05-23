@@ -245,57 +245,20 @@ export class PaymentService {
     // return await this.invoiceRepository.save(invoice);
   }
 
-  async generateEmptyInvoice(
-    studentNumber: string,
-    num: number,
-    year: number,
-  ): Promise<Invoice> {
-    const enrol = await this.enrolmentService.getCurrentEnrollment(
-      studentNumber,
-    );
-    const bills: BillsEntity[] = [];
-
+  async generateEmptyInvoice(studentNumber: string): Promise<InvoiceEntity> {
     const balanceBfwd = await this.financeService.findStudentBalance(
       studentNumber,
     );
-
-    const totalBills = bills.reduce(
-      (sum, bill) => sum + Number(bill.fees.amount),
-      0,
-    );
-
-    const totalPayments = 0;
-
-    const payments: PaymentEntity[] = [];
 
     const student = await this.resourceById.getStudentByStudentNumber(
       studentNumber,
     );
 
-    const invoice = new Invoice(
-      totalBills,
-      totalPayments,
-      balanceBfwd,
-      student,
-      bills,
-      payments,
+    const newInv = this.invoiceRepository.create();
+    newInv.student = student;
+    newInv.balanceBfwd = balanceBfwd;
 
-      Number(totalBills) + Number(balanceBfwd.amount) - totalPayments,
-      enrol,
-    );
-
-    // const invoice: Invoice = {
-    //   totalBill: totalBills,
-    //   totalPayments: 0,
-    //   balanceBfwd,
-    //   student,
-    //   bills,
-    //   payments: [],
-    //   balance:
-    //     Number(totalBills) + Number(balanceBfwd.amount) - Number(totalPayments), //totalBills + balanceBfwd.amount - totalPayments,
-    // };
-
-    return invoice;
+    return newInv;
   }
 
   async getInvoices(num: number, year: number): Promise<InvoiceEntity[]> {
@@ -325,11 +288,7 @@ export class PaymentService {
     });
 
     if (!invoice) {
-      const newInvoice = await this.generateEmptyInvoice(
-        studentNumber,
-        num,
-        year,
-      );
+      const newInvoice = await this.generateEmptyInvoice(studentNumber);
       return newInvoice;
     } else {
       return invoice;
@@ -514,24 +473,6 @@ export class PaymentService {
     invoiceStats[tuitionIndex].oLevel =
       Number(invoiceStats[boardersTuitionIndex].oLevel) +
       Number(invoiceStats[dayScholarsTuitionIndex].oLevel);
-
-    //calculate and update the total amounts
-    // const amountIndex = totalTitles.indexOf('amount');
-    // const totalAmount = invoiceStats.reduce(
-    //   (total, stat) => total + stat.total,
-    //   0,
-    // );
-    // invoiceStats[amountIndex].total = totalAmount;
-
-    // const totalOLevelAmount =
-    //   invoiceStats.reduce((total, stat) => total + stat.oLevel, 0) -
-    //   invoiceStats[amountIndex].oLevel;
-    // invoiceStats[amountIndex].oLevel = totalOLevelAmount;
-
-    // const totalALevelAmount =
-    //   invoiceStats.reduce((total, stat) => total + stat.aLevel, 0) -
-    //   invoiceStats[amountIndex].aLevel;
-    // invoiceStats[amountIndex].aLevel = totalALevelAmount;
 
     return invoiceStats;
   }
