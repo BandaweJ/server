@@ -62,7 +62,7 @@ export class PaymentController {
     return this.paymentService.getInvoices(num, year);
   }
 
-  @Get('invoice/stats/:num/:year')
+  @Get('stats/:num/:year')
   getInvoiceStats(
     @Param('num', ParseIntPipe) num: number,
     @Param('year', ParseIntPipe) year: number,
