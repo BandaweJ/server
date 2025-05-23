@@ -15,6 +15,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { PaymentEntity } from './payment.entity';
+import * as crypto from 'crypto';
 
 @Entity('invoice')
 export class InvoiceEntity {
@@ -54,4 +55,38 @@ export class InvoiceEntity {
 
   @OneToMany(() => BillsEntity, (bill) => bill.invoice, { cascade: true })
   bills: BillsEntity[];
+
+  // Constructor to initialize fields
+  constructor() {
+    // Only initialize if not already set, e.g., when loading from DB
+    if (!this.invoiceNumber) {
+      this.invoiceNumber = this.generateInvoiceNumber();
+    }
+    if (!this.invoiceDueDate) {
+      // Assuming a due date of 30 days from creation
+      this.invoiceDueDate = this.calculateDueDate(30);
+    }
+    // invoiceDate is handled by @CreateDateColumn, so no need to set here
+    // balance, totalBill, totalPayments should be calculated based on logic,
+    // often after bills or payments are added, so not initialized here.
+  }
+
+  generateInvoiceNumber(): string {
+    const timestamp = Date.now();
+    const random = Math.random();
+    const hash = crypto
+      .createHash('md5')
+      .update(`${timestamp}-${random}`)
+      .digest('hex')
+      .slice(0, 6)
+      .toUpperCase();
+    return `INV-${hash}`;
+  }
+
+  private calculateDueDate(daysToAdd: number): Date {
+    const currentDate = new Date();
+    const futureDate = new Date(currentDate);
+    futureDate.setDate(currentDate.getDate() + daysToAdd);
+    return futureDate;
+  }
 }
