@@ -637,13 +637,24 @@ export class PaymentService {
     const companyEmail = 'info@juniorhighschool.ac.zw'; // Replace
 
     // Add logo (replace with your logo path)
+    // try {
+    //   const imgPath = path.join(__dirname, '../../public/jhs_logo.jpg');
+    //   const imgBuffer = fs.readFileSync(imgPath);
+
+    //   doc.image(imgBuffer, 50, 50, { width: 100 });
+    // } catch (e) {
+    //   console.log('Error adding image', e);
+    // }
+
     try {
-      const imgPath = path.join(__dirname, '../../public/jhs_logo.jpg');
+      // Corrected path using process.cwd()
+      const imgPath = path.join(process.cwd(), 'public', 'jhs_logo.jpg');
+      // console.log('Attempting to load image from:', imgPath); // For debugging
       const imgBuffer = fs.readFileSync(imgPath);
 
       doc.image(imgBuffer, 50, 50, { width: 100 });
     } catch (e) {
-      console.log('Error adding image', e);
+      console.log('Error adding image:', e.message); // Log the error message for more detail
     }
 
     // Add company info
