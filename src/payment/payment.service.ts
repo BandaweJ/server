@@ -26,7 +26,7 @@ import { ResourceByIdService } from 'src/resource-by-id/resource-by-id.service';
 import * as PDFDocument from 'pdfkit';
 import { Stream } from 'stream';
 import * as fs from 'fs';
-import path from 'path';
+import * as path from 'path';
 import { BillsEntity } from 'src/finance/entities/bills.entity';
 import { FeesNames } from 'src/finance/models/fees-names.enum';
 import { InvoiceEntity } from './entities/invoice.entity';
