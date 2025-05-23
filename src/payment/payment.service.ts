@@ -327,19 +327,20 @@ export class PaymentService {
     num: number,
     year: number,
   ): Promise<InvoiceStatsModel[]> {
-    const term = await this.enrolmentService.getOneTerm(num, year);
-
+    // const term = await this.enrolmentService.getOneTerm(num, year);
+    console.log('num : ', num, 'year : ', year);
     const invoices = await this.invoiceRepository.find({
       where: {
         enrol: {
-          num: num,
-          year: year,
+          num,
+          year,
         },
       },
       relations: ['student', 'enrol', 'balanceBfwd', 'bills', 'bills.fees'],
     });
 
-    let invoiceState: InvoiceStatsModel;
+    console.log('invoices: ', invoices.length);
+
     const invoiceStats: InvoiceStatsModel[] = [];
     const totalTitles = [
       'amount',
@@ -354,6 +355,10 @@ export class PaymentService {
       'application',
     ];
     totalTitles.map((title) => {
+      const invoiceState = new InvoiceStatsModel();
+      invoiceState.total = 0;
+      invoiceState.oLevel = 0;
+      invoiceState.aLevel = 0;
       invoiceState.title = title;
       invoiceStats.push(invoiceState);
     });
