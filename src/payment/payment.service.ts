@@ -298,6 +298,18 @@ export class PaymentService {
     return invoice;
   }
 
+  async getInvoices(num: number, year: number): Promise<InvoiceEntity[]> {
+    return this.invoiceRepository.find({
+      where: {
+        enrol: {
+          num: num,
+          year: year,
+        },
+      },
+      relations: ['student', 'enrol', 'balanceBfwd', 'bills', 'bills.fees'],
+    });
+  }
+
   async getInvoice(studentNumber: string, num: number, year: number) {
     const invoice = await this.invoiceRepository.findOne({
       where: {
