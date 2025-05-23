@@ -10,11 +10,11 @@ import { EnrolEntity } from 'src/enrolment/entities/enrol.entity';
 export class Invoice {
   constructor(
     public totalBill: number,
-    public totalPayments: number,
+
     public balanceBfwd: BalancesEntity,
     public student: StudentsEntity,
     public bills: BillsEntity[],
-    public payments: PaymentEntity[],
+
     public balance: number,
     public enrol?: EnrolEntity,
     public invoiceNumber?: string,

@@ -37,8 +37,8 @@ export class InvoiceEntity {
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   totalBill: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
-  totalPayments: number;
+  // @Column({ type: 'decimal', precision: 10, scale: 2 })
+  // totalPayments: number;
 
   @ManyToOne(() => StudentsEntity, (student) => student.invoices)
   student: StudentsEntity;

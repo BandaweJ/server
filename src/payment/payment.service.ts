@@ -158,23 +158,12 @@ export class PaymentService {
 
     const invoice = new Invoice(
       totalBill,
-      totalPayments,
+
       balanceBfwd,
       student,
       bills,
-      payments,
       Number(totalBill) + Number(balanceBfwd.amount) - Number(totalPayments),
     );
-
-    // const invoice: Invoice = {
-    //   totalBill,
-    //   totalPayments,
-    //   balanceBfwd,
-    //   student,
-    //   bills,
-    //   payments,
-    //   balance: totalBill + balanceBfwd.amount - totalPayments,
-    // };
 
     return invoice;
   }
@@ -182,11 +171,11 @@ export class PaymentService {
   async saveInvoice(invoice: Invoice): Promise<InvoiceEntity> {
     const {
       totalBill,
-      totalPayments,
+
       balanceBfwd,
       student,
       bills,
-      payments,
+
       balance,
       enrol,
       invoiceNumber,
@@ -210,7 +199,7 @@ export class PaymentService {
 
       if (foundInvoice) {
         foundInvoice.totalBill = totalBill;
-        foundInvoice.totalPayments = totalPayments;
+
         foundInvoice.balanceBfwd = balanceBfwd;
         foundInvoice.bills = bills;
         // foundInvoice.payments = payments;
@@ -223,7 +212,7 @@ export class PaymentService {
         const newInvoice = new InvoiceEntity();
 
         newInvoice.totalBill = totalBill;
-        newInvoice.totalPayments = totalPayments;
+
         newInvoice.balanceBfwd = balanceBfwd;
         newInvoice.student = student;
         newInvoice.bills = bills;
