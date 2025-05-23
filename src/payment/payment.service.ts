@@ -253,7 +253,7 @@ export class PaymentService {
     const enrol = await this.enrolmentService.getCurrentEnrollment(
       studentNumber,
     );
-    const bills = [];
+    const bills: BillsEntity[] = [];
 
     const balanceBfwd = await this.financeService.findStudentBalance(
       studentNumber,
@@ -266,7 +266,7 @@ export class PaymentService {
 
     const totalPayments = 0;
 
-    const payments = [];
+    const payments: PaymentEntity[] = [];
 
     const student = await this.resourceById.getStudentByStudentNumber(
       studentNumber,
@@ -330,7 +330,7 @@ export class PaymentService {
         num,
         year,
       );
-      return this.saveInvoice(newInvoice);
+      return newInvoice;
     } else {
       return invoice;
     }
