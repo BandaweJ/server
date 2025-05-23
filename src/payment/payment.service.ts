@@ -532,12 +532,12 @@ export class PaymentService {
     startY: number,
     columnWidths: number[],
     headers: string[],
-    headerColor = '#eeeeee',
+    headerColor = '#96d4d4',
     textColor = '#000000',
   ): number {
     const rowHeight = 20;
     const headerHeight = 25;
-    const borderColor = '#cccccc';
+    const borderColor = '#96d4d4';
     const font = 'Helvetica';
     const boldFont = 'Helvetica-Bold';
     const fontSize = 10;
