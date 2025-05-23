@@ -257,6 +257,10 @@ export class PaymentService {
     const newInv = this.invoiceRepository.create();
     newInv.student = student;
     newInv.balanceBfwd = balanceBfwd;
+    newInv.enrol = await this.enrolmentService.getCurrentEnrollment(
+      studentNumber,
+    );
+    newInv.bills = [];
 
     return newInv;
   }
