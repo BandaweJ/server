@@ -328,7 +328,7 @@ export class PaymentService {
     year: number,
   ): Promise<InvoiceStatsModel[]> {
     // const term = await this.enrolmentService.getOneTerm(num, year);
-    console.log('num : ', num, 'year : ', year);
+    // console.log('num : ', num, 'year : ', year);
     const invoices = await this.invoiceRepository.find({
       where: {
         enrol: {
@@ -339,7 +339,7 @@ export class PaymentService {
       relations: ['student', 'enrol', 'balanceBfwd', 'bills', 'bills.fees'],
     });
 
-    console.log('invoices: ', invoices.length);
+    // console.log('invoices: ', invoices.length);
 
     const invoiceStats: InvoiceStatsModel[] = [];
     const totalTitles = [
@@ -365,6 +365,7 @@ export class PaymentService {
 
     invoices.map((invoice) => {
       invoice.bills.map((bill) => {
+        // console.log('bill: ', bill.);
         switch (bill.fees.name) {
           case FeesNames.aLevelApplicationFee: {
             const statIndex = totalTitles.indexOf('application');
@@ -478,33 +479,34 @@ export class PaymentService {
     const dayScholarsTuitionIndex = totalTitles.indexOf('dayScholars');
 
     const totalTuition =
-      invoiceStats[boardersTuitionIndex].total +
-      invoiceStats[dayScholarsTuitionIndex].total;
+      Number(invoiceStats[boardersTuitionIndex].total) +
+      Number(invoiceStats[dayScholarsTuitionIndex].total);
     invoiceStats[tuitionIndex].total = totalTuition;
 
     invoiceStats[tuitionIndex].aLevel =
-      invoiceStats[boardersTuitionIndex].aLevel +
-      invoiceStats[dayScholarsTuitionIndex].aLevel;
+      Number(invoiceStats[boardersTuitionIndex].aLevel) +
+      Number(invoiceStats[dayScholarsTuitionIndex].aLevel);
     invoiceStats[tuitionIndex].oLevel =
-      invoiceStats[boardersTuitionIndex].oLevel +
-      invoiceStats[dayScholarsTuitionIndex].oLevel;
+      Number(invoiceStats[boardersTuitionIndex].oLevel) +
+      Number(invoiceStats[dayScholarsTuitionIndex].oLevel);
 
     //calculate and update the total amounts
+    const amountIndex = totalTitles.indexOf('amount');
     const totalAmount = invoiceStats.reduce(
       (total, stat) => total + stat.total,
       0,
     );
-    invoiceStats[tuitionIndex].total = totalAmount;
+    invoiceStats[amountIndex].total = totalAmount;
 
     const totalOLevelAmount =
       invoiceStats.reduce((total, stat) => total + stat.oLevel, 0) -
-      invoiceStats[tuitionIndex].oLevel;
-    invoiceStats[tuitionIndex].oLevel = totalOLevelAmount;
+      invoiceStats[amountIndex].oLevel;
+    invoiceStats[amountIndex].oLevel = totalOLevelAmount;
 
     const totalALevelAmount =
       invoiceStats.reduce((total, stat) => total + stat.aLevel, 0) -
-      invoiceStats[tuitionIndex].aLevel;
-    invoiceStats[tuitionIndex].aLevel = totalALevelAmount;
+      invoiceStats[amountIndex].aLevel;
+    invoiceStats[amountIndex].aLevel = totalALevelAmount;
 
     return invoiceStats;
   }
