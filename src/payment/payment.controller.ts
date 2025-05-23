@@ -54,7 +54,7 @@ export class PaymentController {
     return this.paymentService.getInvoice(studentNumber, num, year);
   }
 
-  @Get('invoice/:num/:year')
+  @Get('invoice/stats/:num/:year')
   getInvoiceStats(
     @Param('num', ParseIntPipe) num: number,
     @Param('year', ParseIntPipe) year: number,
