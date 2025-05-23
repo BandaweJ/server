@@ -230,8 +230,6 @@ export class PaymentService {
         error.message,
       );
     }
-
-    // return await this.invoiceRepository.save(invoice);
   }
 
   async generateEmptyInvoice(studentNumber: string): Promise<InvoiceEntity> {

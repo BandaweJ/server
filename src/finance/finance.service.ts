@@ -324,6 +324,8 @@ export class FinanceService {
     if (!balance) {
       const b = await this.balancesRepository.create();
       b.amount = 0;
+      b.dateCreated = new Date();
+      b.studentNumber = studentNumber;
       return b;
     }
     return balance;
