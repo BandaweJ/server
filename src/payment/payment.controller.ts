@@ -133,7 +133,7 @@ export class PaymentController {
     return this.paymentService.updatePayment(receiptNumber, approved, profile);
   }
 
-  @Get('/receipt/:studentNumber')
+  @Get('/receipt/new/:studentNumber')
   getNewReceipt(@Param('studentNumber') studentNumber: string) {
     return this.paymentService.getNewReceipt(studentNumber);
   }
