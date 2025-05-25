@@ -66,7 +66,18 @@ export class PaymentService {
       return sum + Number(invoice.totalBill || 0);
     }, 0); // Initialize sum to 0
 
-    receipt.amountDue = sumTotalBill;
+    const receipts = await this.receiptRepository.find({
+      where: {
+        student: { studentNumber },
+      },
+    });
+
+    const sumTotalPaid = receipts.reduce((sum, receipt) => {
+      // Ensure totalBill is a number before adding, it might be a string from DB or null
+      return sum + Number(receipt.amountPaid || 0);
+    }, 0);
+
+    receipt.amountDue = sumTotalBill - sumTotalPaid;
 
     return receipt;
   }
