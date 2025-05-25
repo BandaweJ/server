@@ -5,7 +5,7 @@ import { PaymentController } from './payment.controller';
 import { PaymentService } from './payment.service';
 import { AuthModule } from 'src/auth/auth.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { PaymentEntity } from './entities/payment.entity';
+import { ReceiptEntity } from './entities/payment.entity';
 import { EnrolmentModule } from 'src/enrolment/enrolment.module';
 import { FinanceModule } from 'src/finance/finance.module';
 import { ResourceByIdModule } from 'src/resource-by-id/resource-by-id.module';
@@ -21,7 +21,7 @@ import { InvoiceEntity } from './entities/invoice.entity';
     EnrolmentModule,
     FinanceModule,
     ProfilesModule,
-    TypeOrmModule.forFeature([PaymentEntity, InvoiceEntity]),
+    TypeOrmModule.forFeature([ReceiptEntity, InvoiceEntity]),
     ResourceByIdModule,
   ],
 })

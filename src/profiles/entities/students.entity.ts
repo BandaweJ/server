@@ -16,7 +16,7 @@ import { MarksEntity } from '../../marks/entities/marks.entity';
 import { AccountsEntity } from 'src/auth/entities/accounts.entity';
 import { AttendanceEntity } from 'src/enrolment/entities/attendance.entity';
 import { TeacherCommentEntity } from 'src/marks/entities/teacher-comments.entity';
-import { PaymentEntity } from 'src/payment/entities/payment.entity';
+import { ReceiptEntity } from 'src/payment/entities/payment.entity';
 import { BillsEntity } from 'src/finance/entities/bills.entity';
 import { InvoiceEntity } from 'src/payment/entities/invoice.entity';
 
@@ -69,8 +69,8 @@ export class StudentsEntity extends BaseEntity {
   })
   enrols: EnrolEntity[];
 
-  @OneToMany(() => PaymentEntity, (payment) => payment.student)
-  payments: PaymentEntity[];
+  @OneToMany(() => ReceiptEntity, (receipt) => receipt.student)
+  receipts: ReceiptEntity[];
 
   @OneToMany(() => InvoiceEntity, (invoice) => invoice.student)
   invoices: InvoiceEntity[];

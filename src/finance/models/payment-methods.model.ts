@@ -1,7 +1,7 @@
 /* eslint-disable prettier/prettier */
 export enum PaymentMethods {
-  cash = 'cash',
-  bankTransfer = 'bankTransfer',
-  ecocash = 'ecocash',
-  omari = 'omari',
+  cash = 'Cash',
+  bankTransfer = 'Bank Transfer',
+  ecocash = 'Ecocash',
+  omari = 'Omari',
 }

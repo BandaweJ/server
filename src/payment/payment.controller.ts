@@ -106,7 +106,7 @@ export class PaymentController {
 
   @Get('receipt/:receiptNumber')
   getPaymentByReceiptNumber(
-    @Param('receiptNumber', ParseIntPipe) receiptNumber: number,
+    @Param('receiptNumber', ParseIntPipe) receiptNumber: string,
   ) {
     return this.paymentService.getPaymentByReceiptNumber(receiptNumber);
   }
@@ -126,10 +126,15 @@ export class PaymentController {
 
   @Patch('/:receiptNumber/:approved')
   updatePayment(
-    @Param('receiptNumber', ParseIntPipe) receiptNumber: number,
+    @Param('receiptNumber', ParseIntPipe) receiptNumber: string,
     @Param('approved') approved: boolean,
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
     return this.paymentService.updatePayment(receiptNumber, approved, profile);
+  }
+
+  @Get('/receipt/:studentNumber')
+  getNewReceipt(@Param('studentNumber') studentNumber: string) {
+    return this.paymentService.getNewReceipt(studentNumber);
   }
 }

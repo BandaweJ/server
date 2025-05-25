@@ -1,7 +1,6 @@
 /* eslint-disable prettier/prettier */
 import { BillsEntity } from 'src/finance/entities/bills.entity';
 import { StudentsEntity } from 'src/profiles/entities/students.entity';
-import { PaymentEntity } from '../entities/payment.entity';
 import { BalancesEntity } from 'src/finance/entities/balances.entity';
 import * as crypto from 'crypto';
 import { EnrolEntity } from 'src/enrolment/entities/enrol.entity';

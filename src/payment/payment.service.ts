@@ -11,7 +11,7 @@ import {
   MoreThanOrEqual,
   Repository,
 } from 'typeorm';
-import { PaymentEntity } from './entities/payment.entity';
+import { ReceiptEntity } from './entities/payment.entity';
 import { StudentsService } from '../profiles/students/students.service';
 import { EnrolmentService } from '../enrolment/enrolment.service';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -38,8 +38,8 @@ export class PaymentService {
   constructor(
     @InjectRepository(InvoiceEntity)
     private readonly invoiceRepository: Repository<InvoiceEntity>,
-    @InjectRepository(PaymentEntity)
-    private readonly paymentRepository: Repository<PaymentEntity>,
+    @InjectRepository(ReceiptEntity)
+    private readonly receiptRepository: Repository<ReceiptEntity>,
     // private readonly studentsService: StudentsService,
     private readonly enrolmentService: EnrolmentService,
     private readonly financeService: FinanceService,
@@ -47,11 +47,20 @@ export class PaymentService {
     private resourceById: ResourceByIdService,
   ) {}
 
+  async getNewReceipt(studentNumber: string): Promise<ReceiptEntity> {
+    const student = await this.resourceById.getStudentByStudentNumber(
+      studentNumber,
+    );
+    const receipt = await this.receiptRepository.create();
+    receipt.student = student;
+    return receipt;
+  }
+
   async createPayment(
     createPaymentDto: CreatePaymentDto,
 
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
-  ): Promise<PaymentEntity> {
+  ): Promise<ReceiptEntity> {
     switch (profile.role) {
       case ROLES.hod:
       case ROLES.parent:
@@ -63,28 +72,22 @@ export class PaymentService {
     const { student, amount, description, receiptBookNumber, paymentMethod } =
       createPaymentDto;
 
-    const payment = this.paymentRepository.create({
-      student,
-      amount,
-      description,
-      receiptBookNumber,
-      paymentMethod,
-    });
-    return this.paymentRepository.save(payment);
+    const payment = this.receiptRepository.create({});
+    return this.receiptRepository.save(payment);
   }
 
-  async getNotApprovedPayments(): Promise<PaymentEntity[]> {
-    return await this.paymentRepository.find({
+  async getNotApprovedPayments(): Promise<ReceiptEntity[]> {
+    return await this.receiptRepository.find({
       where: {
         approved: false,
       },
     });
   }
 
-  async getPaymentsByStudent(studentNumber: string): Promise<PaymentEntity[]> {
+  async getPaymentsByStudent(studentNumber: string): Promise<ReceiptEntity[]> {
     //   const student = await this.studentsService.getStudent(studentNumber, profile);
 
-    return await this.paymentRepository.find({
+    return await this.receiptRepository.find({
       where: {
         student: { studentNumber },
       },
@@ -93,21 +96,21 @@ export class PaymentService {
   }
 
   async getPaymentByReceiptNumber(
-    receiptNumber: number,
-  ): Promise<PaymentEntity> {
-    return await this.paymentRepository.findOne({
+    receiptNumber: string,
+  ): Promise<ReceiptEntity> {
+    return await this.receiptRepository.findOne({
       where: { receiptNumber },
     });
   }
 
-  async getPaymentsInTerm(num: number, year: number): Promise<PaymentEntity[]> {
+  async getPaymentsInTerm(num: number, year: number): Promise<ReceiptEntity[]> {
     const term = await this.enrolmentService.getOneTerm(num, year);
 
     if (!term) {
       return []; // Return an empty array if term is not found
     }
 
-    return await this.paymentRepository.find({
+    return await this.receiptRepository.find({
       where: {
         paymentDate: And(
           MoreThanOrEqual(term.startDate),
@@ -117,11 +120,11 @@ export class PaymentService {
     });
   }
 
-  async getPaymentsByYear(year: number): Promise<PaymentEntity[]> {
+  async getPaymentsByYear(year: number): Promise<ReceiptEntity[]> {
     const startDate = new Date(year, 0, 1); // January 1st of the year
     const endDate = new Date(year + 1, 0, 1); // January 1st of the next year (exclusive)
 
-    return await this.paymentRepository.find({
+    return await this.receiptRepository.find({
       where: {
         paymentDate: Between(startDate, endDate),
       },
@@ -144,7 +147,7 @@ export class PaymentService {
     );
 
     const totalPayments = payments.reduce(
-      (sum, payment) => sum + Number(payment.amount),
+      (sum, payment) => sum + Number(payment.amountPaid),
       0,
     );
     const totalBill = bills.reduce(
@@ -469,7 +472,7 @@ export class PaymentService {
   }
 
   async updatePayment(
-    receiptNumber: number,
+    receiptNumber: string,
     approved: boolean,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
@@ -486,7 +489,7 @@ export class PaymentService {
       }
     }
 
-    return await this.paymentRepository.update(
+    return await this.receiptRepository.update(
       { receiptNumber: receiptNumber }, // Where clause: find the payment by receiptNumber
       { approved: approved }, // What to update: set approved to the provided value
     );

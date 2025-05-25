@@ -14,7 +14,6 @@ import {
   PrimaryColumn,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { PaymentEntity } from './payment.entity';
 import * as crypto from 'crypto';
 
 @Entity('invoice')
