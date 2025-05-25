@@ -6,13 +6,17 @@ import {
   ManyToOne,
   CreateDateColumn,
   PrimaryColumn,
+  PrimaryGeneratedColumn,
 } from 'typeorm';
 import { StudentsEntity } from '../../profiles/entities/students.entity';
 import { PaymentMethods } from 'src/finance/models/payment-methods.model';
 
 @Entity('receipts')
 export class ReceiptEntity {
-  @PrimaryColumn({ type: 'bigint', generated: 'increment' }) // Use increment
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ type: 'bigint' }) // Use increment
   receiptNumber: string;
 
   @ManyToOne(() => StudentsEntity, (student) => student.receipts)

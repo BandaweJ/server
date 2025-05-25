@@ -31,8 +31,7 @@ import { BillsEntity } from 'src/finance/entities/bills.entity';
 import { FeesNames } from 'src/finance/models/fees-names.enum';
 import { InvoiceEntity } from './entities/invoice.entity';
 import { InvoiceStatsModel } from 'src/finance/models/invoice-stats.model';
-import { Residence } from 'src/enrolment/models/residence.model';
-
+import * as crypto from 'crypto';
 @Injectable()
 export class PaymentService {
   constructor(
@@ -53,6 +52,7 @@ export class PaymentService {
     );
     const receipt = await this.receiptRepository.create();
     receipt.student = student;
+    receipt.receiptNumber = this.generateReceiptNumber();
     return receipt;
   }
 
@@ -868,5 +868,17 @@ export class PaymentService {
       case FeesNames.transportFee:
         return 'Transport Fee';
     }
+  }
+
+  generateReceiptNumber() {
+    const timestamp = Date.now();
+    const random = Math.random();
+    const hash = crypto
+      .createHash('md5')
+      .update(`${timestamp}-${random}`)
+      .digest('hex')
+      .slice(0, 6) // Take first 6 characters
+      .toUpperCase();
+    return `REC-${hash}`;
   }
 }
