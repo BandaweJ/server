@@ -52,7 +52,22 @@ export class PaymentService {
     );
     const receipt = await this.receiptRepository.create();
     receipt.student = student;
+    receipt.paymentDate = new Date();
     receipt.receiptNumber = this.generateReceiptNumber();
+
+    const invoices = await this.invoiceRepository.find({
+      where: {
+        student: { studentNumber },
+      },
+    });
+
+    const sumTotalBill = invoices.reduce((sum, invoice) => {
+      // Ensure totalBill is a number before adding, it might be a string from DB or null
+      return sum + Number(invoice.totalBill || 0);
+    }, 0); // Initialize sum to 0
+
+    receipt.amountDue = sumTotalBill;
+
     return receipt;
   }
 
