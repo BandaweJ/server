@@ -576,7 +576,7 @@ export class PaymentService {
     headers: string[],
     headerColor = '#96d4d4',
     textColor = '#000000',
-    amountAlign: 'left' | 'right' = 'right', //Added for currency alignment
+    amountAlign: 'left' | 'right' = 'left', //Added for currency alignment
   ): number {
     const rowHeight = 20;
     const headerHeight = 25;
