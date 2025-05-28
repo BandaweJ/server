@@ -842,9 +842,9 @@ export class PaymentService {
     const subtotalX =
       tableStartX + columnWidths.slice(0, -1).reduce((a, b) => a + b, 0); // Start X of the amount column
     const subtotalY = tableEndY + 20; // Position after table
-    const subtotal =
-      items.reduce((sum, item) => sum + item.fees.amount, 0) +
-      Number(invoiceData.balanceBfwd.amount); // const tax = items.reduce((sum, item) => sum + item.fees.amount, 0);
+    // const subtotal =
+    // items.reduce((sum, item) => sum + item.fees.amount, 0) +
+    // Number(invoiceData.balanceBfwd.amount); // const tax = items.reduce((sum, item) => sum + item.fees.amount, 0);
     // const total = subtotal; // For this example, total = subtotal + tax
 
     doc
@@ -854,10 +854,12 @@ export class PaymentService {
         align: 'left',
         width: 70,
       });
-    doc.font('Helvetica').text(subtotal.toFixed(2), subtotalX, subtotalY, {
-      align: 'left',
-      width: 100,
-    });
+    doc
+      .font('Helvetica')
+      .text(invoiceData.balance.toFixed(2), subtotalX, subtotalY, {
+        align: 'left',
+        width: 100,
+      });
 
     // --- Terms and Conditions ---
     const termsAndConditions = `Terms and Conditions: Payment is due within 30 days or before schools open whichever comes first.  Please include the Student Number on your payment.
