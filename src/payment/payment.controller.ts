@@ -134,7 +134,10 @@ export class PaymentController {
   }
 
   @Get('/receipt/new/:studentNumber')
-  getNewReceipt(@Param('studentNumber') studentNumber: string) {
-    return this.paymentService.getNewReceipt(studentNumber);
+  getNewReceipt(
+    @Param('studentNumber') studentNumber: string,
+    @GetUser() profile: TeachersEntity,
+  ) {
+    return this.paymentService.getNewReceipt(studentNumber, profile);
   }
 }

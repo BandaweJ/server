@@ -48,7 +48,10 @@ export class PaymentService {
     private resourceById: ResourceByIdService,
   ) {}
 
-  async getNewReceipt(studentNumber: string): Promise<ReceiptEntity> {
+  async getNewReceipt(
+    studentNumber: string,
+    profile: TeachersEntity,
+  ): Promise<ReceiptEntity> {
     const student = await this.resourceById.getStudentByStudentNumber(
       studentNumber,
     );
@@ -80,6 +83,9 @@ export class PaymentService {
     }, 0);
 
     receipt.amountDue = sumTotalBill - sumTotalPaid;
+
+    const servedBy = profile.surname;
+    receipt.servedBy = servedBy;
 
     return receipt;
   }
@@ -563,12 +569,14 @@ export class PaymentService {
   drawTable(
     doc: PDFKit.PDFDocument,
     data: BillsEntity[],
+    balanceBfwd: BalancesEntity,
     startX: number,
     startY: number,
     columnWidths: number[],
     headers: string[],
     headerColor = '#96d4d4',
     textColor = '#000000',
+    amountAlign: 'left' | 'right' = 'right', //Added for currency alignment
   ): number {
     const rowHeight = 20;
     const headerHeight = 25;
@@ -577,6 +585,7 @@ export class PaymentService {
     const boldFont = 'Helvetica-Bold';
     const fontSize = 10;
     const headerFontSize = 10;
+    const padding = 5; // Consistent padding for text inside cells
 
     let y = startY;
 
@@ -604,6 +613,46 @@ export class PaymentService {
         );
     });
     y += headerHeight;
+
+    // --- NEW: Draw Balance B/Fwd row if balanceBfwd.amount > 0 ---
+    if (balanceBfwd && balanceBfwd.amount > 0) {
+      doc.font(font).fontSize(fontSize).fillColor(textColor);
+
+      // Draw the row rectangle/border
+      doc
+        .rect(
+          startX,
+          y,
+          columnWidths.reduce((a, b) => a + b, 0),
+          rowHeight,
+        )
+        .stroke(borderColor);
+
+      // Column 0: Fee Description for Balance B/Fwd
+      doc.text(
+        'Balance B/Fwd as at ' + balanceBfwd.dateCreated, // Fixed description for this row
+        startX + padding,
+        y + rowHeight / 2 - fontSize / 2,
+        {
+          width: columnWidths[0] - 2 * padding,
+          align: 'left',
+        },
+      );
+
+      // Column 1: Amount for Balance B/Fwd
+      doc.text(
+        // Format the amount to 2 decimal places and add currency symbol
+        `$${balanceBfwd.amount.toFixed(2)}`,
+        startX + columnWidths[0] + padding, // Start position for second column
+        y + rowHeight / 2 - fontSize / 2,
+        {
+          width: columnWidths[1] - 2 * padding,
+          align: amountAlign, // Use the new alignment parameter for amounts
+        },
+      );
+
+      y += rowHeight; // Increment y to move to the next row position
+    }
 
     // Draw table rows
     doc.font(font).fontSize(fontSize).fillColor(textColor);
@@ -782,6 +831,7 @@ export class PaymentService {
     const tableEndY = this.drawTable(
       doc,
       items,
+      invoiceData.balanceBfwd,
       tableStartX,
       tableStartY,
       columnWidths,
@@ -792,8 +842,9 @@ export class PaymentService {
     const subtotalX =
       tableStartX + columnWidths.slice(0, -1).reduce((a, b) => a + b, 0); // Start X of the amount column
     const subtotalY = tableEndY + 20; // Position after table
-    const subtotal = items.reduce((sum, item) => sum + item.fees.amount, 0);
-    // const tax = items.reduce((sum, item) => sum + item.fees.amount, 0);
+    const subtotal =
+      items.reduce((sum, item) => sum + item.fees.amount, 0) +
+      Number(invoiceData.balanceBfwd.amount); // const tax = items.reduce((sum, item) => sum + item.fees.amount, 0);
     // const total = subtotal; // For this example, total = subtotal + tax
 
     doc
