@@ -1,4 +1,5 @@
 /* eslint-disable prettier/prettier */
+import { numberTransformer } from 'src/common/transformers/number.transformer';
 import { InvoiceEntity } from 'src/payment/entities/invoice.entity';
 import { StudentsEntity } from 'src/profiles/entities/students.entity';
 import {
@@ -14,7 +15,13 @@ export class BalancesEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0.0 })
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    default: 0.0,
+    transformer: numberTransformer,
+  })
   amount: number;
 
   @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
@@ -23,11 +30,7 @@ export class BalancesEntity {
   @Column()
   studentNumber: string;
 
- 
-
   // One-to-One relationship with InvoiceEntity (inverse side)
   @OneToOne(() => InvoiceEntity, (invoice) => invoice.balanceBfwd)
   invoice: InvoiceEntity;
-
-  
 }

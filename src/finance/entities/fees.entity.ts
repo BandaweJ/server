@@ -10,13 +10,20 @@ import {
 } from 'typeorm';
 import { BillsEntity } from './bills.entity';
 import { FeesNames } from '../models/fees-names.enum';
+import { numberTransformer } from 'src/common/transformers/number.transformer';
 
 @Entity('fees')
 export class FeesEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    default: 0.0,
+    transformer: numberTransformer,
+  })
   amount: number;
 
   @Column()

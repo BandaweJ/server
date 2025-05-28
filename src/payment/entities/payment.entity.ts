@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { StudentsEntity } from '../../profiles/entities/students.entity';
 import { PaymentMethods } from 'src/finance/models/payment-methods.model';
+import { numberTransformer } from 'src/common/transformers/number.transformer';
 
 @Entity('receipts')
 export class ReceiptEntity {
@@ -25,13 +26,28 @@ export class ReceiptEntity {
   @Column({ nullable: true })
   receiptBookNumber: string;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    transformer: numberTransformer,
+  })
   amountPaid: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    transformer: numberTransformer,
+  })
   amountDue: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    transformer: numberTransformer,
+  })
   amountOutstanding: number;
 
   @Column()

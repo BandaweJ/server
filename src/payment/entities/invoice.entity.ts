@@ -15,6 +15,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import * as crypto from 'crypto';
+import { numberTransformer } from 'src/common/transformers/number.transformer';
 
 @Entity('invoice')
 export class InvoiceEntity {
@@ -30,10 +31,20 @@ export class InvoiceEntity {
   @Column()
   invoiceDueDate: Date;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    transformer: numberTransformer,
+  })
   balance: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    transformer: numberTransformer,
+  })
   totalBill: number;
 
   // @Column({ type: 'decimal', precision: 10, scale: 2 })
