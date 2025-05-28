@@ -630,7 +630,7 @@ export class PaymentService {
 
       // Column 0: Fee Description for Balance B/Fwd
       doc.text(
-        'Balance B/Fwd as at ' + balanceBfwd.dateCreated, // Fixed description for this row
+        'Balance B/Fwd as at ' + balanceBfwd.dateCreated.toLocaleDateString(), // Fixed description for this row
         startX + padding,
         y + rowHeight / 2 - fontSize / 2,
         {
