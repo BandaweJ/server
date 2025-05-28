@@ -35,7 +35,6 @@ export class InvoiceEntity {
     type: 'decimal',
     precision: 10,
     scale: 2,
-    transformer: numberTransformer,
   })
   balance: number;
 
@@ -43,7 +42,6 @@ export class InvoiceEntity {
     type: 'decimal',
     precision: 10,
     scale: 2,
-    transformer: numberTransformer,
   })
   totalBill: number;
 

@@ -30,7 +30,6 @@ export class ReceiptEntity {
     type: 'decimal',
     precision: 10,
     scale: 2,
-    transformer: numberTransformer,
   })
   amountPaid: number;
 
@@ -38,7 +37,6 @@ export class ReceiptEntity {
     type: 'decimal',
     precision: 10,
     scale: 2,
-    transformer: numberTransformer,
   })
   amountDue: number;
 
@@ -46,7 +44,6 @@ export class ReceiptEntity {
     type: 'decimal',
     precision: 10,
     scale: 2,
-    transformer: numberTransformer,
   })
   amountOutstanding: number;
 

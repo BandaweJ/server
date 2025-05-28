@@ -22,7 +22,6 @@ export class FeesEntity {
     precision: 10,
     scale: 2,
     default: 0.0,
-    transformer: numberTransformer,
   })
   amount: number;
 
