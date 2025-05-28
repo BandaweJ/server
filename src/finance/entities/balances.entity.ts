@@ -23,7 +23,11 @@ export class BalancesEntity {
   @Column()
   studentNumber: string;
 
+ 
+
   // One-to-One relationship with InvoiceEntity (inverse side)
   @OneToOne(() => InvoiceEntity, (invoice) => invoice.balanceBfwd)
   invoice: InvoiceEntity;
+
+  
 }

@@ -32,6 +32,7 @@ import { FeesNames } from 'src/finance/models/fees-names.enum';
 import { InvoiceEntity } from './entities/invoice.entity';
 import { InvoiceStatsModel } from 'src/finance/models/invoice-stats.model';
 import * as crypto from 'crypto';
+import { BalancesEntity } from 'src/finance/entities/balances.entity';
 @Injectable()
 export class PaymentService {
   constructor(
@@ -39,6 +40,7 @@ export class PaymentService {
     private readonly invoiceRepository: Repository<InvoiceEntity>,
     @InjectRepository(ReceiptEntity)
     private readonly receiptRepository: Repository<ReceiptEntity>,
+
     // private readonly studentsService: StudentsService,
     private readonly enrolmentService: EnrolmentService,
     private readonly financeService: FinanceService,
@@ -63,7 +65,7 @@ export class PaymentService {
 
     const sumTotalBill = invoices.reduce((sum, invoice) => {
       // Ensure totalBill is a number before adding, it might be a string from DB or null
-      return sum + Number(invoice.totalBill || 0);
+      return sum + Number(invoice.balance || 0);
     }, 0); // Initialize sum to 0
 
     const receipts = await this.receiptRepository.find({
@@ -228,15 +230,15 @@ export class PaymentService {
 
       if (foundInvoice) {
         foundInvoice.totalBill = totalBill;
-
-        foundInvoice.balanceBfwd = balanceBfwd;
+        //if invoice is already saved, dont set keep the old balanceBfwd
+        // foundInvoice.balanceBfwd = balanceBfwd;
         foundInvoice.bills = bills;
         // foundInvoice.payments = payments;
         foundInvoice.balance = balance;
         foundInvoice.invoiceNumber = invoiceNumber;
         foundInvoice.invoiceDate = invoiceDate;
         foundInvoice.invoiceDueDate = invoiceDueDate;
-        return this.invoiceRepository.save(foundInvoice);
+        return await this.invoiceRepository.save(foundInvoice);
       } else {
         const newInvoice = new InvoiceEntity();
 
@@ -251,7 +253,11 @@ export class PaymentService {
         newInvoice.invoiceNumber = invoiceNumber;
         newInvoice.invoiceDate = invoiceDate;
         newInvoice.invoiceDueDate = invoiceDueDate;
-        return await this.invoiceRepository.save(newInvoice);
+        const saved = await this.invoiceRepository.save(newInvoice);
+
+        await this.financeService.deleteBalance(balanceBfwd);
+
+        return saved;
       }
     } catch (error) {
       throw new NotImplementedException(

@@ -376,4 +376,21 @@ export class FinanceService {
       ...savedBalance,
     });
   }
+
+  async deleteBalance(balanceBfwd: BalancesEntity) {
+    if (balanceBfwd && balanceBfwd.id) {
+      // Ensure balanceBfwd exists and has an ID
+      try {
+        await this.balancesRepository.remove(balanceBfwd);
+        
+      } catch (deleteError) {
+        // Log the error but don't re-throw, as the invoice was already saved.
+        // You might want a compensation mechanism or an alert here.
+        console.error(
+          `Failed to remove BalancesEntity with ID ${balanceBfwd.id}:`,
+          deleteError.message,
+        );
+      }
+    }
+  }
 }
