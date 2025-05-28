@@ -854,6 +854,8 @@ export class PaymentService {
         align: 'left',
         width: 70,
       });
+
+    invoiceData.balance = Number(invoiceData.balance);
     doc
       .font('Helvetica')
       .text(invoiceData.balance.toFixed(2), subtotalX, subtotalY, {
