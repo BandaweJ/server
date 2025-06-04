@@ -81,6 +81,11 @@ export class EnrolmentController {
     return this.enrolmentService.getOneTerm(num, year);
   }
 
+  @Get('terms/current')
+  getCurrentTerm() {
+    return this.enrolmentService.getCurrentTerm();
+  }
+
   @Post('terms')
   addTerm(@Body() term: CreateTermDto) {
     return this.enrolmentService.addTerm(term);
@@ -157,15 +162,6 @@ export class EnrolmentController {
     return this.enrolmentService.getAllEnrolments(profile);
   }
 
-  // @Get('enrol/:studentNumber/:num/:year')
-  // getOneEnrolment(
-  //   @Param('studentNumber') studentNumber: string,
-  //   @Param('num') num: number,
-  //   @Param('year') year: number,
-  // ) {
-  //   return this.enrolmentService.getOneEnrolment(studentNumber, num, year);
-  // }
-
   @Get('enrol/:name/:num/:year')
   getEnrolmentByClass(
     @Param('name') name: string,
@@ -176,11 +172,12 @@ export class EnrolmentController {
     return this.enrolmentService.getEnrolmentByClass(name, num, year);
   }
 
-  @Get('enrol/:num/:year')
+  @Get('enrol/summary/:num/:year')
   getTotalEnrolmentByTerm(
     @Param('num') num: number,
     @Param('year') year: number,
   ) {
+    console.log('num : ', num, 'year : ', year);
     return this.enrolmentService.getTotalEnrolmentByTerm(num, year);
   }
 

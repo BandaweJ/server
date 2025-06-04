@@ -159,6 +159,17 @@ export class EnrolmentService {
     return await this.termRepository.find();
   }
 
+  async getCurrentTerm(): Promise<TermsEntity> {
+    const today = new Date();
+
+    return await this.termRepository.findOne({
+      where: {
+        startDate: LessThanOrEqual(today),
+        endDate: MoreThanOrEqual(today),
+      },
+    });
+  }
+
   async getOneTerm(num: number, year: number): Promise<TermsEntity> {
     const term = await this.termRepository.findOne({
       where: {
@@ -455,7 +466,6 @@ export class EnrolmentService {
       throw new NotImplementedException(`Enrolment not removed`, result.raw);
     }
   }
-
   async markRegister(enrol: MarkRegisterDto): Promise<MarkRegisterDto> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
