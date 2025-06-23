@@ -7,11 +7,12 @@ import {
   CreateDateColumn,
   PrimaryColumn,
   PrimaryGeneratedColumn,
+  OneToMany,
 } from 'typeorm';
 import { StudentsEntity } from '../../profiles/entities/students.entity';
 import { PaymentMethods } from 'src/finance/models/payment-methods.model';
-import { numberTransformer } from 'src/common/transformers/number.transformer';
 import { EnrolEntity } from 'src/enrolment/entities/enrol.entity';
+import { ReceiptInvoiceAllocationEntity } from './receipt-invoice-allocation.entity';
 
 @Entity('receipts')
 export class ReceiptEntity {
@@ -34,24 +35,10 @@ export class ReceiptEntity {
   })
   amountPaid: number;
 
-  @Column({
-    type: 'decimal',
-    precision: 10,
-    scale: 2,
-  })
-  amountDue: number;
-
-  @Column({
-    type: 'decimal',
-    precision: 10,
-    scale: 2,
-  })
-  amountOutstanding: number;
-
   @Column()
   description: string;
 
-  @CreateDateColumn({ type: 'timestamp' })
+  @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   paymentDate: Date;
 
   @Column({ default: false })
@@ -65,4 +52,11 @@ export class ReceiptEntity {
 
   @ManyToOne(() => EnrolEntity, (enrol) => enrol.receipts)
   enrol: EnrolEntity;
+
+  // NEW: One-to-many relationship with the allocation entity
+  @OneToMany(
+    () => ReceiptInvoiceAllocationEntity,
+    (allocation) => allocation.receipt,
+  )
+  allocations: ReceiptInvoiceAllocationEntity[];
 }

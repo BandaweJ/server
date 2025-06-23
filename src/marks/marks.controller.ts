@@ -111,6 +111,11 @@ export class MarksController {
     );
   }
 
+  @Get('/studentMarks/:studentNumber')
+  getStudentMarks(@Param('studentNumber') studentNumber: string) {
+    return this.marksService.getStudentMarks(studentNumber);
+  }
+
   /**
    * !TOFIX
    * Passing object to @Patch and @Delete

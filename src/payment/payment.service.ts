@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier */
 import {
+  BadRequestException,
   Injectable,
   NotImplementedException,
   UnauthorizedException,
@@ -7,6 +8,8 @@ import {
 import {
   And,
   Between,
+  DataSource,
+  In,
   LessThanOrEqual,
   MoreThanOrEqual,
   Repository,
@@ -33,6 +36,9 @@ import { InvoiceEntity } from './entities/invoice.entity';
 import { InvoiceStatsModel } from 'src/finance/models/invoice-stats.model';
 import * as crypto from 'crypto';
 import { BalancesEntity } from 'src/finance/entities/balances.entity';
+import { InvoiceStatus } from 'src/finance/models/invoice-status.enum';
+
+import { ReceiptInvoiceAllocationEntity } from './entities/receipt-invoice-allocation.entity';
 @Injectable()
 export class PaymentService {
   constructor(
@@ -40,68 +46,52 @@ export class PaymentService {
     private readonly invoiceRepository: Repository<InvoiceEntity>,
     @InjectRepository(ReceiptEntity)
     private readonly receiptRepository: Repository<ReceiptEntity>,
-
-    // private readonly studentsService: StudentsService,
+    @InjectRepository(ReceiptInvoiceAllocationEntity)
+    private allocationRepository: Repository<ReceiptInvoiceAllocationEntity>,
     private readonly enrolmentService: EnrolmentService,
     private readonly financeService: FinanceService,
     private studentsService: StudentsService,
     private resourceById: ResourceByIdService,
+    private dataSource: DataSource, // Inject DataSource for transactional queries
   ) {}
 
-  async getNewReceipt(
+  async getStudentBalance(
     studentNumber: string,
-    profile: TeachersEntity,
-  ): Promise<ReceiptEntity> {
+  ): Promise<{ amountDue: number }> {
     const student = await this.resourceById.getStudentByStudentNumber(
       studentNumber,
     );
-    const receipt = await this.receiptRepository.create();
-    receipt.student = student;
-    receipt.paymentDate = new Date();
-    receipt.receiptNumber = this.generateReceiptNumber();
-
-    const invoices = await this.invoiceRepository.find({
-      where: {
-        student: { studentNumber },
-      },
-    });
-
-    const sumTotalBill = invoices.reduce((sum, invoice) => {
-      // Ensure totalBill is a number before adding, it might be a string from DB or null
-      return sum + Number(invoice.balance || 0);
-    }, 0); // Initialize sum to 0
-
-    const receipts = await this.receiptRepository.find({
-      where: {
-        student: { studentNumber },
-      },
-    });
-
-    const sumTotalPaid = receipts.reduce((sum, receipt) => {
-      // Ensure totalBill is a number before adding, it might be a string from DB or null
-      return sum + Number(receipt.amountPaid || 0);
-    }, 0);
-
-    receipt.amountDue = sumTotalBill - sumTotalPaid;
-
-    const servedBy = profile.surname;
-    receipt.servedBy = servedBy;
-
-    const currentEnrolment = await this.enrolmentService.getCurrentEnrollment(
-      studentNumber,
-    );
-    if (currentEnrolment) {
-      receipt.enrol = currentEnrolment;
+    if (!student) {
+      throw new Error('Student not found'); // Or throw NotFoundException
     }
 
-    return receipt;
+    // Calculate total outstanding invoices
+    const outstandingInvoices = await this.invoiceRepository.find({
+      where: {
+        student: { studentNumber }, // Link by student entity or student ID
+        status: In([
+          InvoiceStatus.Pending,
+          InvoiceStatus.PartiallyPaid,
+          InvoiceStatus.Overdue,
+        ]),
+      },
+    });
+
+    const totalInvoiceBalance = outstandingInvoices.reduce(
+      (sum, inv) => sum + +inv.balance,
+      0,
+    );
+
+    return {
+      amountDue: totalInvoiceBalance, // This is the 'amount due' for the student
+    };
   }
 
   async createReceipt(
     createReceiptDto: CreateReceiptDto,
-
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ): Promise<ReceiptEntity> {
+    // 1. Authorization Check (already provided)
     const allowedRoles = [ROLES.reception]; // Define your allowed roles
     if (!allowedRoles.includes(profile.role as ROLES)) {
       throw new UnauthorizedException(
@@ -109,21 +99,159 @@ export class PaymentService {
       );
     }
 
-    const newReceipt = this.receiptRepository.create({
-      ...createReceiptDto,
-    });
-
-    // If 'paymentDate' comes as a string from the DTO, ensure it's a Date object for the entity
-    if (typeof createReceiptDto.paymentDate === 'string') {
-      newReceipt.paymentDate = new Date(createReceiptDto.paymentDate);
+    // 2. Fetch Student Entity
+    // Assuming createReceiptDto has studentNumber directly for lookup
+    const studentNumber = createReceiptDto.studentNumber; // Adjust if DTO is nested e.g., createReceiptDto.student.studentNumber
+    const student = await this.resourceById.getStudentByStudentNumber(
+      studentNumber,
+    );
+    if (!student) {
+      throw new BadRequestException(
+        `Student with number ${studentNumber} not found.`,
+      );
     }
 
-    return await this.receiptRepository.save(newReceipt);
+    const enrol = await this.enrolmentService.getCurrentEnrollment(
+      studentNumber,
+    );
+
+    // Initialize the new Receipt entity
+    const newReceipt = this.receiptRepository.create({
+      // Copy over DTO properties directly if they match
+      amountPaid: createReceiptDto.amountPaid,
+      description: createReceiptDto.description,
+      paymentMethod: createReceiptDto.paymentMethod,
+      // Manual assignments
+      student: student, // Link the found student entity
+      receiptNumber: this.generateReceiptNumber(),
+      servedBy: profile.email, // Or profile.name, or a more specific user ID
+      // paymentDate: new Date(), // auto created by db
+      // approved: false, // Default or determined by your workflow//auto in db
+      enrol: enrol,
+      // enrol: await this.enrolmentService.getCurrentEnrollment(studentNumber), // If you have an enrolment service
+    });
+
+    // Start a database transaction for atomicity
+    return await this.dataSource.transaction(
+      async (transactionalEntityManager) => {
+        // Save the receipt first to get its ID before creating allocations
+        const savedReceipt = await transactionalEntityManager.save(newReceipt);
+
+        let remainingPaymentAmount = savedReceipt.amountPaid;
+        const allocationsToSave: ReceiptInvoiceAllocationEntity[] = [];
+        const updatedInvoices: InvoiceEntity[] = []; // To hold invoices that need saving
+
+        // 3. Fetch and Order Outstanding Invoices
+        const openInvoices = await transactionalEntityManager.find(
+          InvoiceEntity,
+          {
+            where: {
+              student: { studentNumber }, // Link by student ID
+              status: In([
+                InvoiceStatus.Pending,
+                InvoiceStatus.PartiallyPaid,
+                InvoiceStatus.Overdue,
+              ]),
+            },
+            order: {
+              invoiceDueDate: 'ASC', // FIFO: Oldest due date first
+            },
+          },
+        );
+
+        // 4. Apply payment amount to invoices sequentially (FIFO)
+        for (const invoice of openInvoices) {
+          if (remainingPaymentAmount <= 0) {
+            break; // Payment has been fully applied
+          }
+
+          const invoiceCurrentBalance = +invoice.balance; // Using invoice.balance which is totalBill - amountPaidOnInvoice
+
+          if (invoiceCurrentBalance <= 0) {
+            continue; // This invoice is already paid or has a credit, skip it
+          }
+
+          const amountToApplyToCurrentInvoice = Math.min(
+            remainingPaymentAmount,
+            invoiceCurrentBalance,
+          );
+
+          // Create an allocation record
+          const allocation = transactionalEntityManager.create(
+            ReceiptInvoiceAllocationEntity,
+            {
+              receipt: savedReceipt, // Link to the newly saved receipt
+              invoice: invoice, // Link to the current invoice
+              amountApplied: amountToApplyToCurrentInvoice,
+              allocationDate: new Date(),
+            },
+          );
+          allocationsToSave.push(allocation);
+
+          // Update the invoice itself
+          invoice.amountPaidOnInvoice =
+            +invoice.amountPaidOnInvoice + amountToApplyToCurrentInvoice;
+
+          invoice.balance = +invoice.balance - +amountToApplyToCurrentInvoice; // Decrease balance directly
+          invoice.status = this.getInvoiceStatus(invoice); // Determine new status
+          updatedInvoices.push(invoice); // Mark invoice for saving
+
+          remainingPaymentAmount =
+            +remainingPaymentAmount - +amountToApplyToCurrentInvoice;
+        }
+
+        // 5. Handle any Overpayment
+        // if (remainingPaymentAmount > 0) {
+        //   // Create a StudentCreditEntity
+        //   const studentCredit = transactionalEntityManager.create(
+        //     StudentCreditEntity,
+        //     {
+        //       student: student,
+        //       amount: remainingPaymentAmount,
+        //       creditDate: new Date(),
+        //       description: `Overpayment from Receipt #${savedReceipt.receiptNumber}`,
+        //       // You might link to the receipt or invoice as well if your credit model supports it
+        //     },
+        //   );
+        //   await transactionalEntityManager.save(studentCredit);
+        //   console.log(
+        //     `Student ${student.studentNumber} has an overpayment credit of ${remainingPaymentAmount}`,
+        //   );
+        // }
+
+        // 6. Save all changes within the transaction
+        await transactionalEntityManager.save(updatedInvoices); // Save all updated invoices
+        await transactionalEntityManager.save(allocationsToSave); // Save all allocation records
+
+        // Load the saved receipt again, but this time eager-load its 'allocations' relation
+        const finalReceipt = await transactionalEntityManager.findOne(
+          ReceiptEntity,
+          {
+            where: { id: savedReceipt.id }, // Find by the ID of the newly saved receipt
+            relations: [
+              'allocations',
+              'allocations.invoice',
+              'student',
+              'enrol',
+            ], // Load the allocations and their related invoice entities
+          },
+        );
+
+        if (!finalReceipt) {
+          // This should ideally not happen if savedReceipt was successful
+          throw new Error(
+            'Failed to retrieve full receipt details after save.',
+          );
+        }
+
+        return finalReceipt; // Return the fully loaded receipt
+      },
+    );
   }
 
   async getAllReceipts(): Promise<ReceiptEntity[]> {
     return await this.receiptRepository.find({
-      relations: ['student', 'enrol'],
+      relations: ['student', 'enrol', 'allocations', 'allocations.invoice'],
     });
   }
 
@@ -137,13 +265,14 @@ export class PaymentService {
 
   async getPaymentsByStudent(studentNumber: string): Promise<ReceiptEntity[]> {
     //   const student = await this.studentsService.getStudent(studentNumber, profile);
-
-    return await this.receiptRepository.find({
+    const receipts = await this.receiptRepository.find({
       where: {
         student: { studentNumber },
       },
-      relations: ['student'],
+      relations: ['student', 'enrol', 'allocations', 'allocations.invoice'],
     });
+    console.log('got ', receipts.length);
+    return receipts;
   }
 
   async getReceiptByReceiptNumber(
@@ -151,7 +280,7 @@ export class PaymentService {
   ): Promise<ReceiptEntity> {
     return await this.receiptRepository.findOne({
       where: { receiptNumber },
-      relations: ['student', 'enrol'],
+      relations: ['student', 'enrol', 'allocations', 'allocations.invoice'],
     });
   }
 
@@ -272,7 +401,7 @@ export class PaymentService {
         newInvoice.student = student;
         newInvoice.bills = bills;
         // newInvoice.payments = payments;
-        newInvoice.balance = balance;
+        newInvoice.balance = totalBill;
         newInvoice.enrol = enrol;
         newInvoice.invoiceNumber = invoiceNumber;
         newInvoice.invoiceDate = invoiceDate;
@@ -291,7 +420,11 @@ export class PaymentService {
     }
   }
 
-  async generateEmptyInvoice(studentNumber: string): Promise<InvoiceEntity> {
+  async generateEmptyInvoice(
+    studentNumber: string,
+    num: number,
+    year: number,
+  ): Promise<InvoiceEntity> {
     const balanceBfwd = await this.financeService.findStudentBalance(
       studentNumber,
     );
@@ -300,23 +433,53 @@ export class PaymentService {
       studentNumber,
     );
 
+    const enrol = await this.enrolmentService.getOneEnrolment(
+      studentNumber,
+      num,
+      year,
+    );
+
+    if (!enrol) {
+      throw new NotImplementedException(
+        `Student ${studentNumber} not enrolled in Term ${num}, ${year}`,
+      );
+    }
+
     const newInv = this.invoiceRepository.create();
     newInv.student = student;
-    newInv.balanceBfwd = balanceBfwd;
-    newInv.enrol = await this.enrolmentService.getCurrentEnrollment(
-      studentNumber,
-    );
+    if (+balanceBfwd.amount > 0) {
+      newInv.balanceBfwd = balanceBfwd;
+      newInv.totalBill = +newInv.totalBill + +balanceBfwd.amount;
+    }
+    newInv.enrol = enrol;
     newInv.bills = [];
 
     return newInv;
   }
 
-  async getInvoices(num: number, year: number): Promise<InvoiceEntity[]> {
+  async getTermInvoices(num: number, year: number): Promise<InvoiceEntity[]> {
     return this.invoiceRepository.find({
       where: {
         enrol: {
           num: num,
           year: year,
+        },
+      },
+      relations: ['student', 'enrol', 'balanceBfwd', 'bills', 'bills.fees'],
+    });
+  }
+
+  async getAllInvoices(): Promise<InvoiceEntity[]> {
+    return this.invoiceRepository.find({
+      relations: ['student', 'enrol', 'balanceBfwd', 'bills', 'bills.fees'],
+    });
+  }
+
+  async getStudentInvoices(studentNumber: string): Promise<InvoiceEntity[]> {
+    return this.invoiceRepository.find({
+      where: {
+        student: {
+          studentNumber: studentNumber,
         },
       },
       relations: ['student', 'enrol', 'balanceBfwd', 'bills', 'bills.fees'],
@@ -338,11 +501,22 @@ export class PaymentService {
     });
 
     if (!invoice) {
-      const newInvoice = await this.generateEmptyInvoice(studentNumber);
+      const newInvoice = await this.generateEmptyInvoice(
+        studentNumber,
+        num,
+        year,
+      );
       return newInvoice;
     } else {
       return invoice;
     }
+  }
+
+  async getInvoiceByInvoiceNumber(invoiceNumber: string) {
+    return await this.invoiceRepository.findOne({
+      where: { invoiceNumber },
+      relations: ['student', 'enrol', 'balanceBfwd', 'bills', 'bills.fees'],
+    });
   }
 
   async getInvoiceStats(
@@ -564,23 +738,37 @@ export class PaymentService {
     className?: string,
     residence?: string,
   ): void {
-    const lineHeight = 15;
+    const lineHeight = 20;
     doc
       .font('Helvetica-Bold')
       .text(name, x, y)
       .font('Helvetica')
       .text(address, x, y + lineHeight);
     if (className && residence) {
+      const valueX = doc.widthOfString('Residence: ');
       doc
-        .text(`Class: ${className}`, x, y + 2 * lineHeight)
-        .text(`Residence: ${residence}`, x, y + 3 * lineHeight)
-        .text(`Phone: ${phone}`, x, y + 4 * lineHeight)
-        .text(`Email: ${email}`, x, y + 5 * lineHeight);
-    } else
+        .text(`Class`, x, y + 2 * lineHeight)
+        .text(`${className}`, x + valueX, y + 2 * lineHeight)
+
+        .text(`Residence`, x, y + 3 * lineHeight)
+        .text(`${residence}`, x + valueX, y + 3 * lineHeight)
+
+        .text(`Phone`, x, y + 4 * lineHeight)
+        .text(`${phone}`, x + valueX, y + 4 * lineHeight)
+
+        .text(`Email`, x, y + 5 * lineHeight)
+        .text(` ${email}`, x + valueX, y + 5 * lineHeight);
+    } else {
+      const valueX = doc.widthOfString('Residence: ');
+
       doc
-        .text(`Phone: ${phone}`, x, y + 2 * lineHeight)
-        .text(`Email: ${email}`, x, y + 3 * lineHeight)
+        .text(`Phone`, x, y + 2 * lineHeight)
+        .text(`${phone}`, x + valueX, y + 2 * lineHeight)
+
+        .text(`Email`, x, y + 3 * lineHeight)
+        .text(`${email}`, x + valueX, y + 3 * lineHeight)
         .moveDown();
+    }
   }
 
   // Helper function to draw a table with headers and data
@@ -660,7 +848,7 @@ export class PaymentService {
       // Column 1: Amount for Balance B/Fwd
       doc.text(
         // Format the amount to 2 decimal places and add currency symbol
-        `$${balanceBfwd.amount.toFixed(2)}`,
+        `\$${balanceBfwd.amount.toFixed(2)}`,
         startX + columnWidths[0] + padding, // Start position for second column
         y + rowHeight / 2 - fontSize / 2,
         {
@@ -687,7 +875,7 @@ export class PaymentService {
             row.fees &&
             row.fees.amount !== undefined &&
             row.fees.amount !== null
-              ? row.fees.amount.toString()
+              ? '$' + row.fees.amount.toString()
               : '';
         }
 
@@ -816,7 +1004,8 @@ export class PaymentService {
       );
 
     // --- Bill To Address ---
-    const billToName = invoiceData.student.surname + invoiceData.student.name; //
+    const billToName =
+      invoiceData.student.surname + ' ' + invoiceData.student.name; //
     const billToAddress = invoiceData.student.studentNumber; //
     const billToPhone = invoiceData.student.cell || 'Student Cell Number'; // Replace
     const billToEmail = invoiceData.student.email || 'Student Email'; // Replace
@@ -825,8 +1014,10 @@ export class PaymentService {
     doc
       .font('Helvetica-Bold')
       .fontSize(12)
+      .fillColor('#3185fc')
       .text('Bill To:', 50, 220)
-      .font('Helvetica');
+      .font('Helvetica')
+      .fillColor('#000');
     this.createAddressBlock(
       doc,
       50,
@@ -838,6 +1029,45 @@ export class PaymentService {
       className,
       residence,
     );
+
+    // --- Invoice Summary ---
+    const invoiceSummaryY = 220;
+    const summaryValueX = doc.widthOfString('Amount Paid: ');
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(12)
+      .fillColor('#3185fc')
+      .text('Invoice Summary:', doc.page.width / 2, invoiceSummaryY)
+      .font('Helvetica')
+      .fillColor('#000')
+      .text(`Total Bill`, doc.page.width / 2, invoiceSummaryY + 20)
+      .text(
+        `\$${invoiceData.totalBill}`,
+        doc.page.width / 2 + summaryValueX,
+        invoiceSummaryY + 20,
+      )
+
+      .text(`Amount Paid`, doc.page.width / 2, invoiceSummaryY + 40)
+      .text(
+        `\$${invoiceData.amountPaidOnInvoice}`,
+        doc.page.width / 2 + summaryValueX,
+        invoiceSummaryY + 40,
+      )
+
+      .text(`Balance Due`, doc.page.width / 2, invoiceSummaryY + 60)
+      .text(
+        `\$${invoiceData.balance}`,
+        doc.page.width / 2 + summaryValueX,
+        invoiceSummaryY + 60,
+      )
+
+      .text(`Status`, doc.page.width / 2, invoiceSummaryY + 80)
+      .fillColor('#3185fc')
+      .text(
+        `${invoiceData.status}`,
+        doc.page.width / 2 + summaryValueX,
+        invoiceSummaryY + 80,
+      );
 
     // --- Invoice Items Table ---
     const tableStartX = 50;
@@ -873,10 +1103,10 @@ export class PaymentService {
         width: 70,
       });
 
-    invoiceData.balance = Number(invoiceData.balance);
+    invoiceData.balance = Number(invoiceData.totalBill);
     doc
       .font('Helvetica')
-      .text(invoiceData.balance.toFixed(2), subtotalX, subtotalY, {
+      .text('$' + invoiceData.balance.toFixed(2), subtotalX, subtotalY, {
         align: 'left',
         width: 100,
       });
@@ -1050,7 +1280,7 @@ export class PaymentService {
     const logoWidthPt = this.pxToPt(100); // Your CSS print media query for header-logo was 100px
     const logoHeightPt = this.pxToPt(100); // Assuming square aspect ratio or similar height
 
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       const doc = new PDFDocument({
         size: 'A4',
         margin: 0, // Manage margins manually for precise control
@@ -1277,10 +1507,19 @@ export class PaymentService {
         .lineTo(pageWidth - pageMargin, totalsY)
         .stroke();
       totalsY += this.mmToPt(5); // Padding top
-      doc.text('Total Due:', summaryTotalsX, totalsY);
+
+      const invoiceNumbersString = receipt.allocations
+        .map((all) => all.invoice.invoiceNumber) // Get an array of just the invoice numbers
+        .join(', '); // Join them into a single string, separated by ', '
+
       doc.text(
-        this.formatCurrency(receipt.amountDue),
-        pageWidth - pageMargin - doc.widthOfString(receipt.amountDue + ''),
+        receipt.allocations.length > 1 ? 'Invoices Paid' : 'Invoice Paid',
+        summaryTotalsX,
+        totalsY,
+      );
+      doc.text(
+        invoiceNumbersString,
+        pageWidth - pageMargin - doc.widthOfString(invoiceNumbersString),
         totalsY,
         // { align: 'right' },
       );
@@ -1313,12 +1552,16 @@ export class PaymentService {
         .lineTo(pageWidth - pageMargin, totalsY)
         .stroke();
       totalsY += this.mmToPt(5); // Padding top
+
+      const amountOutstanding = await this.getStudentBalance(
+        receipt.student.studentNumber,
+      );
       doc.text('Amount Outstanding:', summaryTotalsX, totalsY);
       doc.fillColor('red').text(
-        this.formatCurrency(receipt.amountOutstanding),
+        this.formatCurrency(amountOutstanding.amountDue),
         pageWidth -
           pageMargin -
-          doc.widthOfString(receipt.amountOutstanding + ''),
+          doc.widthOfString(amountOutstanding.amountDue + ''),
         totalsY,
         // { align: 'right' },
       );
@@ -1397,5 +1640,20 @@ export class PaymentService {
       // --- Finalize Document ---
       doc.end();
     });
+  }
+
+  private getInvoiceStatus(invoice: InvoiceEntity): InvoiceStatus {
+    if (invoice.balance <= 0.0) {
+      // Use a small epsilon for floating point comparison if necessary, but 0.00 is typically safe for decimal types
+      return InvoiceStatus.Paid;
+    }
+    if (invoice.amountPaidOnInvoice > 0.0) {
+      return InvoiceStatus.PartiallyPaid;
+    }
+    // You might also want to check invoiceDueDate for Overdue status
+    if (new Date() > invoice.invoiceDueDate) {
+      return InvoiceStatus.Overdue;
+    }
+    return InvoiceStatus.Pending;
   }
 }

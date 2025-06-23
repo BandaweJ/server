@@ -316,6 +316,13 @@ export class MarksService {
     return classSubjectMarks;
   }
 
+  async getStudentMarks(studentNumber: string): Promise<MarksEntity[]> {
+    return await this.marksRepository.find({
+      where: { student: { studentNumber } },
+      relations: ['subject', 'student'],
+    });
+  }
+
   async deleteMark(
     id: number,
     profile: StudentsEntity | ParentsEntity | TeachersEntity,

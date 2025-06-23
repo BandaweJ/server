@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 import {
   Body,
   Controller,
@@ -27,14 +28,9 @@ import { ReceiptEntity } from './entities/payment.entity';
 export class PaymentController {
   constructor(private paymentService: PaymentService) {}
 
-  // RECEIPTS
-  // MOST SPECIFIC: Literal 'new' segment
-  @Get('receipt/new/:studentNumber')
-  getNewReceipt(
-    @Param('studentNumber') studentNumber: string,
-    @GetUser() profile: TeachersEntity,
-  ) {
-    return this.paymentService.getNewReceipt(studentNumber, profile);
+  @Get('studentBalance/:studentNumber')
+  getStudentBalance(@Param('studentNumber') studentNumber: string) {
+    return this.paymentService.getStudentBalance(studentNumber);
   }
 
   // Specific by ID (literal segment + parameter)
@@ -45,6 +41,11 @@ export class PaymentController {
     // but the DTO indicates string for receiptNumber, so match that here.
   ) {
     return this.paymentService.getReceiptByReceiptNumber(receiptNumber);
+  }
+
+  @Get('receipt/student/:studentNumber')
+  getStudentReceipts(@Param('studentNumber') studentNumber: string) {
+    return this.paymentService.getPaymentsByStudent(studentNumber);
   }
 
   @Get('receiptpdf/:receiptNumber')
@@ -106,23 +107,19 @@ export class PaymentController {
 
   // INVOICES
   // MOST SPECIFIC: 'invoice' + studentNumber + num + year
-  @Get('invoicepdf/:studentNumber/:num/:year')
+  @Get('invoicepdf/:receiptNumber')
   @Header('Content-Type', 'application/pdf')
   // @Header('Content-Disposition', 'attachment; filename=invoice.pdf')
   async getInvoicePdf(
     @Res() res: Response,
-    @Param('studentNumber') studentNumber: string,
-    @Param('num', ParseIntPipe) num: number,
-    @Param('year', ParseIntPipe) year: number,
+    @Param('invoiceNumber') invoiceNumber: string,
   ): Promise<any> {
-    const invoice = await this.paymentService.getInvoice(
-      studentNumber,
-      num,
-      year,
+    const invoice = await this.paymentService.getInvoiceByInvoiceNumber(
+      invoiceNumber,
     );
     const pdfBuffer = await this.paymentService.generateInvoicePdf(invoice);
 
-    const filename = `receipt_${invoice.invoiceNumber}_${invoice.student?.name}_${invoice.student?.surname}_${invoice.enrol.name}.pdf`;
+    const filename = `invoice_${invoice.invoiceNumber}_${invoice.student?.name}_${invoice.student?.surname}_${invoice.enrol.name}.pdf`;
 
     res.set({
       'Content-Type': 'application/octet-stream',
@@ -131,15 +128,6 @@ export class PaymentController {
     });
 
     res.end(pdfBuffer);
-  }
-
-  @Get('invoice/:studentNumber/:num/:year')
-  generateInvoice(
-    @Param('studentNumber') studentNumber: string,
-    @Param('num', ParseIntPipe) num: number,
-    @Param('year', ParseIntPipe) year: number,
-  ) {
-    return this.paymentService.getInvoice(studentNumber, num, year);
   }
 
   // More specific than /:num/:year if it were directly under /payment, but here it's under 'invoice'
@@ -151,13 +139,32 @@ export class PaymentController {
     return this.paymentService.getInvoiceStats(num, year);
   }
 
-  // 'invoice' + num + year
-  @Get('invoice/:num/:year') // This path is now after the more specific 'invoice/:studentNumber/:num/:year'
-  getInvoices(
+  @Get('invoice/:studentNumber/:num/:year')
+  generateInvoice(
+    @Param('studentNumber') studentNumber: string,
     @Param('num', ParseIntPipe) num: number,
     @Param('year', ParseIntPipe) year: number,
   ) {
-    return this.paymentService.getInvoices(num, year);
+    return this.paymentService.getInvoice(studentNumber, num, year);
+  }
+
+  // 'invoice' + num + year
+  @Get('invoice/:num/:year') // This path is now after the more specific 'invoice/:studentNumber/:num/:year'
+  getTermInvoices(
+    @Param('num', ParseIntPipe) num: number,
+    @Param('year', ParseIntPipe) year: number,
+  ) {
+    return this.paymentService.getTermInvoices(num, year);
+  }
+
+  @Get('invoice')
+  getAllInvoices() {
+    return this.paymentService.getAllInvoices();
+  }
+
+  @Get('invoice/:studentNumber')
+  getStudentInvoices(@Param('studentNumber') studentNumber: string) {
+    return this.paymentService.getStudentInvoices(studentNumber);
   }
 
   @Post('invoice')
@@ -199,18 +206,6 @@ export class PaymentController {
   getPaymentsInYear(@Param('year', ParseIntPipe) year: number) {
     return this.paymentService.getPaymentsByYear(year);
   }
-
-  // OPTION 2 (Alternative to Option 1): Consolidate into a single endpoint with query parameters
-  // This is often more flexible for filtering/searching.
-  // @Get('search')
-  // searchPayments(
-  //   @Query('studentNumber') studentNumber?: string,
-  //   @Query('num', new DefaultValuePipe(null), ParseIntPipe) num?: number,
-  //   @Query('year', new DefaultValuePipe(null), ParseIntPipe) year?: number,
-  // ) {
-  //   // You'd need to adapt your service method to handle optional parameters
-  //   return this.paymentService.searchPayments(studentNumber, num, year);
-  // }
 
   // Least specific: No parameters
   @Get() // This should come last among the general payment GETs

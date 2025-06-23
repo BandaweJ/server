@@ -210,6 +210,10 @@ export class EnrolmentService {
 
   //Enrolmnt
 
+  // getAllEnrols(): Promise<EnrolEntity[]>{
+  //   return await this.enrolmentRepository.find()
+  // }
+
   async updateEnrolment(
     updateEnrolDto: UpdateEnrolDto,
     profile: TeachersEntity,
@@ -363,8 +367,11 @@ export class EnrolmentService {
     });
 
     if (!enroledStudent) {
+      const student = await this.resourceById.getStudentByStudentNumber(
+        studentNumber,
+      );
       throw new NotFoundException(
-        `Student ${studentNumber} not enroled in term ${num} ${year}`,
+        `Student (${studentNumber}) ${student.surname} ${student.name} not enroled in term ${num} ${year}`,
       );
     }
 

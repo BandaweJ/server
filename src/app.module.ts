@@ -12,6 +12,7 @@ import { ReportsModule } from './reports/reports.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { FinanceModule } from './finance/finance.module';
 import { PaymentModule } from './payment/payment.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -23,9 +24,7 @@ import { PaymentModule } from './payment/payment.module';
     }),
     ProfilesModule,
     AuthModule,
-    // ServeStaticModule.forRoot({
-    //   rootPath: path.join(__dirname, '..', 'public'), // Adjust path as needed
-    // }),
+
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule], // Make sure ConfigModule is imported so ConfigService can be injected
       useFactory: (configService: ConfigService) => {
@@ -59,7 +58,8 @@ import { PaymentModule } from './payment/payment.module';
           // IMPORTANT: synchronize should be false in production!
           // Use migrations for production deployments.
           // Set to true only for development for automatic schema creation.
-          synchronize: process.env.NODE_ENV === 'development',
+          // synchronize: process.env.NODE_ENV === 'development',
+          synchronize: true,
 
           // Optional: Enable logging in development for debugging queries
           // logging: process.env.NODE_ENV === 'development',
@@ -81,6 +81,7 @@ import { PaymentModule } from './payment/payment.module';
     ReportsModule,
     FinanceModule,
     PaymentModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,7 +1,6 @@
 /* eslint-disable prettier/prettier */
 import { ApiProperty } from '@nestjs/swagger';
 import {
-  IsDateString,
   IsEnum,
   IsNotEmpty,
   IsNumber,
@@ -15,47 +14,21 @@ import { StudentsEntity } from 'src/profiles/entities/students.entity';
 /* eslint-disable prettier/prettier */
 export class CreateReceiptDto {
   @ApiProperty()
-  @IsString()
-  receiptNumber: string;
-
-  @ApiProperty()
-  @IsOptional()
-  @IsString()
-  receiptBookNumber?: string;
-
-  @ApiProperty()
   @IsNumber()
   @IsNotEmpty()
   amountPaid: number;
-
-  @ApiProperty()
-  @IsNumber()
-  amountDue: number;
-
-  @ApiProperty()
-  @IsNumber()
-  amountOutstanding: number;
 
   @ApiProperty()
   @IsString()
   @IsOptional()
   description?: string;
 
-  @ApiProperty({})
-  @IsDateString()
-  paymentDate: Date;
-
   @ApiProperty()
-  student: StudentsEntity;
+  @IsString()
+  @IsNotEmpty()
+  studentNumber: string;
 
   @ApiProperty({ enum: PaymentMethods, enumName: 'PaymentMethods' })
   @IsEnum(PaymentMethods)
   paymentMethod: PaymentMethods;
-
-  @ApiProperty()
-  @IsString()
-  servedBy: string;
-
-  @ApiProperty()
-  enrol: EnrolEntity;
 }

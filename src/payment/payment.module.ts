@@ -10,6 +10,7 @@ import { EnrolmentModule } from 'src/enrolment/enrolment.module';
 import { FinanceModule } from 'src/finance/finance.module';
 import { ResourceByIdModule } from 'src/resource-by-id/resource-by-id.module';
 import { InvoiceEntity } from './entities/invoice.entity';
+import { ReceiptInvoiceAllocationEntity } from './entities/receipt-invoice-allocation.entity';
 
 @Module({
   controllers: [PaymentController],
@@ -21,7 +22,11 @@ import { InvoiceEntity } from './entities/invoice.entity';
     EnrolmentModule,
     FinanceModule,
     ProfilesModule,
-    TypeOrmModule.forFeature([ReceiptEntity, InvoiceEntity]),
+    TypeOrmModule.forFeature([
+      ReceiptEntity,
+      InvoiceEntity,
+      ReceiptInvoiceAllocationEntity,
+    ]),
     ResourceByIdModule,
   ],
 })
