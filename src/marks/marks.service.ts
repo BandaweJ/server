@@ -617,8 +617,9 @@ export class MarksService {
       profile,
     );
 
-    // // Create set of subjects in class
+    // Create set of subjects in class
     const subjectsSet = new Set<string>(marks.map((mark) => mark.subject.name));
+
     const subjectsNames = Array.from(subjectsSet);
 
     const marksProgress: MarksProgressModel[] = [];
