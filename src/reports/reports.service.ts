@@ -577,14 +577,6 @@ export class ReportsService {
     examType: string,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ): Promise<any[]> {
-    // switch (profile.role) {
-    //   case ROLES.parent:
-    //   case ROLES.student:
-    //     throw new UnauthorizedException(
-    //       'Students and Parents are not allowed to view all reports',
-    //     );
-    // }
-
     let reports;
 
     if (examType) {
@@ -625,7 +617,17 @@ export class ReportsService {
     switch (profile.role) {
       case ROLES.parent:
       case ROLES.student: {
-        reps = await this.getStudentReports(studentNumber);
+        // reps = await this.getStudentReports(studentNumber);
+        const report = await this.reportsRepository.findOne({
+          where: {
+            name,
+            num,
+            year,
+            studentNumber,
+            examType,
+          },
+        });
+        return await this.generatePDF(report);
         break;
       }
       case ROLES.admin:

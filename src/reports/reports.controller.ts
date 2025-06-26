@@ -11,7 +11,6 @@ import {
 import { ReportsService } from './reports.service';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { AuthGuard } from '@nestjs/passport';
-import { ReportModel } from './models/report.model';
 import { Response } from 'express';
 import { TeachersEntity } from 'src/profiles/entities/teachers.entity';
 import { StudentsEntity } from 'src/profiles/entities/students.entity';

@@ -59,7 +59,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
           // Use migrations for production deployments.
           // Set to true only for development for automatic schema creation.
           // synchronize: process.env.NODE_ENV === 'development',
-          synchronize: true,
+          synchronize: false,
 
           // Optional: Enable logging in development for debugging queries
           // logging: process.env.NODE_ENV === 'development',
