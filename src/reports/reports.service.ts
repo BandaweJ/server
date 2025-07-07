@@ -2,6 +2,7 @@
 import {
   Injectable,
   InternalServerErrorException,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { EnrolmentService } from '../enrolment/enrolment.service';
@@ -612,37 +613,20 @@ export class ReportsService {
     studentNumber,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
-    let reps: ReportsModel[] = [];
-
-    switch (profile.role) {
-      case ROLES.parent:
-      case ROLES.student: {
-        // reps = await this.getStudentReports(studentNumber);
-        const report = await this.reportsRepository.findOne({
-          where: {
-            name,
-            num,
-            year,
-            studentNumber,
-            examType,
-          },
-        });
-        return await this.generatePDF(report);
-        break;
-      }
-      case ROLES.admin:
-      case ROLES.hod:
-      case ROLES.reception:
-      case ROLES.teacher: {
-        reps = await this.generateReports(name, num, year, examType, profile);
-      }
-    }
-
-    const reportToDownload = reps.find(
-      (rep) => rep.studentNumber === studentNumber,
-    );
-
-    return await this.generatePDF(reportToDownload);
+    const report = await this.reportsRepository.findOne({
+      where: {
+        name,
+        num,
+        year,
+        studentNumber,
+        examType,
+      },
+    });
+    if (!report)
+      throw new NotFoundException(
+        `Report for student ${studentNumber} not found for term ${num}, ${year} for examtype ${examType}`,
+      );
+    return await this.generatePDF(report);
   }
 
   async generatePDF(
