@@ -13,6 +13,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { FinanceModule } from './finance/finance.module';
 import { PaymentModule } from './payment/payment.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { ExemptionsModule } from './exemptions/exemptions.module';
 
 @Module({
   imports: [
@@ -51,7 +52,6 @@ import { DashboardModule } from './dashboard/dashboard.module';
           database: databaseUrl
             ? undefined
             : configService.get<string>('DB_NAME'),
-
           // Your existing options:
           autoLoadEntities: true, // Keep this as you had it
 
@@ -59,7 +59,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
           // Use migrations for production deployments.
           // Set to true only for development for automatic schema creation.
           // synchronize: process.env.NODE_ENV === 'development',
-          synchronize: false,
+          synchronize: true,
 
           // Optional: Enable logging in development for debugging queries
           // logging: process.env.NODE_ENV === 'development',
@@ -82,6 +82,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     FinanceModule,
     PaymentModule,
     DashboardModule,
+    ExemptionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

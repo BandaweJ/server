@@ -107,7 +107,7 @@ export class PaymentController {
 
   // INVOICES
   // MOST SPECIFIC: 'invoice' + studentNumber + num + year
-  @Get('invoicepdf/:receiptNumber')
+  @Get('invoicepdf/:invoiceNumber')
   @Header('Content-Type', 'application/pdf')
   // @Header('Content-Disposition', 'attachment; filename=invoice.pdf')
   async getInvoicePdf(

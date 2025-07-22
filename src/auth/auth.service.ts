@@ -189,4 +189,10 @@ export class AuthService {
       return null;
     }
   }
+
+  async fetchUserDetails(id: string) {
+    const user = await this.resourceById.getTeacherById(id);
+
+    return user;
+  }
 }

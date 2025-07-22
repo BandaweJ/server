@@ -1,10 +1,9 @@
+/* eslint-disable prettier/prettier */
 import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AccountsDto } from './dtos/signup.dto';
 import { SigninDto } from './dtos/signin.dto';
 import { AuthGuard } from '@nestjs/passport';
-import { GetUser } from './decorators/get-user.decorator';
-import { AccountsEntity } from './entities/accounts.entity';
 
 @Controller('auth')
 export class AuthController {
@@ -19,6 +18,12 @@ export class AuthController {
   signin(@Body() signinDto: SigninDto) {
     // console.log(signinDto);
     return this.authService.signin(signinDto);
+  }
+
+  @Get('/:id')
+  @UseGuards(AuthGuard())
+  getUserDetails(id: string) {
+    return this.authService.fetchUserDetails(id);
   }
 
   @Get()

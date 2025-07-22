@@ -2,6 +2,7 @@
 import {
   BadRequestException,
   Injectable,
+  NotFoundException,
   NotImplementedException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -39,6 +40,10 @@ import { BalancesEntity } from 'src/finance/entities/balances.entity';
 import { InvoiceStatus } from 'src/finance/models/invoice-status.enum';
 
 import { ReceiptInvoiceAllocationEntity } from './entities/receipt-invoice-allocation.entity';
+import { CreateExemptionDto } from '../exemptions/dtos/createExemption.dto';
+import { ExemptionEntity } from 'src/exemptions/entities/exemptions.entity';
+import { ExemptionType } from 'src/exemptions/enums/exemptions-type.enum';
+import { FeesEntity } from 'src/finance/entities/fees.entity';
 @Injectable()
 export class PaymentService {
   constructor(
@@ -55,6 +60,54 @@ export class PaymentService {
     private dataSource: DataSource, // Inject DataSource for transactional queries
   ) {}
 
+  /**
+   * Helper method to calculate the net bill amount after applying exemptions.
+   * This logic is central and used by invoice saving/updating and statement generation.
+   *
+   * @param bills - An array of FeeBillEntity objects associated with an invoice or student.
+   * @param studentExemption - The ExemptionEntity for the student, or null if none.
+   * @returns The total bill amount after any applicable exemptions.
+   */
+  private calculateNetBillAmount(
+    bills: BillsEntity[],
+    studentExemption: ExemptionEntity | null,
+  ): number {
+    let totalGrossBill = 0;
+    let totalExemptionAmount = 0;
+
+    for (const bill of bills) {
+      totalGrossBill += Number(bill.fees.amount);
+    }
+
+    if (studentExemption && studentExemption.isActive) {
+      if (studentExemption.type === ExemptionType.FIXED_AMOUNT) {
+        // For FIXED_AMOUNT, deduct the fixed amount.
+        totalExemptionAmount = studentExemption.fixedAmount || 0;
+      } else if (studentExemption.type === ExemptionType.PERCENTAGE) {
+        // For PERCENTAGE, deduct the specified percentage.
+        totalExemptionAmount =
+          (totalGrossBill * (studentExemption.percentageAmount || 0)) / 100;
+      } else if (studentExemption.type === ExemptionType.STAFF_SIBLING) {
+        // Special logic for STAFF_SIBLING: 100% on most fees, 50% on foodFee.
+        let foodFeeTotal = 0;
+        let otherFeesTotal = 0;
+        for (const bill of bills) {
+          if (bill.fees.name === FeesNames.foodFee) {
+            foodFeeTotal += Number(bill.fees.amount);
+          } else {
+            otherFeesTotal += Number(bill.fees.amount);
+          }
+        }
+        // Exemption amount = 100% of other fees + 50% of food fee
+        totalExemptionAmount = otherFeesTotal + foodFeeTotal * 0.5;
+      }
+    }
+
+    // Ensure the net bill doesn't go below zero
+    const netBill = totalGrossBill - totalExemptionAmount;
+    return Math.max(0, netBill);
+  }
+
   async getStudentBalance(
     studentNumber: string,
   ): Promise<{ amountDue: number }> {
@@ -62,13 +115,13 @@ export class PaymentService {
       studentNumber,
     );
     if (!student) {
-      throw new Error('Student not found'); // Or throw NotFoundException
+      throw new NotFoundException('Student not found');
     }
 
     // Calculate total outstanding invoices
     const outstandingInvoices = await this.invoiceRepository.find({
       where: {
-        student: { studentNumber }, // Link by student entity or student ID
+        student: { studentNumber },
         status: In([
           InvoiceStatus.Pending,
           InvoiceStatus.PartiallyPaid,
@@ -78,12 +131,12 @@ export class PaymentService {
     });
 
     const totalInvoiceBalance = outstandingInvoices.reduce(
-      (sum, inv) => sum + +inv.balance,
+      (sum, inv) => sum + Number(inv.balance),
       0,
     );
 
     return {
-      amountDue: totalInvoiceBalance, // This is the 'amount due' for the student
+      amountDue: totalInvoiceBalance,
     };
   }
 
@@ -92,7 +145,7 @@ export class PaymentService {
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ): Promise<ReceiptEntity> {
     // 1. Authorization Check (already provided)
-    const allowedRoles = [ROLES.reception]; // Define your allowed roles
+    const allowedRoles = [ROLES.reception];
     if (!allowedRoles.includes(profile.role as ROLES)) {
       throw new UnauthorizedException(
         'You are not allowed to generate receipts',
@@ -100,8 +153,7 @@ export class PaymentService {
     }
 
     // 2. Fetch Student Entity
-    // Assuming createReceiptDto has studentNumber directly for lookup
-    const studentNumber = createReceiptDto.studentNumber; // Adjust if DTO is nested e.g., createReceiptDto.student.studentNumber
+    const studentNumber = createReceiptDto.studentNumber;
     const student = await this.resourceById.getStudentByStudentNumber(
       studentNumber,
     );
@@ -117,36 +169,29 @@ export class PaymentService {
 
     // Initialize the new Receipt entity
     const newReceipt = this.receiptRepository.create({
-      // Copy over DTO properties directly if they match
       amountPaid: createReceiptDto.amountPaid,
       description: createReceiptDto.description,
       paymentMethod: createReceiptDto.paymentMethod,
-      // Manual assignments
-      student: student, // Link the found student entity
+      student: student,
       receiptNumber: this.generateReceiptNumber(),
-      servedBy: profile.email, // Or profile.name, or a more specific user ID
-      // paymentDate: new Date(), // auto created by db
-      // approved: false, // Default or determined by your workflow//auto in db
+      servedBy: profile.email,
       enrol: enrol,
-      // enrol: await this.enrolmentService.getCurrentEnrollment(studentNumber), // If you have an enrolment service
     });
 
-    // Start a database transaction for atomicity
     return await this.dataSource.transaction(
       async (transactionalEntityManager) => {
-        // Save the receipt first to get its ID before creating allocations
         const savedReceipt = await transactionalEntityManager.save(newReceipt);
 
         let remainingPaymentAmount = savedReceipt.amountPaid;
         const allocationsToSave: ReceiptInvoiceAllocationEntity[] = [];
-        const updatedInvoices: InvoiceEntity[] = []; // To hold invoices that need saving
+        const updatedInvoices: InvoiceEntity[] = [];
 
         // 3. Fetch and Order Outstanding Invoices
         const openInvoices = await transactionalEntityManager.find(
           InvoiceEntity,
           {
             where: {
-              student: { studentNumber }, // Link by student ID
+              student: { studentNumber },
               status: In([
                 InvoiceStatus.Pending,
                 InvoiceStatus.PartiallyPaid,
@@ -154,7 +199,7 @@ export class PaymentService {
               ]),
             },
             order: {
-              invoiceDueDate: 'ASC', // FIFO: Oldest due date first
+              invoiceDueDate: 'ASC',
             },
           },
         );
@@ -162,13 +207,13 @@ export class PaymentService {
         // 4. Apply payment amount to invoices sequentially (FIFO)
         for (const invoice of openInvoices) {
           if (remainingPaymentAmount <= 0) {
-            break; // Payment has been fully applied
+            break;
           }
 
-          const invoiceCurrentBalance = +invoice.balance; // Using invoice.balance which is totalBill - amountPaidOnInvoice
+          const invoiceCurrentBalance = Number(invoice.balance);
 
           if (invoiceCurrentBalance <= 0) {
-            continue; // This invoice is already paid or has a credit, skip it
+            continue;
           }
 
           const amountToApplyToCurrentInvoice = Math.min(
@@ -176,75 +221,53 @@ export class PaymentService {
             invoiceCurrentBalance,
           );
 
-          // Create an allocation record
           const allocation = transactionalEntityManager.create(
             ReceiptInvoiceAllocationEntity,
             {
-              receipt: savedReceipt, // Link to the newly saved receipt
-              invoice: invoice, // Link to the current invoice
+              receipt: savedReceipt,
+              invoice: invoice,
               amountApplied: amountToApplyToCurrentInvoice,
               allocationDate: new Date(),
             },
           );
           allocationsToSave.push(allocation);
 
-          // Update the invoice itself
           invoice.amountPaidOnInvoice =
-            +invoice.amountPaidOnInvoice + amountToApplyToCurrentInvoice;
+            Number(invoice.amountPaidOnInvoice) + amountToApplyToCurrentInvoice;
 
-          invoice.balance = +invoice.balance - +amountToApplyToCurrentInvoice; // Decrease balance directly
-          invoice.status = this.getInvoiceStatus(invoice); // Determine new status
-          updatedInvoices.push(invoice); // Mark invoice for saving
+          invoice.balance =
+            Number(invoice.balance) - amountToApplyToCurrentInvoice;
+          invoice.status = this.getInvoiceStatus(invoice);
+          updatedInvoices.push(invoice);
 
           remainingPaymentAmount =
-            +remainingPaymentAmount - +amountToApplyToCurrentInvoice;
+            remainingPaymentAmount - amountToApplyToCurrentInvoice;
         }
 
-        // 5. Handle any Overpayment
-        // if (remainingPaymentAmount > 0) {
-        //   // Create a StudentCreditEntity
-        //   const studentCredit = transactionalEntityManager.create(
-        //     StudentCreditEntity,
-        //     {
-        //       student: student,
-        //       amount: remainingPaymentAmount,
-        //       creditDate: new Date(),
-        //       description: `Overpayment from Receipt #${savedReceipt.receiptNumber}`,
-        //       // You might link to the receipt or invoice as well if your credit model supports it
-        //     },
-        //   );
-        //   await transactionalEntityManager.save(studentCredit);
-        //   console.log(
-        //     `Student ${student.studentNumber} has an overpayment credit of ${remainingPaymentAmount}`,
-        //   );
-        // }
-
         // 6. Save all changes within the transaction
-        await transactionalEntityManager.save(updatedInvoices); // Save all updated invoices
-        await transactionalEntityManager.save(allocationsToSave); // Save all allocation records
+        await transactionalEntityManager.save(updatedInvoices);
+        await transactionalEntityManager.save(allocationsToSave);
 
-        // Load the saved receipt again, but this time eager-load its 'allocations' relation
         const finalReceipt = await transactionalEntityManager.findOne(
           ReceiptEntity,
           {
-            where: { id: savedReceipt.id }, // Find by the ID of the newly saved receipt
+            where: { id: savedReceipt.id },
             relations: [
               'allocations',
               'allocations.invoice',
               'student',
               'enrol',
-            ], // Load the allocations and their related invoice entities
+            ],
           },
         );
 
         if (!finalReceipt) {
-          // This should ideally not happen if savedReceipt was successful
           throw new Error(
             'Failed to retrieve full receipt details after save.',
           );
         }
 
-        return finalReceipt; // Return the fully loaded receipt
+        return finalReceipt;
       },
     );
   }
@@ -264,14 +287,12 @@ export class PaymentService {
   }
 
   async getPaymentsByStudent(studentNumber: string): Promise<ReceiptEntity[]> {
-    //   const student = await this.studentsService.getStudent(studentNumber, profile);
     const receipts = await this.receiptRepository.find({
       where: {
         student: { studentNumber },
       },
       relations: ['student', 'enrol', 'allocations', 'allocations.invoice'],
     });
-    console.log('got ', receipts.length);
     return receipts;
   }
 
@@ -315,12 +336,27 @@ export class PaymentService {
   async generateStatementOfAccount(
     studentNumber: string,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
-  ): Promise<any> {
+  ): Promise<Invoice> {
+    // Changed return type to Invoice
+    // Fetch student with exemption
+    const student =
+      await this.studentsService.getStudentByStudentNumberWithExemption(
+        studentNumber,
+      );
+    if (!student) {
+      throw new NotFoundException(
+        `Student with number ${studentNumber} not found.`,
+      );
+    }
+
+    const studentExemption = student.exemption;
     const payments = await this.getPaymentsByStudent(studentNumber);
     const bills = await this.financeService.getStudentBills(studentNumber);
-    const student = await this.studentsService.getStudent(
-      studentNumber,
-      profile,
+
+    // Calculate the total bill *after* applying exemption for the statement
+    const totalBillAfterExemption = this.calculateNetBillAmount(
+      bills,
+      studentExemption,
     );
 
     const enrol = await this.enrolmentService.getCurrentEnrollment(
@@ -331,91 +367,134 @@ export class PaymentService {
       (sum, payment) => sum + Number(payment.amountPaid),
       0,
     );
-    const totalBill = bills.reduce(
-      (sum, bill) => sum + Number(bill.fees.amount),
-      0,
-    );
 
     const balanceBfwd = await this.financeService.findStudentBalance(
       studentNumber,
     );
 
     const invoice = new Invoice(
-      totalBill,
-
+      totalBillAfterExemption, // Pass the net total bill to the Invoice constructor
       balanceBfwd,
       student,
       bills,
-      Number(totalBill) + Number(balanceBfwd.amount) - Number(totalPayments),
+      // The final balance for the statement: net bill + bfwd - payments
+      Number(totalBillAfterExemption) +
+        Number(balanceBfwd.amount) -
+        Number(totalPayments),
     );
 
     return invoice;
   }
 
   async saveInvoice(invoice: Invoice): Promise<InvoiceEntity> {
-    const {
-      totalBill,
-
-      balanceBfwd,
-      student,
-      bills,
-
-      balance,
-      enrol,
-      invoiceNumber,
-      invoiceDate,
-      invoiceDueDate,
-    } = invoice;
-
     try {
+      // Fetch student with exemption to ensure it's loaded for calculation
+      const student =
+        await this.studentsService.getStudentByStudentNumberWithExemption(
+          invoice.student.studentNumber,
+        );
+      if (!student) {
+        throw new NotFoundException(
+          `Student with number ${invoice.student.studentNumber} not found.`,
+        );
+      }
+
+      const studentExemption = student.exemption;
+
+      // Calculate the net total bill based on current bills and exemption
+      const calculatedNetTotalBill = this.calculateNetBillAmount(
+        invoice.bills,
+        studentExemption,
+      );
+
+      let invoiceToSave: InvoiceEntity; // Declared but not initialized yet
+
       const foundInvoice = await this.invoiceRepository.findOne({
         where: {
-          student: {
-            studentNumber: student.studentNumber,
-          },
-          enrol: {
-            num: enrol.num,
-            year: enrol.year,
-          },
+          student: { studentNumber: student.studentNumber },
+          enrol: { num: invoice.enrol.num, year: invoice.enrol.year },
         },
-        relations: ['student', 'enrol', 'balanceBfwd', 'bills', 'bills.fees'],
+        relations: [
+          'student',
+          'enrol',
+          'balanceBfwd',
+          'bills',
+          'bills.fees',
+          // IMPORTANT: Removed 'payments' as it was causing EntityPropertyNotFoundError previously.
+          // If you have a 'payments' relationship, ensure it's defined in InvoiceEntity.
+          'exemption', // Ensure exemption is loaded if updating existing
+        ],
       });
 
       if (foundInvoice) {
-        foundInvoice.totalBill = totalBill;
-        //if invoice is already saved, dont set keep the old balanceBfwd
-        // foundInvoice.balanceBfwd = balanceBfwd;
-        foundInvoice.bills = bills;
-        // foundInvoice.payments = payments;
-        foundInvoice.balance = balance;
-        foundInvoice.invoiceNumber = invoiceNumber;
-        foundInvoice.invoiceDate = invoiceDate;
-        foundInvoice.invoiceDueDate = invoiceDueDate;
-        return await this.invoiceRepository.save(foundInvoice);
+        invoiceToSave = foundInvoice;
+        invoiceToSave.totalBill = calculatedNetTotalBill; // Update with net bill
+        invoiceToSave.bills = invoice.bills; // Update bills array
+        // invoiceToSave.invoiceNumber = invoice.invoiceNumber;
+        invoiceToSave.invoiceDate = invoice.invoiceDate;
+        invoiceToSave.invoiceDueDate = invoice.invoiceDueDate;
+
+        // Recalculate balance based on new totalBill and existing payments
+        const totalPaymentsOnInvoice = invoiceToSave.amountPaidOnInvoice
+          ? Number(invoiceToSave.amountPaidOnInvoice)
+          : 0;
+
+        const balanceBfwdAmount = invoiceToSave.balanceBfwd
+          ? Number(invoiceToSave.balanceBfwd.amount)
+          : 0;
+
+        invoiceToSave.balance =
+          calculatedNetTotalBill + balanceBfwdAmount - totalPaymentsOnInvoice;
+        invoiceToSave.status = this.getInvoiceStatus(invoiceToSave);
+
+        // Now that invoiceToSave is initialized, you can set the exemption
+        invoiceToSave.exemption = studentExemption || null; // Set to null if no exemption
       } else {
-        const newInvoice = new InvoiceEntity();
+        invoiceToSave = new InvoiceEntity();
+        invoiceToSave.student = student;
+        invoiceToSave.enrol = invoice.enrol;
+        invoiceToSave.bills = invoice.bills;
+        invoiceToSave.invoiceNumber = invoice.invoiceNumber;
+        invoiceToSave.invoiceDate = invoice.invoiceDate;
+        invoiceToSave.invoiceDueDate = invoice.invoiceDueDate;
+        invoiceToSave.totalBill = calculatedNetTotalBill; // Store the net bill
+        invoiceToSave.amountPaidOnInvoice = 0; // New invoice, no payments yet
 
-        newInvoice.totalBill = totalBill;
+        // Now that invoiceToSave is initialized, you can set the exemption
+        invoiceToSave.exemption = studentExemption || null; // Set to null if no exemption
 
-        newInvoice.balanceBfwd = balanceBfwd;
-        newInvoice.student = student;
-        newInvoice.bills = bills;
-        // newInvoice.payments = payments;
-        newInvoice.balance = totalBill;
-        newInvoice.enrol = enrol;
-        newInvoice.invoiceNumber = invoiceNumber;
-        newInvoice.invoiceDate = invoiceDate;
-        newInvoice.invoiceDueDate = invoiceDueDate;
-        const saved = await this.invoiceRepository.save(newInvoice);
-
-        await this.financeService.deleteBalance(balanceBfwd);
-
-        return saved;
+        // If balanceBfwd is provided in the input Invoice, incorporate it.
+        if (invoice.balanceBfwd && Number(invoice.balanceBfwd.amount) > 0) {
+          invoiceToSave.balanceBfwd = invoice.balanceBfwd;
+          invoiceToSave.balance =
+            calculatedNetTotalBill + Number(invoice.balanceBfwd.amount);
+        } else {
+          invoiceToSave.balance = calculatedNetTotalBill;
+        }
+        invoiceToSave.status = this.getInvoiceStatus(invoiceToSave);
       }
+
+      invoiceToSave.exemptedAmount =
+        this._calculateExemptionAmount(invoiceToSave);
+
+      const saved = await this.invoiceRepository.save(invoiceToSave);
+
+      // Only delete the balanceBfwd if it was actually applied to a NEW invoice
+      if (
+        !foundInvoice &&
+        invoice.balanceBfwd &&
+        Number(invoice.balanceBfwd.amount) > 0
+      ) {
+        await this.financeService.deleteBalance(invoice.balanceBfwd);
+      }
+
+      return saved;
     } catch (error) {
+      // Log the actual error for better debugging
+      console.error('Error saving invoice:', error);
       throw new NotImplementedException(
         'Could not save Invoice due to ',
-        error.message,
+        error.message, // Pass the specific error message
       );
     }
   }
@@ -457,6 +536,53 @@ export class PaymentService {
     return newInv;
   }
 
+  /**
+   * Applies the current student exemption to all existing invoices for that student.
+   * This is called when an exemption is created, updated, or deactivated.
+   * @param studentNumber - The student number whose invoices need to be re-calculated.
+   */
+  async applyExemptionToExistingInvoices(studentNumber: string): Promise<void> {
+    const student =
+      await this.studentsService.getStudentByStudentNumberWithExemption(
+        studentNumber,
+      );
+
+    if (!student) {
+      // Student not found, or no invoices to update
+      return;
+    }
+
+    const studentExemption = student.exemption;
+
+    const invoicesToUpdate = await this.invoiceRepository.find({
+      where: {
+        student: { studentNumber },
+      },
+      relations: ['bills', 'bills.fees', 'balanceBfwd'], // Need to load these to re-calculate accurately
+    });
+
+    for (const invoice of invoicesToUpdate) {
+      // Re-calculate the total bill for this invoice based on its bills and the current exemption
+      const newNetTotalBill = this.calculateNetBillAmount(
+        invoice.bills,
+        studentExemption,
+      );
+
+      // Re-calculate the balance: New Net Total Bill + Balance Brought Forward - Payments Made on This Invoice
+      const paymentsOnInvoice = invoice.amountPaidOnInvoice;
+      const balanceBfwdAmount = invoice.balanceBfwd
+        ? Number(invoice.balanceBfwd.amount)
+        : 0;
+
+      invoice.totalBill = newNetTotalBill; // Update the invoice's total bill (net amount)
+      invoice.balance = newNetTotalBill + balanceBfwdAmount - paymentsOnInvoice; // Update the invoice's balance
+      invoice.status = this.getInvoiceStatus(invoice); // Update status based on new balance
+      if (studentExemption) invoice.exemption = studentExemption;
+
+      await this.invoiceRepository.save(invoice); // Save the updated invoice
+    }
+  }
+
   async getTermInvoices(num: number, year: number): Promise<InvoiceEntity[]> {
     return this.invoiceRepository.find({
       where: {
@@ -465,13 +591,27 @@ export class PaymentService {
           year: year,
         },
       },
-      relations: ['student', 'enrol', 'balanceBfwd', 'bills', 'bills.fees'],
+      relations: [
+        'student',
+        'enrol',
+        'balanceBfwd',
+        'bills',
+        'bills.fees',
+        'exemption',
+      ],
     });
   }
 
   async getAllInvoices(): Promise<InvoiceEntity[]> {
     return this.invoiceRepository.find({
-      relations: ['student', 'enrol', 'balanceBfwd', 'bills', 'bills.fees'],
+      relations: [
+        'student',
+        'enrol',
+        'balanceBfwd',
+        'bills',
+        'bills.fees',
+        'exemption',
+      ],
     });
   }
 
@@ -482,7 +622,14 @@ export class PaymentService {
           studentNumber: studentNumber,
         },
       },
-      relations: ['student', 'enrol', 'balanceBfwd', 'bills', 'bills.fees'],
+      relations: [
+        'student',
+        'enrol',
+        'balanceBfwd',
+        'bills',
+        'bills.fees',
+        'exemption',
+      ],
     });
   }
 
@@ -497,7 +644,14 @@ export class PaymentService {
           year: year,
         },
       },
-      relations: ['student', 'enrol', 'balanceBfwd', 'bills', 'bills.fees'],
+      relations: [
+        'student',
+        'enrol',
+        'balanceBfwd',
+        'bills',
+        'bills.fees',
+        'exemption',
+      ],
     });
 
     if (!invoice) {
@@ -515,7 +669,14 @@ export class PaymentService {
   async getInvoiceByInvoiceNumber(invoiceNumber: string) {
     return await this.invoiceRepository.findOne({
       where: { invoiceNumber },
-      relations: ['student', 'enrol', 'balanceBfwd', 'bills', 'bills.fees'],
+      relations: [
+        'student',
+        'enrol',
+        'balanceBfwd',
+        'bills',
+        'bills.fees',
+        'exemption',
+      ],
     });
   }
 
@@ -725,8 +886,6 @@ export class PaymentService {
     );
   }
 
-  // ---------------------Invoice PDF----------------------------------//
-  // Helper function to create a formatted address block
   createAddressBlock(
     doc: PDFKit.PDFDocument,
     x: number,
@@ -735,43 +894,24 @@ export class PaymentService {
     address: string,
     phone: string,
     email: string,
-    className?: string,
-    residence?: string,
   ): void {
     const lineHeight = 20;
+    const valueXOffset = 80;
+
     doc
       .font('Helvetica-Bold')
       .text(name, x, y)
       .font('Helvetica')
       .text(address, x, y + lineHeight);
-    if (className && residence) {
-      const valueX = doc.widthOfString('Residence: ');
-      doc
-        .text(`Class`, x, y + 2 * lineHeight)
-        .text(`${className}`, x + valueX, y + 2 * lineHeight)
 
-        .text(`Residence`, x, y + 3 * lineHeight)
-        .text(`${residence}`, x + valueX, y + 3 * lineHeight)
-
-        .text(`Phone`, x, y + 4 * lineHeight)
-        .text(`${phone}`, x + valueX, y + 4 * lineHeight)
-
-        .text(`Email`, x, y + 5 * lineHeight)
-        .text(` ${email}`, x + valueX, y + 5 * lineHeight);
-    } else {
-      const valueX = doc.widthOfString('Residence: ');
-
-      doc
-        .text(`Phone`, x, y + 2 * lineHeight)
-        .text(`${phone}`, x + valueX, y + 2 * lineHeight)
-
-        .text(`Email`, x, y + 3 * lineHeight)
-        .text(`${email}`, x + valueX, y + 3 * lineHeight)
-        .moveDown();
-    }
+    doc
+      .text(`Phone`, x, y + 2 * lineHeight)
+      .text(`${phone}`, x + valueXOffset, y + 2 * lineHeight)
+      .text(`Email`, x, y + 3 * lineHeight)
+      .text(`${email}`, x + valueXOffset, y + 3 * lineHeight)
+      .moveDown();
   }
 
-  // Helper function to draw a table with headers and data
   drawTable(
     doc: PDFKit.PDFDocument,
     data: BillsEntity[],
@@ -780,9 +920,10 @@ export class PaymentService {
     startY: number,
     columnWidths: number[],
     headers: string[],
+    finalTotalAmount: number | string | null | undefined,
     headerColor = '#96d4d4',
     textColor = '#000000',
-    amountAlign: 'left' | 'right' = 'left', //Added for currency alignment
+    amountAlign: 'left' | 'right' = 'right',
   ): number {
     const rowHeight = 20;
     const headerHeight = 25;
@@ -791,7 +932,7 @@ export class PaymentService {
     const boldFont = 'Helvetica-Bold';
     const fontSize = 10;
     const headerFontSize = 10;
-    const padding = 5; // Consistent padding for text inside cells
+    const padding = 5;
 
     let y = startY;
 
@@ -810,21 +951,22 @@ export class PaymentService {
         .fillColor('#000000')
         .text(
           header,
-          startX + columnWidths.slice(0, i).reduce((a, b) => a + b, 0) + 5, // Add padding
+          startX +
+            columnWidths.slice(0, i).reduce((a, b) => a + b, 0) +
+            padding,
           y + headerHeight / 2 - headerFontSize / 2,
           {
-            width: columnWidths[i] - 10, // Subtract padding from width
-            align: 'left',
+            width: columnWidths[i] - 2 * padding,
+            align: i === headers.length - 1 ? amountAlign : 'left',
           },
         );
     });
     y += headerHeight;
 
-    // --- NEW: Draw Balance B/Fwd row if balanceBfwd.amount > 0 ---
+    // --- Draw Balance B/Fwd row if balanceBfwd.amount > 0 ---
     if (balanceBfwd && balanceBfwd.amount > 0) {
       doc.font(font).fontSize(fontSize).fillColor(textColor);
 
-      // Draw the row rectangle/border
       doc
         .rect(
           startX,
@@ -834,9 +976,9 @@ export class PaymentService {
         )
         .stroke(borderColor);
 
-      // Column 0: Fee Description for Balance B/Fwd
       doc.text(
-        'Balance B/Fwd as at ' + balanceBfwd.dateCreated.toLocaleDateString(), // Fixed description for this row
+        'Balance B/Fwd as at ' +
+          new Date(balanceBfwd.dateCreated).toLocaleDateString(),
         startX + padding,
         y + rowHeight / 2 - fontSize / 2,
         {
@@ -845,19 +987,16 @@ export class PaymentService {
         },
       );
 
-      // Column 1: Amount for Balance B/Fwd
       doc.text(
-        // Format the amount to 2 decimal places and add currency symbol
         `\$${balanceBfwd.amount.toFixed(2)}`,
-        startX + columnWidths[0] + padding, // Start position for second column
+        startX + columnWidths[0] + padding,
         y + rowHeight / 2 - fontSize / 2,
         {
           width: columnWidths[1] - 2 * padding,
-          align: amountAlign, // Use the new alignment parameter for amounts
+          align: amountAlign,
         },
       );
-
-      y += rowHeight; // Increment y to move to the next row position
+      y += rowHeight;
     }
 
     // Draw table rows
@@ -865,18 +1004,41 @@ export class PaymentService {
     data.forEach((row) => {
       headers.forEach((header, i) => {
         let text = '';
+        let align: 'left' | 'right' = 'left';
+        let rowTextColor = textColor; // Default text color
+
         if (i === 0) {
-          text =
-            row.fees && row.fees.name !== undefined && row.fees.name !== null
-              ? this.feesNamesToString(row.fees.name)
-              : '';
-        } else if (i === 1) {
-          text =
+          if (
             row.fees &&
-            row.fees.amount !== undefined &&
-            row.fees.amount !== null
-              ? '$' + row.fees.amount.toString()
-              : '';
+            row.fees.name === FeesNames.exemption &&
+            row.fees.exemptionType
+          ) {
+            text = this.feesNamesToString(
+              row.fees.name,
+              row.fees.exemptionType,
+            );
+            rowTextColor = 'green'; // Red color for exemption text
+          } else if (
+            row.fees &&
+            row.fees.name !== undefined &&
+            row.fees.name !== null
+          ) {
+            text = this.feesNamesToString(row.fees.name);
+          }
+        } else if (i === 1) {
+          if (row.fees && row.fees.name === FeesNames.exemption) {
+            const amount = Number(row.fees.amount);
+            text = `-\$${Math.abs(amount).toFixed(2)}`; // Format: -$1,000.00
+            rowTextColor = 'green'; // Red color for exemption amount
+          } else {
+            text =
+              row.fees &&
+              row.fees.amount !== undefined &&
+              row.fees.amount !== null
+                ? '$' + Number(row.fees.amount).toFixed(2)
+                : '';
+          }
+          align = amountAlign;
         }
 
         doc
@@ -887,19 +1049,54 @@ export class PaymentService {
             rowHeight,
           )
           .stroke(borderColor)
+          .fillColor(rowTextColor) // Apply row-specific text color
           .text(
             text,
-            startX + columnWidths.slice(0, i).reduce((a, b) => a + b, 0) + 5, // Add padding
+            startX +
+              columnWidths.slice(0, i).reduce((a, b) => a + b, 0) +
+              padding,
             y + rowHeight / 2 - fontSize / 2,
             {
-              width: columnWidths[i] - 10, // Subtract padding from width
-              align: 'left', // Align text
+              width: columnWidths[i] - 2 * padding,
+              align: align,
             },
           );
       });
       y += rowHeight;
     });
 
+    // --- Add the "Total" row within the table ---
+    doc.font(boldFont).fontSize(fontSize).fillColor(textColor);
+    doc
+      .rect(
+        startX,
+        y,
+        columnWidths.reduce((a, b) => a + b, 0),
+        rowHeight,
+      )
+      .stroke(borderColor);
+
+    doc.text('Total', startX + padding, y + rowHeight / 2 - fontSize / 2, {
+      width: columnWidths[0] - 2 * padding,
+      align: 'left',
+    });
+
+    const displayTotalAmount = !isNaN(Number(finalTotalAmount))
+      ? Number(finalTotalAmount)
+      : 0;
+    doc.font(font);
+    doc.text(
+      `\$${displayTotalAmount.toFixed(2)}`,
+      startX + columnWidths[0] + padding,
+      y + rowHeight / 2 - fontSize / 2,
+      {
+        width: columnWidths[1] - 2 * padding,
+        align: amountAlign,
+      },
+    );
+    y += rowHeight;
+
+    // Draw the final thick line after the total row
     doc
       .strokeColor('#000000')
       .lineWidth(2)
@@ -907,7 +1104,64 @@ export class PaymentService {
       .lineTo(startX + columnWidths.reduce((a, b) => a + b, 0), y)
       .stroke();
 
-    return y; // Return the y-coordinate of the end of the table
+    return y;
+  }
+
+  private _getGrossBillAmount(bills: BillsEntity[]): number {
+    return bills.reduce((sum, bill) => sum + (+bill.fees?.amount || 0), 0);
+  }
+
+  private _calculateExemptionAmount(invoiceData: InvoiceEntity): number {
+    if (!invoiceData.exemption || !invoiceData.exemption.type) {
+      return 0;
+    }
+
+    const exemption = invoiceData.exemption;
+    let calculatedAmount = 0;
+
+    switch (exemption.type) {
+      case ExemptionType.FIXED_AMOUNT:
+        if (
+          exemption.fixedAmount !== undefined &&
+          exemption.fixedAmount !== null
+        ) {
+          calculatedAmount = exemption.fixedAmount;
+        }
+        break;
+      case ExemptionType.PERCENTAGE:
+        if (
+          exemption.percentageAmount !== undefined &&
+          exemption.percentageAmount !== null
+        ) {
+          const grossBillAmount = this._getGrossBillAmount(invoiceData.bills);
+          // console.log('Gross bill amount', grossBillAmount);
+          calculatedAmount =
+            grossBillAmount * (exemption.percentageAmount / 100);
+
+          // console.log('calculated percentage amount', calculatedAmount);
+        }
+        break;
+      case ExemptionType.STAFF_SIBLING:
+        let totalFoodFee = 0;
+        let totalOtherFees = 0;
+
+        invoiceData.bills.forEach((bill) => {
+          if (bill.fees) {
+            if (bill.fees.name === FeesNames.foodFee) {
+              totalFoodFee += +bill.fees.amount;
+            } else {
+              totalOtherFees += +bill.fees.amount;
+            }
+          }
+        });
+
+        calculatedAmount += +totalFoodFee * 0.5;
+        calculatedAmount += +totalOtherFees;
+        break;
+      default:
+        calculatedAmount = 0;
+    }
+    return calculatedAmount;
   }
 
   async generateInvoicePdf(invoiceData: InvoiceEntity): Promise<Buffer> {
@@ -916,29 +1170,24 @@ export class PaymentService {
       margins: { top: 50, bottom: 50, left: 50, right: 50 },
     });
 
-    // Create a writeable stream
     const stream = new Stream.PassThrough();
     doc.pipe(stream);
 
-    // --- Document Header ---
-    const companyName = 'Junior High School'; // Replace
-    const companyAddress = '30588 Lundi Drive, Rhodene, Masvingo'; // Replace
-    const companyPhone = '+263 392 263 293 / +263 78 223 8026'; // Replace
-    const companyEmail = 'info@juniorhighschool.ac.zw'; // Replace
+    // --- Document Header (Company Info & Logo) ---
+    const companyName = 'Junior High School';
+    const companyAddress = '30588 Lundi Drive, Rhodene, Masvingo';
+    const companyPhone = '+263 392 263 293 / +263 78 223 8026';
+    const companyEmail = 'info@juniorhighschool.ac.zw';
 
     try {
-      // Corrected path using process.cwd()
       const imgPath = path.join(process.cwd(), 'public', 'jhs_logo.jpg');
-      // console.log('Attempting to load image from:', imgPath); // For debugging
       const imgBuffer = fs.readFileSync(imgPath);
-
       doc.image(imgBuffer, 50, 30, { width: 100 });
     } catch (e) {
-      console.log('Error adding image:', e.message); // Log the error message for more detail
+      console.log('Error adding image:', e.message);
     }
 
-    // Add company info
-    const companyInfoX = 200; // Adjust as needed
+    const companyInfoX = 200;
     this.createAddressBlock(
       doc,
       companyInfoX,
@@ -963,118 +1212,230 @@ export class PaymentService {
         { align: 'left' },
       );
 
-    // --- Invoice Details ---
-    const invoiceDetailsX = 380; // Adjust
-    const invoiceNumber = invoiceData.invoiceNumber || 'INV-001'; // Replace
-    const invoiceDate =
-      invoiceData.invoiceDate || new Date().toLocaleDateString(); // Replace
-    const dueDate =
-      invoiceData.invoiceDueDate ||
-      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString(); // 30 days from now
+    // --- Invoice Details (Right Side) ---
+    const invoiceDetailsLabelX = 380;
+    const invoiceDetailsValueX = invoiceDetailsLabelX + 80;
+    const invoiceNumber = invoiceData.invoiceNumber || 'N/A';
+    const invoiceDate = invoiceData.invoiceDate
+      ? new Date(invoiceData.invoiceDate)
+      : new Date();
+    const dueDate = invoiceData.invoiceDueDate
+      ? new Date(invoiceData.invoiceDueDate)
+      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+    const dateFormatOptions: Intl.DateTimeFormatOptions = {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit',
+    };
 
     doc
       .font('Helvetica-Bold')
       .fontSize(12)
-      .text(`Invoice #:`, invoiceDetailsX, 150)
+      .text(`Invoice #:`, invoiceDetailsLabelX, 150)
       .font('Helvetica')
-      .text(invoiceNumber, invoiceDetailsX + 80, 150) // Adjust spacing
+      .text(invoiceNumber, invoiceDetailsValueX, 150)
       .font('Helvetica-Bold')
-      .text(`Date:`, invoiceDetailsX, 170)
+      .text(`Date:`, invoiceDetailsLabelX, 170)
       .font('Helvetica')
       .text(
-        invoiceDate.toLocaleString('en-GB', {
-          day: '2-digit',
-          month: '2-digit',
-          year: '2-digit',
-        }),
-        invoiceDetailsX + 80,
+        invoiceDate.toLocaleDateString('en-GB', dateFormatOptions),
+        invoiceDetailsValueX,
         170,
       )
       .font('Helvetica-Bold')
-      .text(`Due Date:`, invoiceDetailsX, 190)
+      .text(`Due Date:`, invoiceDetailsLabelX, 190)
       .font('Helvetica')
       .text(
-        dueDate.toLocaleString('en-GB', {
-          day: '2-digit',
-          month: '2-digit',
-          year: '2-digit',
-        }),
-        invoiceDetailsX + 80,
+        dueDate.toLocaleDateString('en-GB', dateFormatOptions),
+        invoiceDetailsValueX,
         190,
       );
 
-    // --- Bill To Address ---
-    const billToName =
-      invoiceData.student.surname + ' ' + invoiceData.student.name; //
-    const billToAddress = invoiceData.student.studentNumber; //
-    const billToPhone = invoiceData.student.cell || 'Student Cell Number'; // Replace
-    const billToEmail = invoiceData.student.email || 'Student Email'; // Replace
-    const className = invoiceData.enrol.name;
-    const residence = invoiceData.enrol.residence;
+    // --- Bill To Address & Student Details (Left Side, grid-like) ---
+    const billToStartY = 220;
+    const studentLabelX = 50;
+    const studentValueX = studentLabelX + 80;
+    const studentLineHeight = 18;
+
     doc
       .font('Helvetica-Bold')
       .fontSize(12)
       .fillColor('#3185fc')
-      .text('Bill To:', 50, 220)
+      .text('Bill To:', studentLabelX, billToStartY)
       .font('Helvetica')
       .fillColor('#000');
-    this.createAddressBlock(
-      doc,
-      50,
-      235,
-      billToName,
-      billToAddress,
-      billToPhone,
-      billToEmail,
-      className,
-      residence,
-    );
 
-    // --- Invoice Summary ---
-    const invoiceSummaryY = 220;
-    const summaryValueX = doc.widthOfString('Amount Paid: ');
+    // Student Name
+    doc
+      .text(`Student:`, studentLabelX, billToStartY + studentLineHeight)
+      .text(
+        `${invoiceData.student.name} ${invoiceData.student.surname}`,
+        studentValueX,
+        billToStartY + studentLineHeight,
+      );
+
+    // Class
+    doc
+      .text(`Class:`, studentLabelX, billToStartY + 2 * studentLineHeight)
+      .text(
+        `${invoiceData.enrol.name}`,
+        studentValueX,
+        billToStartY + 2 * studentLineHeight,
+      );
+
+    // Term (Num and Year)
+    doc
+      .text(`Term:`, studentLabelX, billToStartY + 3 * studentLineHeight)
+      .text(
+        `${invoiceData.enrol.num} ${invoiceData.enrol.year}`,
+        studentValueX,
+        billToStartY + 3 * studentLineHeight,
+      );
+
+    // Residence
+    doc
+      .text(`Residence:`, studentLabelX, billToStartY + 4 * studentLineHeight)
+      .text(
+        `${invoiceData.enrol.residence}`,
+        studentValueX,
+        billToStartY + 4 * studentLineHeight,
+      );
+
+    let currentStudentDetailY = billToStartY + 4 * studentLineHeight;
+
+    // Phone (if available)
+    if (invoiceData.student.cell) {
+      currentStudentDetailY += studentLineHeight;
+      doc
+        .text(`Phone:`, studentLabelX, currentStudentDetailY)
+        .text(
+          `${invoiceData.student.cell}`,
+          studentValueX,
+          currentStudentDetailY,
+        );
+    }
+
+    // Email (if available)
+    if (invoiceData.student.email) {
+      currentStudentDetailY += studentLineHeight;
+      doc
+        .text(`Email:`, studentLabelX, currentStudentDetailY)
+        .text(
+          `${invoiceData.student.email}`,
+          studentValueX,
+          currentStudentDetailY,
+        );
+    }
+
+    // --- Invoice Summary (Right Side, grid-like) ---
+    const invoiceSummaryLabelX = doc.page.width / 2;
+    const invoiceSummaryValueX = invoiceSummaryLabelX + 100;
+    const invoiceSummaryStartY = 220;
+    const summaryLineHeight = 20;
+
     doc
       .font('Helvetica-Bold')
       .fontSize(12)
       .fillColor('#3185fc')
-      .text('Invoice Summary:', doc.page.width / 2, invoiceSummaryY)
+      .text('Invoice Summary:', invoiceSummaryLabelX, invoiceSummaryStartY)
       .font('Helvetica')
-      .fillColor('#000')
-      .text(`Total Bill`, doc.page.width / 2, invoiceSummaryY + 20)
-      .text(
-        `\$${invoiceData.totalBill}`,
-        doc.page.width / 2 + summaryValueX,
-        invoiceSummaryY + 20,
-      )
+      .fillColor('#000');
 
-      .text(`Amount Paid`, doc.page.width / 2, invoiceSummaryY + 40)
+    // Total Bill (Net bill after exemption) - Ensure it's a number here too
+    doc
       .text(
-        `\$${invoiceData.amountPaidOnInvoice}`,
-        doc.page.width / 2 + summaryValueX,
-        invoiceSummaryY + 40,
+        `Total Bill:`,
+        invoiceSummaryLabelX,
+        invoiceSummaryStartY + summaryLineHeight,
       )
-
-      .text(`Balance Due`, doc.page.width / 2, invoiceSummaryY + 60)
       .text(
-        `\$${invoiceData.balance}`,
-        doc.page.width / 2 + summaryValueX,
-        invoiceSummaryY + 60,
-      )
+        `\$${Number(invoiceData.totalBill).toFixed(2)}`,
+        invoiceSummaryValueX,
+        invoiceSummaryStartY + summaryLineHeight,
+      );
 
-      .text(`Status`, doc.page.width / 2, invoiceSummaryY + 80)
+    // Amount Paid
+    doc
+      .text(
+        `Amount Paid:`,
+        invoiceSummaryLabelX,
+        invoiceSummaryStartY + 2 * summaryLineHeight,
+      )
+      .text(
+        `\$${Number(invoiceData.amountPaidOnInvoice).toFixed(2)}`,
+        invoiceSummaryValueX,
+        invoiceSummaryStartY + 2 * summaryLineHeight,
+      );
+
+    // Balance Due
+    doc
+      .text(
+        `Balance Due:`,
+        invoiceSummaryLabelX,
+        invoiceSummaryStartY + 3 * summaryLineHeight,
+      )
+      .text(
+        `\$${Number(invoiceData.balance).toFixed(2)}`,
+        invoiceSummaryValueX,
+        invoiceSummaryStartY + 3 * summaryLineHeight,
+      );
+
+    // Status
+    doc
+      .text(
+        `Status:`,
+        invoiceSummaryLabelX,
+        invoiceSummaryStartY + 4 * summaryLineHeight,
+      )
       .fillColor('#3185fc')
       .text(
         `${invoiceData.status}`,
-        doc.page.width / 2 + summaryValueX,
-        invoiceSummaryY + 80,
+        invoiceSummaryValueX,
+        invoiceSummaryStartY + 4 * summaryLineHeight,
       );
 
     // --- Invoice Items Table ---
     const tableStartX = 50;
-    const tableStartY = 330; // Adjust
-    const columnWidths = [390, 100]; // Widths for Description, Amount
+    const tableStartY = Math.max(
+      currentStudentDetailY + 20,
+      invoiceSummaryStartY + 5 * summaryLineHeight + 20,
+    );
+
+    const columnWidths = [390, 100];
     const headers = ['Fee Description', 'Amount'];
+
     const items = invoiceData.bills || [];
+
+    // Check if an exemption entity exists and calculate its amount
+    if (invoiceData.exemption) {
+      const calculatedExemptionAmount =
+        this._calculateExemptionAmount(invoiceData);
+
+      // Add exemption as a line item if it's positive
+      if (calculatedExemptionAmount > 0) {
+        // Create a dummy FeesEntity instance for the exemption
+        const exemptionFees: FeesEntity = {
+          id: 0, // Using 0 as a dummy numeric ID for this generated FeesEntity
+          name: FeesNames.exemption,
+          amount: -calculatedExemptionAmount, // The calculated negative amount
+          description: 'Exemption Discount', // A default description for the generated fee
+          bills: [], // As it's a dummy FeesEntity, this array can be empty
+          exemptionType: invoiceData.exemption.type, // Assign the exemption type from invoiceData.exemption
+        };
+
+        // Create a dummy BillsEntity instance for the exemption row
+        const exemptionBill: BillsEntity = {
+          id: 0, // Using 0 as a dummy numeric ID for this generated BillsEntity
+          date: new Date(), // Use current date for the bill date (matches BillsEntity's 'date' column)
+          student: invoiceData.student, // Link to the student from invoiceData
+          fees: exemptionFees, // Link to the dummy FeesEntity created above
+          enrol: invoiceData.enrol, // Link to the enrolment from invoiceData
+          invoice: invoiceData, // Link to the current invoiceData
+        };
+        items.push(exemptionBill); // Append exemption to the list (now last entry)
+      }
+    }
 
     const tableEndY = this.drawTable(
       doc,
@@ -1084,38 +1445,13 @@ export class PaymentService {
       tableStartY,
       columnWidths,
       headers,
+      invoiceData.totalBill,
     );
 
-    // --- Subtotal, Tax, Total ---
-    const subtotalX =
-      tableStartX + columnWidths.slice(0, -1).reduce((a, b) => a + b, 0); // Start X of the amount column
-    const subtotalY = tableEndY + 20; // Position after table
-    // const subtotal =
-    // items.reduce((sum, item) => sum + item.fees.amount, 0) +
-    // Number(invoiceData.balanceBfwd.amount); // const tax = items.reduce((sum, item) => sum + item.fees.amount, 0);
-    // const total = subtotal; // For this example, total = subtotal + tax
-
-    doc
-      .font('Helvetica-Bold')
-      .fontSize(12)
-      .text('Total:', subtotalX - 80, subtotalY, {
-        align: 'left',
-        width: 70,
-      });
-
-    invoiceData.balance = Number(invoiceData.totalBill);
-    doc
-      .font('Helvetica')
-      .text('$' + invoiceData.balance.toFixed(2), subtotalX, subtotalY, {
-        align: 'left',
-        width: 100,
-      });
-
     // --- Terms and Conditions ---
-    const termsAndConditions = `Terms and Conditions: Payment is due within 30 days or before schools open whichever comes first.  Please include the Student Number on your payment.
-      `; // Replace
+    const termsAndConditions = `Terms and Conditions: Payment is due within 30 days or before schools open whichever comes first. Please include the Student Number on your payment.`;
+    const termsStartY = tableEndY + 50;
 
-    const termsStartY = subtotalY + 20; // Adjust
     doc
       .font('Helvetica')
       .fontSize(10)
@@ -1123,13 +1459,18 @@ export class PaymentService {
       .text(termsAndConditions, 50, termsStartY, {
         align: 'left',
         lineGap: 8,
+        width: doc.page.width - 100,
       });
 
-    const bankingDetailsStartY = termsStartY + 50; // Adjust
+    // --- Banking Details ---
+    const bankingDetailsStartY = termsStartY + 40;
     const accountName = 'JUNIOR HIGH SCHOOL';
     const bank = 'ZB BANK';
-    const brach = 'MASVINGO';
+    const branch = 'MASVINGO';
     const accountNumber = '4564 00321642 405';
+
+    // Calculate the Y position after the banking details block
+    const bankingDetailsEndLineY = bankingDetailsStartY + 80;
 
     doc
       .font('Helvetica-Bold')
@@ -1137,6 +1478,7 @@ export class PaymentService {
         align: 'left',
         lineGap: 8,
       })
+      .font('Helvetica')
       .text('Account Name: ' + accountName, 50, bankingDetailsStartY + 20, {
         align: 'left',
         lineGap: 8,
@@ -1145,7 +1487,7 @@ export class PaymentService {
         align: 'left',
         lineGap: 8,
       })
-      .text('Branch: ' + brach, 50, bankingDetailsStartY + 60, {
+      .text('Branch: ' + branch, 50, bankingDetailsStartY + 60, {
         align: 'left',
         lineGap: 8,
       })
@@ -1154,20 +1496,21 @@ export class PaymentService {
         lineGap: 8,
       });
 
-    // --- Footer ---
-    const footerText = 'Thank you for your business!'; // Replace
-    const footerY = bankingDetailsStartY + 100; // 20 from the bottom
+    // --- Footer (positioned directly after banking details) ---
+    const footerText = 'Thank you for your business!';
+    const footerY = bankingDetailsEndLineY + 20;
 
     doc
       .font('Helvetica')
       .fontSize(10)
       .fillColor('#888888')
-      .text(footerText, 50, footerY, { align: 'center' });
+      .text(footerText, 50, footerY, {
+        align: 'center',
+        width: doc.page.width - 100,
+      });
 
-    // Finalize the PDF and end the stream
     doc.end();
 
-    // Return a buffer
     return new Promise<Buffer>((resolve, reject) => {
       const chunks: Buffer[] = [];
       stream.on('data', (chunk) => chunks.push(chunk));
@@ -1176,7 +1519,10 @@ export class PaymentService {
     });
   }
 
-  feesNamesToString(feesName: FeesNames) {
+  feesNamesToString(
+    feesName: FeesNames,
+    exemptionTypeFromBill?: ExemptionType,
+  ) {
     switch (feesName) {
       case FeesNames.aLevelApplicationFee:
         return 'A Level Application Fee';
@@ -1202,6 +1548,13 @@ export class PaymentService {
         return 'O Level Day Tuition';
       case FeesNames.transportFee:
         return 'Transport Fee';
+      case FeesNames.exemption:
+        if (exemptionTypeFromBill) {
+          return `Exemption (${exemptionTypeFromBill.replace(/_/g, ' ')})`;
+        }
+        return 'Exemption';
+      default:
+        return String(feesName);
     }
   }
 

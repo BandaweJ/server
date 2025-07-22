@@ -7,7 +7,6 @@ import {
   BaseEntity,
   OneToMany,
   OneToOne,
-  JoinColumn,
   Timestamp,
 } from 'typeorm';
 import { ParentsEntity } from './parents.entity';
@@ -19,6 +18,7 @@ import { TeacherCommentEntity } from 'src/marks/entities/teacher-comments.entity
 import { ReceiptEntity } from 'src/payment/entities/payment.entity';
 import { BillsEntity } from 'src/finance/entities/bills.entity';
 import { InvoiceEntity } from 'src/payment/entities/invoice.entity';
+import { ExemptionEntity } from 'src/exemptions/entities/exemptions.entity';
 
 @Entity('students')
 export class StudentsEntity extends BaseEntity {
@@ -93,4 +93,7 @@ export class StudentsEntity extends BaseEntity {
 
   @OneToMany(() => TeacherCommentEntity, (comment) => comment.student)
   comments: TeacherCommentEntity[];
+
+  @OneToOne(() => ExemptionEntity, (exemption) => exemption.student)
+  exemption: ExemptionEntity;
 }

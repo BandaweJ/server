@@ -11,6 +11,7 @@ import {
 import { BillsEntity } from './bills.entity';
 import { FeesNames } from '../models/fees-names.enum';
 import { numberTransformer } from 'src/common/transformers/number.transformer';
+import { ExemptionType } from 'src/exemptions/enums/exemptions-type.enum';
 
 @Entity('fees')
 export class FeesEntity {
@@ -33,4 +34,6 @@ export class FeesEntity {
 
   @OneToMany(() => BillsEntity, (bill) => bill.fees)
   bills: BillsEntity[];
+
+  exemptionType?: ExemptionType; // Added for displaying exemption type
 }

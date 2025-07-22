@@ -205,4 +205,14 @@ export class StudentsService {
       .having('COUNT(enrol.id) = 1')
       .getMany();
   }
+
+  // In StudentsService
+  async getStudentByStudentNumberWithExemption(
+    studentNumber: string,
+  ): Promise<StudentsEntity | null> {
+    return this.studentsRepository.findOne({
+      where: { studentNumber },
+      relations: ['exemption'], // Ensure 'exemption' relation is loaded
+    });
+  }
 }

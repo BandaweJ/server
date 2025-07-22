@@ -11,12 +11,12 @@ import {
   ManyToOne,
   OneToMany,
   OneToOne,
-  PrimaryColumn,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import * as crypto from 'crypto';
 import { InvoiceStatus } from 'src/finance/models/invoice-status.enum';
 import { ReceiptInvoiceAllocationEntity } from './receipt-invoice-allocation.entity';
+import { ExemptionEntity } from 'src/exemptions/entities/exemptions.entity';
 
 @Entity('invoice')
 export class InvoiceEntity {
@@ -54,6 +54,9 @@ export class InvoiceEntity {
   @Column({ default: InvoiceStatus.Pending })
   status: InvoiceStatus; // The current status of THIS invoice
 
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0.0 })
+  exemptedAmount: number;
+
   // @Column({ type: 'decimal', precision: 10, scale: 2 })
   // totalPayments: number;
 
@@ -83,6 +86,14 @@ export class InvoiceEntity {
     (allocation) => allocation.invoice,
   )
   allocations: ReceiptInvoiceAllocationEntity[];
+
+  // An invoice belongs to one exemption (the one applied to it)
+  @ManyToOne(() => ExemptionEntity, (exemption) => exemption.invoices, {
+    nullable: true, // An invoice might not have an exemption
+    onDelete: 'NO ACTION', // If the exemption is deleted, set this foreign key to null
+  })
+  @JoinColumn({ name: 'exemptionId' }) // Foreign key column in the invoice table
+  exemption: ExemptionEntity;
 
   // Constructor to initialize fields
   constructor() {
