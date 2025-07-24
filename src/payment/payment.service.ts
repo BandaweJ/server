@@ -443,12 +443,18 @@ export class PaymentService {
           ? Number(invoiceToSave.balanceBfwd.amount)
           : 0;
 
-        invoiceToSave.balance =
-          calculatedNetTotalBill + balanceBfwdAmount - totalPaymentsOnInvoice;
-        invoiceToSave.status = this.getInvoiceStatus(invoiceToSave);
+        if (+balanceBfwdAmount > 0) {
+          invoiceToSave.totalBill += +balanceBfwdAmount;
+        }
+
+        invoiceToSave.balance = invoice.totalBill - totalPaymentsOnInvoice;
 
         // Now that invoiceToSave is initialized, you can set the exemption
         invoiceToSave.exemption = studentExemption || null; // Set to null if no exemption
+        invoiceToSave.exemptedAmount =
+          this._calculateExemptionAmount(invoiceToSave);
+
+        invoiceToSave.status = this.getInvoiceStatus(invoiceToSave);
       } else {
         invoiceToSave = new InvoiceEntity();
         invoiceToSave.student = student;
@@ -468,6 +474,7 @@ export class PaymentService {
           invoiceToSave.balanceBfwd = invoice.balanceBfwd;
           invoiceToSave.balance =
             calculatedNetTotalBill + Number(invoice.balanceBfwd.amount);
+          invoiceToSave.totalBill += Number(invoice.balanceBfwd.amount);
         } else {
           invoiceToSave.balance = calculatedNetTotalBill;
         }
