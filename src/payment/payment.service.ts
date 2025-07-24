@@ -451,8 +451,8 @@ export class PaymentService {
 
         // Now that invoiceToSave is initialized, you can set the exemption
         invoiceToSave.exemption = studentExemption || null; // Set to null if no exemption
-        invoiceToSave.exemptedAmount =
-          this._calculateExemptionAmount(invoiceToSave);
+        // invoiceToSave.exemptedAmount =
+        //   this._calculateExemptionAmount(invoiceToSave);
 
         invoiceToSave.status = this.getInvoiceStatus(invoiceToSave);
       } else {
