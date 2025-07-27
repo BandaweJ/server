@@ -19,6 +19,7 @@ import { ReceiptEntity } from 'src/payment/entities/payment.entity';
 import { BillsEntity } from 'src/finance/entities/bills.entity';
 import { InvoiceEntity } from 'src/payment/entities/invoice.entity';
 import { ExemptionEntity } from 'src/exemptions/entities/exemptions.entity';
+import { StudentCreditEntity } from 'src/payment/entities/student-credit.entity';
 
 @Entity('students')
 export class StudentsEntity extends BaseEntity {
@@ -96,4 +97,7 @@ export class StudentsEntity extends BaseEntity {
 
   @OneToOne(() => ExemptionEntity, (exemption) => exemption.student)
   exemption: ExemptionEntity;
+
+  @OneToOne(() => StudentCreditEntity, (credit) => credit.student)
+  studentCredit: StudentCreditEntity;
 }

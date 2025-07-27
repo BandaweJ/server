@@ -59,4 +59,14 @@ export class ReceiptEntity {
     (allocation) => allocation.receipt,
   )
   allocations: ReceiptInvoiceAllocationEntity[];
+
+  // NEW: Fields for voiding
+  @Column({ default: false })
+  isVoided: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  voidedAt: Date;
+
+  @Column({ nullable: true })
+  voidedBy: string; // E.g., email or ID of the user who voided it
 }

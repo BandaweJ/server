@@ -9,7 +9,6 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { StudentsEntity } from '../../profiles/entities/students.entity';
-import { FeesEntity } from 'src/finance/entities/fees.entity';
 import { Residence } from '../models/residence.model';
 import { BillsEntity } from 'src/finance/entities/bills.entity';
 import { InvoiceEntity } from 'src/payment/entities/invoice.entity';

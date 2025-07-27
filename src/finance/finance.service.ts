@@ -10,7 +10,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 // import { EnrolmentService } from 'src/enrolment/enrolment.service';
 import { FeesEntity } from './entities/fees.entity';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 
 import { CreateFeesDto } from './dtos/fees.dto';
 import { TeachersEntity } from 'src/profiles/entities/teachers.entity';
@@ -18,7 +18,6 @@ import { BillsEntity } from './entities/bills.entity';
 import { ROLES } from 'src/auth/models/roles.enum';
 import { FeesNames } from './models/fees-names.enum';
 import { EnrolmentService } from 'src/enrolment/enrolment.service';
-import { StudentsEntity } from 'src/profiles/entities/students.entity';
 import { EnrolEntity } from 'src/enrolment/entities/enrol.entity';
 import { BalancesEntity } from './entities/balances.entity';
 import { CreateBalancesDto } from './dtos/balances.dto';
@@ -377,20 +376,11 @@ export class FinanceService {
     });
   }
 
-  async deleteBalance(balanceBfwd: BalancesEntity) {
-    if (balanceBfwd && balanceBfwd.id) {
-      // Ensure balanceBfwd exists and has an ID
-      try {
-        await this.balancesRepository.remove(balanceBfwd);
-        
-      } catch (deleteError) {
-        // Log the error but don't re-throw, as the invoice was already saved.
-        // You might want a compensation mechanism or an alert here.
-        console.error(
-          `Failed to remove BalancesEntity with ID ${balanceBfwd.id}:`,
-          deleteError.message,
-        );
-      }
-    }
+  // Modified to accept EntityManager
+  async deleteBalance(
+    balance: BalancesEntity,
+    manager: EntityManager, // Changed name to 'manager'
+  ): Promise<void> {
+    await manager.delete(BalancesEntity, balance.id); // Use manager and entity
   }
 }

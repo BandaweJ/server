@@ -1,7 +1,6 @@
 /* eslint-disable prettier/prettier */
 import { numberTransformer } from 'src/common/transformers/number.transformer';
 import { InvoiceEntity } from 'src/payment/entities/invoice.entity';
-import { StudentsEntity } from 'src/profiles/entities/students.entity';
 import {
   Column,
   CreateDateColumn,

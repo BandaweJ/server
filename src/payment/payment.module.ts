@@ -12,6 +12,7 @@ import { ResourceByIdModule } from 'src/resource-by-id/resource-by-id.module';
 import { InvoiceEntity } from './entities/invoice.entity';
 import { ReceiptInvoiceAllocationEntity } from './entities/receipt-invoice-allocation.entity';
 import { ExemptionEntity } from '../exemptions/entities/exemptions.entity';
+import { StudentCreditEntity } from './entities/student-credit.entity';
 
 @Module({
   controllers: [PaymentController],
@@ -27,6 +28,7 @@ import { ExemptionEntity } from '../exemptions/entities/exemptions.entity';
       ReceiptEntity,
       InvoiceEntity,
       ReceiptInvoiceAllocationEntity,
+      StudentCreditEntity,
     ]),
     ResourceByIdModule,
   ],

@@ -10,6 +10,7 @@ import {
   And,
   Between,
   DataSource,
+  EntityManager,
   In,
   LessThanOrEqual,
   MoreThanOrEqual,
@@ -44,6 +45,7 @@ import { CreateExemptionDto } from '../exemptions/dtos/createExemption.dto';
 import { ExemptionEntity } from 'src/exemptions/entities/exemptions.entity';
 import { ExemptionType } from 'src/exemptions/enums/exemptions-type.enum';
 import { FeesEntity } from 'src/finance/entities/fees.entity';
+import { StudentCreditEntity } from './entities/student-credit.entity';
 @Injectable()
 export class PaymentService {
   constructor(
@@ -106,6 +108,80 @@ export class PaymentService {
     // Ensure the net bill doesn't go below zero
     const netBill = totalGrossBill - totalExemptionAmount;
     return Math.max(0, netBill);
+  }
+
+  async voidReceipt(
+    receiptId: number,
+    voidedByEmail: string,
+  ): Promise<ReceiptEntity> {
+    return await this.dataSource.transaction(
+      async (transactionalEntityManager) => {
+        const receiptToVoid = await transactionalEntityManager.findOne(
+          ReceiptEntity,
+          {
+            where: { id: receiptId },
+            relations: ['allocations', 'allocations.invoice'], // Load allocations and their related invoices
+          },
+        );
+
+        if (!receiptToVoid) {
+          throw new NotFoundException(
+            `Receipt with ID ${receiptId} not found.`,
+          );
+        }
+        if (receiptToVoid.isVoided) {
+          throw new BadRequestException(
+            `Receipt with ID ${receiptId} is already voided.`,
+          );
+        }
+
+        // 1. Mark the receipt as voided
+        receiptToVoid.isVoided = true;
+        receiptToVoid.voidedAt = new Date();
+        receiptToVoid.voidedBy = voidedByEmail;
+        await transactionalEntityManager.save(receiptToVoid);
+
+        const updatedInvoices: InvoiceEntity[] = [];
+
+        // 2. Reverse allocations and update affected invoices
+        for (const allocation of receiptToVoid.allocations) {
+          const invoice = allocation.invoice;
+          const amountApplied = Number(allocation.amountApplied);
+
+          if (invoice) {
+            // Decrease amountPaidOnInvoice and increase balance
+            invoice.amountPaidOnInvoice = Math.max(
+              0,
+              Number(invoice.amountPaidOnInvoice) - amountApplied,
+            );
+            invoice.balance = Number(invoice.balance) + amountApplied;
+            invoice.status = this.getInvoiceStatus(invoice); // Recalculate status
+
+            updatedInvoices.push(invoice);
+          }
+
+          // Optionally, you might want to delete or mark allocations as voided.
+          // For simplicity and audit trail, marking them as voided might be better.
+          // For now, if the receipt is voided, these allocations are implicitly invalid.
+          // If you need to explicitly mark allocations, you'd add an `isVoided` column to `ReceiptInvoiceAllocationEntity`.
+          // For this example, we'll just reverse the financial impact.
+        }
+
+        // 3. Save all updated invoices
+        await transactionalEntityManager.save(updatedInvoices);
+
+        // 4. Optionally, handle any remaining `remainingPaymentAmount` if the original receipt had an overpayment that wasn't allocated to an invoice.
+        // This is where a dedicated "credit" balance entity would come in handy.
+        // For now, if the receipt was fully allocated, reversing allocations is enough.
+        // If an overpayment existed and was *not* allocated to an invoice, you'd need to create a credit entry or add it back to a general student credit balance.
+
+        // After voiding, you might want to consider creating a negative balance entry if the student now owes money they previously didn't,
+        // or updating an existing balance carried forward. This depends on how you want to reflect "credits" vs. "amounts due".
+        // If the entire receipt was an overpayment and formed a credit, voiding it means that credit disappears.
+
+        return receiptToVoid;
+      },
+    );
   }
 
   async getStudentBalance(
@@ -176,6 +252,9 @@ export class PaymentService {
       receiptNumber: this.generateReceiptNumber(),
       servedBy: profile.email,
       enrol: enrol,
+      isVoided: false, // Ensure this is explicitly set to false for new receipts
+      voidedAt: null,
+      voidedBy: null,
     });
 
     return await this.dataSource.transaction(
@@ -244,6 +323,17 @@ export class PaymentService {
             remainingPaymentAmount - amountToApplyToCurrentInvoice;
         }
 
+        // 5. Handle any remaining payment amount as a credit
+        if (remainingPaymentAmount > 0) {
+          // Use the new service method to create or update student credit
+          await this.createOrUpdateStudentCredit(
+            student.studentNumber,
+            remainingPaymentAmount,
+            transactionalEntityManager,
+            `Overpayment from Receipt ${savedReceipt.receiptNumber}`, // Add a clear source
+          );
+        }
+
         // 6. Save all changes within the transaction
         await transactionalEntityManager.save(updatedInvoices);
         await transactionalEntityManager.save(allocationsToSave);
@@ -270,6 +360,80 @@ export class PaymentService {
         return finalReceipt;
       },
     );
+  }
+
+  async createOrUpdateStudentCredit(
+    studentNumber: string,
+    amount: number,
+    transactionalEntityManager: EntityManager,
+    source = 'Overpayment',
+  ): Promise<StudentCreditEntity> {
+    let studentCredit = await transactionalEntityManager.findOne(
+      StudentCreditEntity,
+      {
+        where: { studentNumber: studentNumber },
+        relations: ['student'], // Load the student relation if needed
+      },
+    );
+
+    if (studentCredit) {
+      // Update existing credit
+      studentCredit.amount = Number(studentCredit.amount) + amount;
+      studentCredit.lastCreditSource = source;
+    } else {
+      // Create new credit entry
+      const student = await transactionalEntityManager.findOne(StudentsEntity, {
+        where: { studentNumber },
+      });
+      if (!student) {
+        throw new NotFoundException(
+          `Student with number ${studentNumber} not found for credit creation.`,
+        );
+      }
+      studentCredit = transactionalEntityManager.create(StudentCreditEntity, {
+        student: student,
+        studentNumber: studentNumber,
+        amount: amount,
+        lastCreditSource: source,
+      });
+    }
+
+    return await transactionalEntityManager.save(studentCredit);
+  }
+
+  async deductStudentCredit(
+    studentNumber: string,
+    amountToDeduct: number,
+    transactionalEntityManager: EntityManager,
+    reason = 'Applied to Invoice',
+  ): Promise<StudentCreditEntity | null> {
+    const studentCredit = await transactionalEntityManager.findOne(
+      StudentCreditEntity,
+      {
+        where: { studentNumber: studentNumber },
+      },
+    );
+
+    if (studentCredit && Number(studentCredit.amount) >= amountToDeduct) {
+      studentCredit.amount = Number(studentCredit.amount) - amountToDeduct;
+      studentCredit.lastCreditSource = `Deducted: ${reason}`;
+
+      if (studentCredit.amount <= 0) {
+        // If credit becomes zero or negative, you might choose to delete the entry
+        // or keep it with amount 0 for historical purposes. Keeping it at 0 is safer.
+        studentCredit.amount = 0;
+        await transactionalEntityManager.save(studentCredit); // Save updated zero credit
+        // await transactionalEntityManager.remove(studentCredit); // Or remove if desired
+        return null; // Or return the updated entity
+      } else {
+        return await transactionalEntityManager.save(studentCredit);
+      }
+    } else if (studentCredit && Number(studentCredit.amount) < amountToDeduct) {
+      throw new BadRequestException(
+        `Insufficient credit balance for student ${studentNumber}. Available: ${studentCredit.amount}, Requested: ${amountToDeduct}`,
+      );
+    }
+    return null; // No credit found for student
   }
 
   async getAllReceipts(): Promise<ReceiptEntity[]> {
@@ -387,123 +551,226 @@ export class PaymentService {
   }
 
   async saveInvoice(invoice: Invoice): Promise<InvoiceEntity> {
-    try {
-      // Fetch student with exemption to ensure it's loaded for calculation
-      const student =
-        await this.studentsService.getStudentByStudentNumberWithExemption(
-          invoice.student.studentNumber,
-        );
-      if (!student) {
-        throw new NotFoundException(
-          `Student with number ${invoice.student.studentNumber} not found.`,
-        );
-      }
+    // Wrap the entire logic in a database transaction
+    return await this.dataSource.transaction(
+      async (transactionalEntityManager: EntityManager) => {
+        try {
+          // Fetch student with exemption to ensure it's loaded for calculation
+          // Make sure getStudentByStudentNumberWithExemption uses the transactionalEntityManager
+          const student =
+            await this.studentsService.getStudentByStudentNumberWithExemption(
+              invoice.student.studentNumber,
+            );
+          if (!student) {
+            throw new NotFoundException(
+              `Student with number ${invoice.student.studentNumber} not found.`,
+            );
+          }
 
-      const studentExemption = student.exemption;
+          const studentExemption = student.exemption;
 
-      // Calculate the net total bill based on current bills and exemption
-      const calculatedNetTotalBill = this.calculateNetBillAmount(
-        invoice.bills,
-        studentExemption,
-      );
+          // Calculate the net total bill based on current bills and exemption
+          const calculatedNetTotalBill = this.calculateNetBillAmount(
+            invoice.bills,
+            studentExemption,
+          );
 
-      let invoiceToSave: InvoiceEntity; // Declared but not initialized yet
+          let invoiceToSave: InvoiceEntity; // Declared but not initialized yet
 
-      const foundInvoice = await this.invoiceRepository.findOne({
-        where: {
-          student: { studentNumber: student.studentNumber },
-          enrol: { num: invoice.enrol.num, year: invoice.enrol.year },
-        },
-        relations: [
-          'student',
-          'enrol',
-          'balanceBfwd',
-          'bills',
-          'bills.fees',
-          // IMPORTANT: Removed 'payments' as it was causing EntityPropertyNotFoundError previously.
-          // If you have a 'payments' relationship, ensure it's defined in InvoiceEntity.
-          'exemption', // Ensure exemption is loaded if updating existing
-        ],
-      });
+          // Use transactionalEntityManager for finding the invoice
+          const foundInvoice = await transactionalEntityManager.findOne(
+            InvoiceEntity, // Use the entity directly with transactionalEntityManager
+            {
+              where: {
+                student: { studentNumber: student.studentNumber },
+                enrol: { num: invoice.enrol.num, year: invoice.enrol.year },
+              },
+              relations: [
+                'student',
+                'enrol',
+                'balanceBfwd',
+                'bills',
+                'bills.fees',
+                'exemption',
+              ],
+            },
+          );
 
-      if (foundInvoice) {
-        invoiceToSave = foundInvoice;
-        invoiceToSave.totalBill = calculatedNetTotalBill; // Update with net bill
-        invoiceToSave.bills = invoice.bills; // Update bills array
-        // invoiceToSave.invoiceNumber = invoice.invoiceNumber;
-        invoiceToSave.invoiceDate = invoice.invoiceDate;
-        invoiceToSave.invoiceDueDate = invoice.invoiceDueDate;
+          if (foundInvoice) {
+            invoiceToSave = foundInvoice;
+            // Update totalBill (which is the net bill AFTER exemption but BEFORE balanceBfwd/credits)
+            invoiceToSave.totalBill = calculatedNetTotalBill;
+            invoiceToSave.bills = invoice.bills;
+            invoiceToSave.invoiceDate = invoice.invoiceDate;
+            invoiceToSave.invoiceDueDate = invoice.invoiceDueDate;
 
-        // Recalculate balance based on new totalBill and existing payments
-        const totalPaymentsOnInvoice = invoiceToSave.amountPaidOnInvoice
-          ? Number(invoiceToSave.amountPaidOnInvoice)
-          : 0;
+            // Recalculate balance based on new totalBill and existing payments
+            let totalPaymentsOnInvoice = invoiceToSave.amountPaidOnInvoice
+              ? Number(invoiceToSave.amountPaidOnInvoice)
+              : 0;
 
-        const balanceBfwdAmount = invoiceToSave.balanceBfwd
-          ? Number(invoiceToSave.balanceBfwd.amount)
-          : 0;
+            const balanceBfwdAmount = invoiceToSave.balanceBfwd
+              ? Number(invoiceToSave.balanceBfwd.amount)
+              : 0;
 
-        if (+balanceBfwdAmount > 0) {
-          invoiceToSave.totalBill += +balanceBfwdAmount;
+            // If a balance brought forward existed, add it to the total for this invoice
+            if (+balanceBfwdAmount > 0) {
+              invoiceToSave.totalBill += +balanceBfwdAmount; // This increases the total amount due for this invoice
+            }
+
+            // --- Apply existing student credits (if any) ---
+            const studentCredit = await this.getStudentCredit(
+              // Call via financeService
+              student.studentNumber,
+              transactionalEntityManager, // Pass the transactionalEntityManager
+            );
+
+            if (studentCredit && Number(studentCredit.amount) > 0) {
+              // Determine how much credit to apply to this invoice
+              // Apply up to the remaining amount of the invoice, or the available credit, whichever is smaller
+              // The `balance` field represents the *current* outstanding amount before this application.
+              // So we should compare against the `totalBill` (which now includes `balanceBfwd` if applicable)
+              // minus any `amountPaidOnInvoice` already present.
+              const currentOutstandingAmount =
+                invoiceToSave.totalBill - totalPaymentsOnInvoice;
+
+              const amountToApplyFromCredit = Math.min(
+                currentOutstandingAmount,
+                Number(studentCredit.amount),
+              );
+
+              if (amountToApplyFromCredit > 0) {
+                // Deduct from student's credit balance
+                await this.deductStudentCredit(
+                  // Call via financeService
+                  student.studentNumber,
+                  amountToApplyFromCredit,
+                  transactionalEntityManager,
+                  `Applied to Invoice ${invoiceToSave.invoiceNumber}`,
+                );
+
+                // Update invoice's amountPaidOnInvoice and consequently its balance
+                invoiceToSave.amountPaidOnInvoice =
+                  Number(invoiceToSave.amountPaidOnInvoice) +
+                  amountToApplyFromCredit;
+                totalPaymentsOnInvoice += amountToApplyFromCredit; // This includes both cash and credit payments
+              }
+            }
+
+            // Final balance calculation for existing invoice
+            invoiceToSave.balance =
+              invoiceToSave.totalBill - totalPaymentsOnInvoice;
+
+            // Now that invoiceToSave is initialized, you can set the exemption
+            invoiceToSave.exemption = studentExemption || null;
+            // invoiceToSave.exemptedAmount = this._calculateExemptionAmount(invoiceToSave);
+            invoiceToSave.status = this.getInvoiceStatus(invoiceToSave);
+          } else {
+            // This is a NEW invoice
+            invoiceToSave = new InvoiceEntity();
+            invoiceToSave.student = student;
+            invoiceToSave.enrol = invoice.enrol;
+            invoiceToSave.bills = invoice.bills;
+            invoiceToSave.invoiceNumber = invoice.invoiceNumber;
+            invoiceToSave.invoiceDate = invoice.invoiceDate;
+            invoiceToSave.invoiceDueDate = invoice.invoiceDueDate;
+            invoiceToSave.totalBill = calculatedNetTotalBill; // Initial total bill without balanceBfwd or credits
+            invoiceToSave.amountPaidOnInvoice = 0; // New invoice, no payments yet from cash
+
+            let initialOutstandingAmount = calculatedNetTotalBill;
+
+            // If balanceBfwd is provided in the input Invoice, incorporate it.
+            if (invoice.balanceBfwd && Number(invoice.balanceBfwd.amount) > 0) {
+              invoiceToSave.balanceBfwd = invoice.balanceBfwd;
+              // Add balanceBfwd to the totalBill for this new invoice
+              invoiceToSave.totalBill += Number(invoice.balanceBfwd.amount);
+              initialOutstandingAmount += Number(invoice.balanceBfwd.amount);
+            }
+
+            // --- Apply existing student credits to a NEW invoice ---
+            const studentCredit = await this.getStudentCredit(
+              // Call via financeService
+              student.studentNumber,
+              transactionalEntityManager, // Pass the transactionalEntityManager
+            );
+
+            if (studentCredit && Number(studentCredit.amount) > 0) {
+              // Determine how much credit to apply
+              const amountToApplyFromCredit = Math.min(
+                initialOutstandingAmount, // Apply against the calculated total (including balanceBfwd)
+                Number(studentCredit.amount),
+              );
+
+              if (amountToApplyFromCredit > 0) {
+                // Deduct from student's credit balance
+                await this.deductStudentCredit(
+                  // Call via financeService
+                  student.studentNumber,
+                  amountToApplyFromCredit,
+                  transactionalEntityManager,
+                  `Applied to Invoice ${invoiceToSave.invoiceNumber}`,
+                );
+
+                // Update invoice's amountPaidOnInvoice (initial payment from credit)
+                invoiceToSave.amountPaidOnInvoice =
+                  Number(invoiceToSave.amountPaidOnInvoice) +
+                  amountToApplyFromCredit;
+              }
+            }
+
+            // Final balance calculation for new invoice
+            invoiceToSave.balance =
+              invoiceToSave.totalBill - invoiceToSave.amountPaidOnInvoice;
+
+            // Set exemption and initial status for new invoice
+            invoiceToSave.exemption = studentExemption || null;
+            invoiceToSave.status = this.getInvoiceStatus(invoiceToSave);
+          }
+
+          invoiceToSave.exemptedAmount =
+            this._calculateExemptionAmount(invoiceToSave);
+
+          // Use transactionalEntityManager for saving the invoice
+          const saved = await transactionalEntityManager.save(invoiceToSave);
+
+          // Only delete the balanceBfwd if it was actually applied to a NEW invoice
+          // And ensure this deletion is part of the same transaction
+          if (
+            !foundInvoice &&
+            invoice.balanceBfwd &&
+            Number(invoice.balanceBfwd.amount) > 0
+          ) {
+            await this.financeService.deleteBalance(
+              invoice.balanceBfwd,
+              transactionalEntityManager,
+            );
+          }
+
+          return saved;
+        } catch (error) {
+          // Log the actual error for better debugging
+          console.error('Error saving invoice:', error);
+          // Re-throw the error to ensure the transaction is rolled back
+          throw error;
         }
+      },
+    );
+  }
 
-        invoiceToSave.balance = invoice.totalBill - totalPaymentsOnInvoice;
+  // You will also need to update your FinanceService's deleteBalance method
+  // to accept an EntityManager if you're going to call it within a transaction.
+  // Example:
+  // async deleteBalance(balance: BalancesEntity, transactionalEntityManager: EntityManager): Promise<void> {
+  //   await transactionalEntityManager.delete(BalancesEntity, balance.id);
+  // }
 
-        // Now that invoiceToSave is initialized, you can set the exemption
-        invoiceToSave.exemption = studentExemption || null; // Set to null if no exemption
-        // invoiceToSave.exemptedAmount =
-        //   this._calculateExemptionAmount(invoiceToSave);
-
-        invoiceToSave.status = this.getInvoiceStatus(invoiceToSave);
-      } else {
-        invoiceToSave = new InvoiceEntity();
-        invoiceToSave.student = student;
-        invoiceToSave.enrol = invoice.enrol;
-        invoiceToSave.bills = invoice.bills;
-        invoiceToSave.invoiceNumber = invoice.invoiceNumber;
-        invoiceToSave.invoiceDate = invoice.invoiceDate;
-        invoiceToSave.invoiceDueDate = invoice.invoiceDueDate;
-        invoiceToSave.totalBill = calculatedNetTotalBill; // Store the net bill
-        invoiceToSave.amountPaidOnInvoice = 0; // New invoice, no payments yet
-
-        // Now that invoiceToSave is initialized, you can set the exemption
-        invoiceToSave.exemption = studentExemption || null; // Set to null if no exemption
-
-        // If balanceBfwd is provided in the input Invoice, incorporate it.
-        if (invoice.balanceBfwd && Number(invoice.balanceBfwd.amount) > 0) {
-          invoiceToSave.balanceBfwd = invoice.balanceBfwd;
-          invoiceToSave.balance =
-            calculatedNetTotalBill + Number(invoice.balanceBfwd.amount);
-          invoiceToSave.totalBill += Number(invoice.balanceBfwd.amount);
-        } else {
-          invoiceToSave.balance = calculatedNetTotalBill;
-        }
-        invoiceToSave.status = this.getInvoiceStatus(invoiceToSave);
-      }
-
-      invoiceToSave.exemptedAmount =
-        this._calculateExemptionAmount(invoiceToSave);
-
-      const saved = await this.invoiceRepository.save(invoiceToSave);
-
-      // Only delete the balanceBfwd if it was actually applied to a NEW invoice
-      if (
-        !foundInvoice &&
-        invoice.balanceBfwd &&
-        Number(invoice.balanceBfwd.amount) > 0
-      ) {
-        await this.financeService.deleteBalance(invoice.balanceBfwd);
-      }
-
-      return saved;
-    } catch (error) {
-      // Log the actual error for better debugging
-      console.error('Error saving invoice:', error);
-      throw new NotImplementedException(
-        'Could not save Invoice due to ',
-        error.message, // Pass the specific error message
-      );
-    }
+  async getStudentCredit(
+    studentNumber: string,
+    transactionalEntityManager: EntityManager, // To ensure it's part of the same transaction
+  ): Promise<StudentCreditEntity | null> {
+    return await transactionalEntityManager.findOne(StudentCreditEntity, {
+      where: { studentNumber },
+    });
   }
 
   async generateEmptyInvoice(
