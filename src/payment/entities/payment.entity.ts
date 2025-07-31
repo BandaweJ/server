@@ -41,7 +41,7 @@ export class ReceiptEntity {
   @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   paymentDate: Date;
 
-  @Column({ default: false })
+  @Column({ default: true })
   approved: boolean;
 
   @Column({ type: 'enum', enum: PaymentMethods })

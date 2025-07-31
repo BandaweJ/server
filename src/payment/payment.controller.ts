@@ -28,6 +28,14 @@ import { ReceiptEntity } from './entities/payment.entity';
 export class PaymentController {
   constructor(private paymentService: PaymentService) {}
 
+  @Patch('receipt/void/:receiptId')
+  voidReceipt(
+    @Param('receiptId', ParseIntPipe) receiptId: number,
+    @GetUser() profile: TeachersEntity,
+  ) {
+    return this.paymentService.voidReceipt(receiptId, profile.email);
+  }
+
   @Get('studentBalance/:studentNumber')
   getStudentBalance(@Param('studentNumber') studentNumber: string) {
     return this.paymentService.getStudentBalance(studentNumber);
