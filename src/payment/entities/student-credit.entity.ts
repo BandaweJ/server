@@ -8,9 +8,11 @@ import {
   OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  OneToMany, // ADD THIS IMPORT
 } from 'typeorm';
 import { StudentsEntity } from 'src/profiles/entities/students.entity';
 import { numberTransformer } from 'src/common/transformers/number.transformer'; // Assuming you have this
+import { CreditInvoiceAllocationEntity } from './credit-invoice-allocation.entity'; // ADD THIS IMPORT
 
 @Entity('student_credits')
 export class StudentCreditEntity {
@@ -42,4 +44,11 @@ export class StudentCreditEntity {
 
   @Column({ nullable: true })
   lastCreditSource: string; // E.g., 'Overpayment from Receipt RCPT-XYZ', 'Refund from Course Cancellation'
+
+  // NEW: One-to-many relationship with credit allocations
+  @OneToMany(
+    () => CreditInvoiceAllocationEntity, // ADD THIS LINE
+    (allocation) => allocation.studentCredit, // ADD THIS LINE
+  )
+  creditAllocations: CreditInvoiceAllocationEntity[]; // ADD THIS LINE
 }

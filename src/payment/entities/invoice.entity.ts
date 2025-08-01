@@ -17,6 +17,7 @@ import * as crypto from 'crypto';
 import { InvoiceStatus } from 'src/finance/models/invoice-status.enum';
 import { ReceiptInvoiceAllocationEntity } from './receipt-invoice-allocation.entity';
 import { ExemptionEntity } from 'src/exemptions/entities/exemptions.entity';
+import { CreditInvoiceAllocationEntity } from './credit-invoice-allocation.entity'; // ADD THIS IMPORT
 
 @Entity('invoice')
 export class InvoiceEntity {
@@ -80,12 +81,19 @@ export class InvoiceEntity {
   })
   bills: BillsEntity[];
 
-  // NEW: One-to-many relationship with the allocation entity
+  // Existing: One-to-many relationship with receipt allocations
   @OneToMany(
     () => ReceiptInvoiceAllocationEntity,
     (allocation) => allocation.invoice,
   )
   allocations: ReceiptInvoiceAllocationEntity[];
+
+  // NEW: One-to-many relationship with credit allocations
+  @OneToMany(
+    () => CreditInvoiceAllocationEntity, // ADD THIS LINE
+    (allocation) => allocation.invoice, // ADD THIS LINE
+  )
+  creditAllocations: CreditInvoiceAllocationEntity[]; // ADD THIS LINE
 
   // An invoice belongs to one exemption (the one applied to it)
   @ManyToOne(() => ExemptionEntity, (exemption) => exemption.invoices, {

@@ -566,37 +566,63 @@ export class EnrolmentService {
     toNum: number,
     toYear: number,
   ) {
-    let currentClassEnrolments = await this.getEnrolmentByClass(
-      fromName,
-      fromNum,
-      fromYear,
+    // Step 1: Get all students enrolled in the class we are migrating from.
+    const sourceClassEnrolments = await this.enrolmentRepository.find({
+      where: { name: fromName, num: fromNum, year: fromYear },
+      relations: ['student'], // Crucial: Fetch the student relationship
+    });
+
+    if (sourceClassEnrolments.length === 0) {
+      throw new Error(
+        'The class you chose appears to not have students enrolled in it',
+      );
+    }
+
+    // Step 2: Get all students currently enrolled in the destination class.
+    const destinationClassEnrolments = await this.enrolmentRepository.find({
+      where: { name: toName, num: toNum, year: toYear },
+      relations: ['student'], // Crucial: Fetch the student relationship
+    });
+
+    // Step 3: Create a Set for efficient lookup of student numbers in the destination class.
+    // Using a Set provides O(1) average time complexity for lookups.
+    const studentsInDestinationClass = new Set(
+      destinationClassEnrolments.map((enrol) => enrol.student.studentNumber),
     );
 
-    if (currentClassEnrolments.length) {
-      currentClassEnrolments = [...new Set(currentClassEnrolments)];
-      const newClassEnrolment: EnrolEntity[] = [];
-      console.log('Enrolments found: ', currentClassEnrolments.length);
+    // Step 4: Filter the source class enrolments to find students who are NOT
+    // already in the destination class.
+    const studentsToMigrate = sourceClassEnrolments.filter(
+      (enrol) => !studentsInDestinationClass.has(enrol.student.studentNumber),
+    );
 
-      currentClassEnrolments.map((enrol) => {
-        const newEnrol = new EnrolEntity();
+    if (studentsToMigrate.length === 0) {
+      // Optional: Return a different message if all students are already enrolled.
+      return {
+        result: false,
+        message:
+          'All students from the source class are already enrolled in the destination class.',
+      };
+    }
 
-        newEnrol.name = toName;
-        newEnrol.num = toNum;
-        newEnrol.year = toYear;
-        newEnrol.student = enrol.student;
+    // Step 5: Map the filtered list of students to new enrolment entities for the destination class.
+    const newClassEnrolment: EnrolEntity[] = studentsToMigrate.map((enrol) => {
+      const newEnrol = new EnrolEntity();
+      newEnrol.name = toName;
+      newEnrol.num = toNum;
+      newEnrol.year = toYear;
+      newEnrol.student = enrol.student;
+      return newEnrol;
+    });
 
-        newClassEnrolment.push(newEnrol);
-      });
+    // Step 6: Save the new enrolments to the database.
+    await this.enrolmentRepository.save(newClassEnrolment);
 
-      await this.enrolmentRepository.save([...newClassEnrolment]);
-      return { result: true };
-
-      await this.enrolmentRepository.save([...currentClassEnrolments]);
-      return { result: true };
-    } else
-      throw new NotImplementedException(
-        'The class you chose appear to not have students enrolled in it',
-      );
+    return {
+      result: true,
+      migratedCount: newClassEnrolment.length,
+      message: `${newClassEnrolment.length} students have been successfully migrated.`,
+    };
   }
 
   async editTerm(term: CreateTermDto) {
