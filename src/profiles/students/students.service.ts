@@ -6,7 +6,7 @@ import {
   NotImplementedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Like, Repository } from 'typeorm';
 import { CreateStudentDto } from '../dtos/createStudents.dto';
 import { StudentsEntity } from '../entities/students.entity';
 import { UpdateStudentDto } from '../dtos/updateStudent.dto';
@@ -171,41 +171,76 @@ export class StudentsService {
      * C is the check digit
      */
 
-    const last: StudentsEntity[] = await this.studentsRepository.find({
-      order: { studentNumber: 'DESC' },
-      take: 1,
-    });
-
-    const L = 'S';
-
+    const schoolPrefix = 'S';
     const today = new Date();
     const YY = today.getFullYear().toString().substring(2);
-    const MM =
-      (today.getMonth() + 1).toString().length === 1
-        ? '0' + (today.getMonth() + 1).toString()
-        : (today.getMonth() + 1).toString();
-    //console.log(last);
-    if (last.length) {
-      let NNN: string | number = +last[0].studentNumber.substring(5) + 1;
+    // Use padStart for safe two-digit month formatting
+    const MM = (today.getMonth() + 1).toString().padStart(2, '0');
 
-      NNN =
-        NNN.toString().length === 1
-          ? '00' + NNN
-          : NNN.toString().length === 2
-          ? '0' + NNN
-          : NNN;
+    // Step 1: Use a more efficient query to find the max student number for the current month.
+    const searchPrefix = schoolPrefix + YY + MM;
+    const lastStudent = await this.studentsRepository.findOne({
+      where: {
+        studentNumber: Like(`${searchPrefix}%`),
+      },
+      order: { studentNumber: 'DESC' },
+    });
 
-      return L + YY + MM + NNN;
+    let sequentialNumber: number;
+
+    if (lastStudent) {
+      // Step 2: Extract and safely increment the sequential number.
+      // Use slice to get the last 3 digits, convert to a number, and increment.
+      const lastNNN = parseInt(lastStudent.studentNumber.slice(-4, -1), 10);
+      sequentialNumber = lastNNN + 1;
+    } else {
+      // Step 3: Start with 0 if no students exist for the current month.
+      sequentialNumber = 0;
     }
 
-    return L + YY + MM + '000';
+    // Step 4: Pad the sequential number with leading zeros to 3 digits.
+    const NNN = sequentialNumber.toString().padStart(3, '0');
+
+    // Step 5: Assemble the student number parts.
+    const rawStudentNumber = schoolPrefix + YY + MM + NNN;
+
+    // Step 6: Calculate and append the check digit.
+    const checkDigit = this.calculateCheckDigit(rawStudentNumber);
+
+    return rawStudentNumber + checkDigit;
   }
 
-  private calculateCheckDigit(studentNumber: string): number {
-    const YY = +studentNumber.substring(1, 3);
-    const NNN = +studentNumber.substring(5);
+  /**
+   * Calculates a check digit using the Luhn algorithm (Mod 10).
+   * This is a more robust method for detecting single-digit errors and transpositions.
+   * @param rawStudentNumber The student number without the check digit.
+   * @returns The calculated check digit (a single number).
+   */
+  private calculateCheckDigit(rawStudentNumber: string): number {
+    let sum = 0;
+    let isSecondDigit = false;
 
-    return YY + NNN;
+    // Iterate through the digits of the raw student number from right to left
+    for (let i = rawStudentNumber.length - 1; i >= 0; i--) {
+      let digit = parseInt(rawStudentNumber.charAt(i), 10);
+
+      if (isSecondDigit) {
+        digit *= 2;
+        // If the doubled value is greater than 9, sum its digits
+        if (digit > 9) {
+          digit -= 9;
+        }
+      }
+
+      sum += digit;
+      // Toggle the flag for the next digit
+      isSecondDigit = !isSecondDigit;
+    }
+
+    // The check digit is the number needed to make the sum a multiple of 10
+    const checkDigit = (10 - (sum % 10)) % 10;
+
+    return checkDigit;
   }
 
   async findNewComerStudentsQueryBuilder(): Promise<StudentsEntity[]> {
