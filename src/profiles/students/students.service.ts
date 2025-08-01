@@ -212,33 +212,33 @@ export class StudentsService {
 
   /**
    * Calculates a check digit using the Luhn algorithm (Mod 10).
-   * This is a more robust method for detecting single-digit errors and transpositions.
-   * @param rawStudentNumber The student number without the check digit.
+   * @param rawStudentNumber The student number without the check digit, including the letter prefix.
    * @returns The calculated check digit (a single number).
    */
   private calculateCheckDigit(rawStudentNumber: string): number {
     let sum = 0;
     let isSecondDigit = false;
 
-    // Iterate through the digits of the raw student number from right to left
-    for (let i = rawStudentNumber.length - 1; i >= 0; i--) {
-      let digit = parseInt(rawStudentNumber.charAt(i), 10);
+    // --- CORRECTION: Only use the numeric part of the student number for the calculation ---
+    const numericPart = rawStudentNumber.substring(1);
+
+    // Iterate through the digits of the numeric part from right to left
+    for (let i = numericPart.length - 1; i >= 0; i--) {
+      let digit = parseInt(numericPart.charAt(i), 10);
 
       if (isSecondDigit) {
         digit *= 2;
-        // If the doubled value is greater than 9, sum its digits
         if (digit > 9) {
           digit -= 9;
         }
       }
 
       sum += digit;
-      // Toggle the flag for the next digit
       isSecondDigit = !isSecondDigit;
     }
 
-    // The check digit is the number needed to make the sum a multiple of 10
     const checkDigit = (10 - (sum % 10)) % 10;
+    // console.log('check digit: ', checkDigit);
 
     return checkDigit;
   }
