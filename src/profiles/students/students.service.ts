@@ -84,16 +84,26 @@ export class StudentsService {
     createStudentDto: CreateStudentDto,
     profile: TeachersEntity | ParentsEntity | StudentsEntity,
   ): Promise<StudentsEntity> {
-    switch (profile.role) {
-      case ROLES.hod:
-      case ROLES.teacher:
-      case ROLES.reception:
-      case ROLES.student:
-      case ROLES.parent: {
-        throw new UnauthorizedException('Only admins can add new students');
-        break;
-      }
+    // A more explicit way to handle roles
+    if (profile.role !== ROLES.admin) {
+      throw new UnauthorizedException('Only admins can add new students');
     }
+
+    // Step 1: Check for an existing student with the same name and surname
+    const existingStudent = await this.studentsRepository.findOne({
+      where: {
+        name: createStudentDto.name,
+        surname: createStudentDto.surname,
+      },
+    });
+
+    if (existingStudent) {
+      throw new BadRequestException(
+        `A student with the name '${createStudentDto.name}' and surname '${createStudentDto.surname}' already exists.`,
+      );
+    }
+
+    // Step 2: Proceed with the original logic if no duplicate is found
     const newStudentNumber = await this.nextStudentNumber();
 
     try {
@@ -102,6 +112,7 @@ export class StudentsService {
         studentNumber: newStudentNumber,
       });
     } catch (err) {
+      // Keep the original check for the unique idnumber database error
       if (err.code === 'ER_DUP_ENTRY') {
         throw new BadRequestException(
           `Student with same ID Number already exists`,
