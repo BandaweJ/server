@@ -5,6 +5,11 @@ export interface StudentDashboardSummary {
     totalBilled: number;
     totalPaid: number;
     amountOwed: number;
+    outstandingBalances: {
+      term: string;
+      year: number;
+      amount: number;
+    }[];
   };
   academicSummary: {
     numberOfReportCards: number;

@@ -1,10 +1,12 @@
+// src/dashboard/dashboard.service.ts
+
 /* eslint-disable prettier/prettier */
 import { Injectable } from '@nestjs/common';
 import { StudentDashboardSummary } from './models/student-dashboard-summary.model';
 import { PaymentService } from 'src/payment/payment.service';
 import { ReportsService } from 'src/reports/reports.service';
+import { EnrolEntity } from 'src/enrolment/entities/enrol.entity';
 
-/* eslint-disable prettier/prettier */
 @Injectable()
 export class DashboardService {
   constructor(
@@ -16,12 +18,14 @@ export class DashboardService {
     studentNumber: string,
   ): Promise<StudentDashboardSummary> {
     // Fetch all necessary data concurrently using Promise.all
+    // NOTE: The getStudentInvoices method MUST fetch the 'enrol' relation for this to work.
+    // e.g., this.invoiceRepository.find({ where: { ... }, relations: ['enrol'] });
     const [studentInvoices, studentReceipts, studentReports, amountOwedResult] =
       await Promise.all([
         this.paymentService.getStudentInvoices(studentNumber),
         this.paymentService.getPaymentsByStudent(studentNumber),
         this.reportsService.getStudentReports(studentNumber),
-        this.paymentService.getStudentBalance(studentNumber), // Assuming this returns { amountDue: number }
+        this.paymentService.getStudentBalance(studentNumber),
       ]);
 
     // --- Financial Summary ---
@@ -33,22 +37,36 @@ export class DashboardService {
       (sum, receipt) => sum + Number(receipt.amountPaid),
       0,
     );
-    // Use the amountDue from the getStudentBalance call
     const amountOwed = amountOwedResult.amountDue;
+
+    // ADDED: Create an array of outstanding balances
+    const outstandingBalances = studentInvoices
+      .filter((invoice) => invoice.balance > 0)
+      .map((invoice) => {
+        // Ensure enrol data is available
+        const enrol: EnrolEntity = invoice.enrol;
+        // Construct the label from the enrolment data
+        const termLabel = enrol ? `Term ${enrol.num}` : 'N/A';
+        const year = enrol ? enrol.year : null;
+
+        return {
+          term: termLabel,
+          year: year,
+          amount: invoice.balance,
+        };
+      });
 
     // --- Academic Summary ---
     const numberOfReportCards = studentReports.length;
+    // ... (rest of academic summary logic remains the same)
     let bestPosition = null;
     let worstPosition = null;
 
     if (numberOfReportCards > 0) {
-      // Sort reports based on classPosition (ascending)
-      // Make a copy of the array before sorting to avoid modifying the original if it's used elsewhere
       const sortedReports = [...studentReports].sort(
         (a, b) => a.report.classPosition - b.report.classPosition,
       );
 
-      // Best position is the first element after sorting ascending
       const firstReport = sortedReports[0].report;
       bestPosition = {
         position: firstReport.classPosition + ' / ' + firstReport.classSize,
@@ -57,7 +75,6 @@ export class DashboardService {
         class: firstReport.className,
       };
 
-      // Worst position is the last element after sorting ascending
       const lastReport = sortedReports[sortedReports.length - 1].report;
       worstPosition = {
         position: lastReport.classPosition + ' / ' + lastReport.classSize,
@@ -74,11 +91,12 @@ export class DashboardService {
         totalBilled,
         totalPaid,
         amountOwed,
+        outstandingBalances, // ADDED: Include the new array
       },
       academicSummary: {
         numberOfReportCards,
-        bestPosition, // Will be null if no reports
-        worstPosition, // Will be null if no reports
+        bestPosition,
+        worstPosition,
       },
     };
 
