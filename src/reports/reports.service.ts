@@ -3,7 +3,6 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { EnrolmentService } from '../enrolment/enrolment.service';
 import { MarksService } from '../marks/marks.service';
@@ -13,7 +12,6 @@ import { StudentsEntity } from '../profiles/entities/students.entity';
 import { ParentsEntity } from '../profiles/entities/parents.entity';
 import { SubjectInfoModel } from './models/subject-info.model';
 import { SubjectSetItem } from './models/subject-set-item';
-import { ROLES } from 'src/auth/models/roles.enum';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ReportsEntity } from './entities/report.entity';
 import { In, Repository } from 'typeorm';
@@ -78,21 +76,34 @@ export class ReportsService {
         //get marks for a particular subject onle
         (mark) => mark.subject.code === subject.code,
       );
+
       //clculate the average mark for the subject
       const subjectAverage =
         subjectmarks.reduce((sum, current) => sum + current.mark, 0) /
         subjectmarks.length;
 
-      //calculate mark position
+      // --- START OF CORRECTED RANKING LOGIC ---
+      // 1. Sort marks in descending order
       subjectmarks.sort((a, b) => b.mark - a.mark);
-      subjectmarks.forEach(
-        (mark) =>
-          //a mark of 100 is always at position 1
-          (mark.position =
-            mark.mark === 100
-              ? '1' + '/' + subjectmarks.length
-              : subjectmarks.indexOf(mark) + 1 + '/' + subjectmarks.length),
-      );
+
+      // 2. Implement manual ranking to handle ties correctly
+      let currentRank = 1;
+      let lastMark = -1;
+
+      subjectmarks.forEach((mark, index) => {
+        // If the current mark is less than the previous mark,
+        // it's a new rank. Otherwise, it's a tie.
+        if (mark.mark < lastMark) {
+          currentRank = index + 1;
+        }
+
+        // Assign the calculated position string
+        mark.position = currentRank + '/' + subjectmarks.length;
+
+        // Update lastMark for the next iteration
+        lastMark = mark.mark;
+      });
+      // --- END OF CORRECTED RANKING LOGIC ---
 
       subject.average = subjectAverage;
     });
@@ -298,15 +309,272 @@ export class ReportsService {
       });
     });
 
-    // if (profile.role === ROLES.student && profile instanceof StudentsEntity) {
-    //   const repo = reps.filter(
-    //     (r) => r.studentNumber === profile.studentNumber,
-    //   );
-    //   return repo;
-    // }
-
     return reps;
   }
+
+  // async generateReports(
+  //   name: string,
+  //   num: number,
+  //   year: number,
+  //   examType: string,
+  //   profile: TeachersEntity | StudentsEntity | ParentsEntity,
+  // ): Promise<ReportsModel[]> {
+  //   const reports: ReportModel[] = [];
+
+  //   // get class list
+  //   const classList = await this.enrolmentService.getEnrolmentByClass(
+  //     name,
+  //     num,
+  //     year,
+  //   );
+
+  //   //get all marks for the class for all subjects and current examtype
+  //   const marks = await this.marksService.getMarksbyClass(
+  //     num,
+  //     year,
+  //     name,
+  //     examType,
+  //     profile,
+  //   );
+
+  //   //create a set of subjects to avoid duplicates
+  //   const subjectsSet = new Set<SubjectSetItem>();
+
+  //   //populate subjectset with subjects done in class
+  //   //used set so no duplicates
+  //   marks.forEach((mark) => {
+  //     //loop through all marks and add each subject to set
+  //     subjectsSet.add(new SubjectSetItem(mark.subject.code));
+  //   });
+
+  //   // calculate subject average and assign to each subject
+  //   subjectsSet.forEach((subject) => {
+  //     const subjectmarks = marks.filter(
+  //       //get marks for a particular subject onle
+  //       (mark) => mark.subject.code === subject.code,
+  //     );
+  //     //clculate the average mark for the subject
+  //     const subjectAverage =
+  //       subjectmarks.reduce((sum, current) => sum + current.mark, 0) /
+  //       subjectmarks.length;
+
+  //     //calculate mark position
+  //     subjectmarks.sort((a, b) => b.mark - a.mark);
+  //     subjectmarks.forEach(
+  //       (mark) =>
+  //         //a mark of 100 is always at position 1
+  //         (mark.position =
+  //           mark.mark === 100
+  //             ? '1' + '/' + subjectmarks.length
+  //             : subjectmarks.indexOf(mark) + 1 + '/' + subjectmarks.length),
+  //     );
+
+  //     subject.average = subjectAverage;
+  //   });
+
+  //   // create empty report for each student in class
+  //   // fill in details like : studentNumber, name, surname, className, termNumber, termYear, examType
+  //   classList.map((enrol) => {
+  //     const report = new ReportModel();
+  //     report.subjectsTable = [];
+  //     report.studentNumber = enrol.student.studentNumber;
+  //     report.surname = enrol.student.surname;
+  //     report.name = enrol.student.name;
+  //     report.className = enrol.name;
+  //     report.termNumber = enrol.num;
+  //     report.termYear = enrol.year;
+  //     report.examType = examType;
+
+  //     //get student's marks
+  //     const studentMarks = marks.filter(
+  //       (mark) => mark.student.studentNumber === enrol.student.studentNumber,
+  //     );
+
+  //     // create a row for the Reports Table and push it to the report table
+  //     //report table is a table if subjects and marks and comments in each report
+  //     studentMarks.forEach((subjectMark) => {
+  //       const subjectInfo = new SubjectInfoModel();
+
+  //       subjectInfo.comment = subjectMark.comment;
+  //       subjectInfo.mark = subjectMark.mark;
+  //       subjectInfo.position = subjectMark.position;
+  //       subjectInfo.subjectCode = subjectMark.subject.code;
+  //       subjectInfo.subjectName = subjectMark.subject.name;
+  //       subjectInfo.grade = this.computeGrade(
+  //         subjectMark.mark,
+  //         report.className,
+  //       );
+  //       subjectInfo.averageMark = Array.from(subjectsSet).find(
+  //         (subject) => subject.code === subjectInfo.subjectCode,
+  //       ).average;
+
+  //       report.subjectsTable.push(subjectInfo);
+  //     });
+
+  //     reports.push(report);
+  //   });
+
+  //   //assign the classSize which equals reports.length and calculate avarage mark for each report/student
+  //   reports.map((report) => {
+  //     report.classSize = reports.length;
+  //     report.percentageAverge =
+  //       report.subjectsTable.reduce((sum, current) => sum + current.mark, 0) /
+  //       report.subjectsTable.length;
+  //   });
+
+  //   //sort reports based on avarage mark to assign positions
+  //   reports.sort((a, b) => b.percentageAverge - a.percentageAverge);
+
+  //   //add 1 to each report position to offset array start position
+  //   reports.forEach(
+  //     (report) => (report.classPosition = reports.indexOf(report) + 1),
+  //   );
+
+  //   //get Teachers' comments for the class, term and examType
+  //   const comments = await this.teacherCommentRepository.find({
+  //     where: {
+  //       name,
+  //       num,
+  //       year,
+  //       examType,
+  //     },
+  //     relations: ['student', 'teacher'],
+  //   });
+
+  //   //assign class Teacher's comments to each report
+  //   reports.map((report) => {
+  //     comments.map((comment) => {
+  //       if (comment.student.studentNumber === report.studentNumber) {
+  //         report.classTrComment = comment.comment;
+  //       }
+  //     });
+  //   });
+
+  //   //calculate subjects passed
+  //   reports.map((report) => {
+  //     report.subjectsPassed = 0;
+  //     report.subjectsTable.map((subj) => {
+  //       if (subj.mark >= 50) {
+  //         report.subjectsPassed += 1;
+  //       }
+  //     });
+  //   });
+
+  //   //create an array of reportsModel objects to encapsulate each report with much accessed data
+  //   //so that it becomes easy to access that data without accessing the actual report
+  //   // const reps: ReportsModel[] = [];
+
+  //   // reports.map((report) => {
+  //   //   const rep: ReportsModel = new ReportsModel();
+
+  //   //   rep.name = name;
+  //   //   rep.num = num;
+  //   //   rep.report = report;
+  //   //   rep.studentNumber = report.studentNumber;
+  //   //   rep.year = year;
+  //   //   rep.examType = examType;
+
+  //   //   reps.push(rep);
+  //   // });
+
+  //   // // check if reports already saved and assign id and head's comment
+  //   // const savedReports = await this.viewReports(
+  //   //   name,
+  //   //   num,
+  //   //   year,
+  //   //   examType,
+  //   //   profile,
+  //   // );
+
+  //   // // return savedReports;
+  //   // savedReports.map((rep) => {
+  //   //   reps.map((rp) => {
+  //   //     if (rep.studentNumber === rp.studentNumber) {
+  //   //       if (rep.report.headComment) {
+  //   //         rp.report.headComment = rep.report.headComment;
+  //   //         rp.id = rep.id;
+  //   //       }
+  //   //     }
+  //   //   });
+  //   // });
+
+  //   const reps: ReportsModel[] = [];
+
+  //   reports.map((report) => {
+  //     const rep: ReportsModel = new ReportsModel();
+
+  //     rep.name = name;
+  //     rep.num = num;
+  //     rep.report = report;
+  //     rep.studentNumber = report.studentNumber;
+  //     rep.year = year;
+  //     rep.examType = examType;
+
+  //     reps.push(rep);
+  //   });
+
+  //   // check if reports already saved and assign id and head's comment
+  //   const savedReports = await this.viewReports(
+  //     name,
+  //     num,
+  //     year,
+  //     examType,
+  //     profile,
+  //   );
+
+  //   savedReports.forEach((savedRepEntity) => {
+  //     reps.forEach((generatedRep) => {
+  //       if (savedRepEntity.studentNumber === generatedRep.studentNumber) {
+  //         // Access the headComment from the inner 'report' property
+  //         if (savedRepEntity.report?.headComment) {
+  //           generatedRep.report.headComment = savedRepEntity.report.headComment;
+  //           generatedRep.id = savedRepEntity.id;
+  //         }
+  //         // else if (savedRepEntity?.report?.report.headComment) {
+  //         //   generatedRep.report.headComment =
+  //         //     savedRepEntity.report.report.headComment;
+  //         //   generatedRep.id = savedRepEntity.id;
+  //         // }
+  //       }
+  //     });
+  //   });
+
+  //   //assign point for A level students
+  //   reps.map((rep) => {
+  //     if (rep.name.charAt(0) === '5' || rep.name.charAt(0) === '6') {
+  //       let pnts = 0;
+  //       rep.report.subjectsTable.forEach((subj) => {
+  //         pnts += this.computePoints(subj.mark);
+  //       });
+  //       rep.report.points = pnts;
+  //     }
+  //   });
+
+  //   //sort the reports table so that the list of subjects on the report is the same for the fronent
+  //   reps.map((rep) => {
+  //     rep.report.subjectsTable.sort((a, b) => +b.subjectCode - +a.subjectCode);
+  //   });
+
+  //   //calculate the number of A*,A,B,C,D s for the MarksSheet
+  //   reps.map((rep) => {
+  //     rep.report.symbols = Array(5).fill(0);
+  //     rep.report.subjectsTable.forEach((subj) => {
+  //       if (subj.grade === 'A*') {
+  //         rep.report.symbols[0]++;
+  //       } else if (subj.grade === 'A') {
+  //         rep.report.symbols[1]++;
+  //       } else if (subj.grade === 'B') {
+  //         rep.report.symbols[2]++;
+  //       } else if (subj.grade === 'C') {
+  //         rep.report.symbols[3]++;
+  //       } else if (subj.grade === 'D') {
+  //         rep.report.symbols[4]++;
+  //       }
+  //     });
+  //   });
+
+  //   return reps;
+  // }
 
   private computeGrade(mark: number, clas: string): string {
     const form = clas.charAt(0);
@@ -345,110 +613,6 @@ export class ReportsService {
     else if (mark >= 35) return 1;
     else if (mark < 34) return 0;
   }
-
-  // async saveReports(
-  //   num: number,
-  //   year: number,
-  //   name: string,
-  //   reports: ReportModel[],
-  //   examType: ExamType,
-  //   profile: TeachersEntity | StudentsEntity | ParentsEntity,
-  // ) {
-  //   switch (profile.role) {
-  //     case ROLES.hod:
-  //     case ROLES.parent:
-  //     case ROLES.reception:
-  //     case ROLES.student:
-  //       // case ROLES.teacher:
-  //       throw new UnauthorizedException(
-  //         'Only Admins are allowed to save reports',
-  //       );
-  //   }
-
-  //   const reportsArray: ReportsEntity[] = [];
-  //   reports.map(async (report) => {
-  //     const studentNumber = report.studentNumber;
-  //     const found = await this.reportsRepository.findOne({
-  //       where: {
-  //         name,
-  //         num,
-  //         year,
-  //         examType,
-  //         studentNumber,
-  //       },
-  //     });
-
-  //     if (found) {
-  //       found.report = report;
-
-  //       reportsArray.push({
-  //         ...found,
-  //       });
-  //     } else {
-  //       const newReport = await this.reportsRepository.create();
-  //       newReport.examType = examType;
-  //       newReport.name = name;
-  //       newReport.num = num;
-  //       newReport.studentNumber = report.studentNumber;
-  //       newReport.year = year;
-  //       newReport.report = report;
-
-  //       reportsArray.push(newReport);
-  //     }
-  //   });
-
-  //   return await this.reportsRepository.save(reportsArray);
-  // }
-
-  // async saveReports(
-  //   num: number,
-  //   year: number,
-  //   name: string,
-  //   reports: ReportsModel[],
-  //   examType: ExamType,
-  //   profile: TeachersEntity | StudentsEntity | ParentsEntity,
-  // ): Promise<ReportsModel[]> {
-  //   switch (profile.role) {
-  //     case ROLES.hod:
-  //     case ROLES.parent:
-  //     case ROLES.reception:
-  //     case ROLES.student:
-  //       throw new UnauthorizedException(
-  //         'Only Admins are allowed to save reports',
-  //       );
-  //   }
-
-  //   const promises = reports.map(async (report) => {
-  //     const studentNumber = report.studentNumber;
-  //     const found = await this.reportsRepository.findOne({
-  //       where: {
-  //         name,
-  //         num,
-  //         year,
-  //         examType,
-  //         studentNumber,
-  //       },
-  //     });
-
-  //     if (found) {
-  //       found.report = report;
-  //       return { ...found };
-  //     } else {
-  //       const newReport = this.reportsRepository.create({
-  //         examType,
-  //         name,
-  //         num,
-  //         studentNumber: report.studentNumber,
-  //         year,
-  //         report,
-  //       });
-  //       return newReport;
-  //     }
-  //   });
-
-  //   const reportsArray = await Promise.all(promises);
-  //   return await this.reportsRepository.save(reportsArray);
-  // }
 
   async saveReports(
     num: number,
