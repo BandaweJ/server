@@ -1,7 +1,6 @@
 /* eslint-disable prettier/prettier */
 import {
   BadRequestException,
-  ConflictException,
   Injectable,
   NotImplementedException,
   UnauthorizedException,
@@ -34,8 +33,6 @@ import { AttendanceEntity } from './entities/attendance.entity';
 import { StudentsSummary } from './models/students-summary.model';
 import { StudentsService } from 'src/profiles/students/students.service';
 import { UpdateEnrolDto } from './dtos/update-enrol.dto';
-import { FinanceService } from 'src/finance/finance.service';
-import { BillsEntity } from 'src/finance/entities/bills.entity';
 // import { FinanceService } from 'src/finance/finance.service';
 
 @Injectable()
@@ -558,6 +555,8 @@ export class EnrolmentService {
     });
   }
 
+  // src/enrolment/enrolment.service.ts
+
   async migrateClass(
     fromName: string,
     fromNum: number,
@@ -569,7 +568,7 @@ export class EnrolmentService {
     // Step 1: Get all students enrolled in the class we are migrating from.
     const sourceClassEnrolments = await this.enrolmentRepository.find({
       where: { name: fromName, num: fromNum, year: fromYear },
-      relations: ['student'], // Crucial: Fetch the student relationship
+      relations: ['student'],
     });
 
     if (sourceClassEnrolments.length === 0) {
@@ -578,35 +577,37 @@ export class EnrolmentService {
       );
     }
 
-    // Step 2: Get all students currently enrolled in the destination class.
-    const destinationClassEnrolments = await this.enrolmentRepository.find({
-      where: { name: toName, num: toNum, year: toYear },
-      relations: ['student'], // Crucial: Fetch the student relationship
+    // Step 2: Get all students currently enrolled in ANY class for the destination term and year.
+    const allEnrolmentsInDestinationTerm = await this.enrolmentRepository.find({
+      where: { num: toNum, year: toYear },
+      relations: ['student'],
     });
 
-    // Step 3: Create a Set for efficient lookup of student numbers in the destination class.
-    // Using a Set provides O(1) average time complexity for lookups.
-    const studentsInDestinationClass = new Set(
-      destinationClassEnrolments.map((enrol) => enrol.student.studentNumber),
+    // Step 3: Create a Set for efficient lookup of all student numbers already enrolled in the destination term.
+    const studentsAlreadyEnrolledInTerm = new Set(
+      allEnrolmentsInDestinationTerm.map(
+        (enrol) => enrol.student.studentNumber,
+      ),
     );
 
     // Step 4: Filter the source class enrolments to find students who are NOT
-    // already in the destination class.
+    // already in ANY class for the destination term.
     const studentsToMigrate = sourceClassEnrolments.filter(
-      (enrol) => !studentsInDestinationClass.has(enrol.student.studentNumber),
+      (enrol) =>
+        !studentsAlreadyEnrolledInTerm.has(enrol.student.studentNumber),
     );
 
-    if (studentsToMigrate.length === 0) {
-      // Optional: Return a different message if all students are already enrolled.
-      return {
-        result: false,
-        message:
-          'All students from the source class are already enrolled in the destination class.',
-      };
-    }
+    // --- ADDED: Step 5: Deduplicate the list of students to migrate ---
+    // Use a Map to ensure each student number appears only once.
+    const uniqueStudentsToMigrate = new Map<string, EnrolEntity>();
+    studentsToMigrate.forEach((enrol) => {
+      uniqueStudentsToMigrate.set(enrol.student.studentNumber, enrol);
+    });
 
-    // Step 5: Map the filtered list of students to new enrolment entities for the destination class.
-    const newClassEnrolment: EnrolEntity[] = studentsToMigrate.map((enrol) => {
+    // Step 6: Map the filtered, unique list of students to new enrolment entities.
+    const newClassEnrolment: EnrolEntity[] = Array.from(
+      uniqueStudentsToMigrate.values(),
+    ).map((enrol) => {
       const newEnrol = new EnrolEntity();
       newEnrol.name = toName;
       newEnrol.num = toNum;
@@ -615,7 +616,15 @@ export class EnrolmentService {
       return newEnrol;
     });
 
-    // Step 6: Save the new enrolments to the database.
+    if (newClassEnrolment.length === 0) {
+      return {
+        result: false,
+        message:
+          'All students from the source class are already enrolled in a class for the destination term.',
+      };
+    }
+
+    // Step 7: Save the new enrolments to the database.
     await this.enrolmentRepository.save(newClassEnrolment);
 
     return {
