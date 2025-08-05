@@ -1,6 +1,5 @@
 /* eslint-disable prettier/prettier */
 import {
-  BadRequestException,
   Injectable,
   NotFoundException,
   NotImplementedException,
@@ -21,7 +20,6 @@ import { EnrolmentService } from 'src/enrolment/enrolment.service';
 import { CommentDto } from './dtos/comment.dto';
 import { TeacherCommentEntity } from './entities/teacher-comments.entity';
 import { MarksProgressModel } from './models/marks-progress.model';
-import { profile } from 'console';
 
 @Injectable()
 export class MarksService {

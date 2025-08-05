@@ -190,9 +190,23 @@ export class AuthService {
     }
   }
 
-  async fetchUserDetails(id: string) {
-    const user = await this.resourceById.getTeacherById(id);
+  async fetchUserDetails(id: string, role: string) {
+    if (role === ROLES.student) {
+      const user = await this.resourceById.getStudentByStudentNumber(id);
 
-    return user;
+      return user;
+    } else if (
+      role === ROLES.teacher ||
+      role === ROLES.hod ||
+      role === ROLES.reception ||
+      role === ROLES.admin
+    ) {
+      const user = await this.resourceById.getTeacherById(id);
+
+      return user;
+    } else {
+      const user = await this.resourceById.getParentByEmail(id);
+      return user;
+    }
   }
 }
