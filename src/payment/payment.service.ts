@@ -41,7 +41,6 @@ import { BalancesEntity } from 'src/finance/entities/balances.entity';
 import { InvoiceStatus } from 'src/finance/models/invoice-status.enum';
 
 import { ReceiptInvoiceAllocationEntity } from './entities/receipt-invoice-allocation.entity';
-import { CreateExemptionDto } from '../exemptions/dtos/createExemption.dto';
 import { ExemptionEntity } from 'src/exemptions/entities/exemptions.entity';
 import { ExemptionType } from 'src/exemptions/enums/exemptions-type.enum';
 import { FeesEntity } from 'src/finance/entities/fees.entity';
@@ -221,7 +220,7 @@ export class PaymentService {
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ): Promise<ReceiptEntity> {
     // 1. Authorization Check (already provided)
-    const allowedRoles = [ROLES.reception];
+    const allowedRoles = [ROLES.reception, ROLES.auditor];
     if (!allowedRoles.includes(profile.role as ROLES)) {
       throw new UnauthorizedException(
         'You are not allowed to generate receipts',
