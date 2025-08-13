@@ -287,9 +287,9 @@ export class ReportsService {
     });
 
     //sort the reports table so that the list of subjects on the report is the same for the fronent
-    // reps.map((rep) => {
-    //   rep.report.subjectsTable.sort((a, b) => +b.subjectCode - +a.subjectCode);
-    // });
+    reps.map((rep) => {
+      rep.report.subjectsTable.sort((a, b) => +b.subjectCode - +a.subjectCode);
+    });
 
     //calculate the number of A*,A,B,C,D s for the MarksSheet
     reps.map((rep) => {

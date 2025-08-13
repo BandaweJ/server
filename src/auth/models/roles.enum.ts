@@ -6,4 +6,6 @@ export enum ROLES {
   admin = 'admin',
   reception = 'reception',
   hod = 'hod',
+  auditor = 'auditor',
+  director = 'director',
 }

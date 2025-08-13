@@ -119,7 +119,12 @@ export class AuthService {
         break;
       }
 
-      case ROLES.teacher: {
+      case ROLES.teacher:
+      case ROLES.reception:
+      case ROLES.hod:
+      case ROLES.admin:
+      case ROLES.auditor:
+      case ROLES.director: {
         const tr = await this.resourceById.getTeacherById(id);
 
         try {
