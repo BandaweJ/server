@@ -175,6 +175,8 @@ export class AuthService {
 
       switch (rol) {
         case ROLES.admin:
+        case ROLES.director:
+        case ROLES.auditor:
         case ROLES.hod:
         case ROLES.reception:
         case ROLES.teacher: {
