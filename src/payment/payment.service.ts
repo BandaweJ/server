@@ -799,10 +799,11 @@ export class PaymentService {
 
     const newInv = this.invoiceRepository.create();
     newInv.student = student;
-    if (+balanceBfwd.amount > 0) {
-      newInv.balanceBfwd = balanceBfwd;
-      newInv.totalBill = +newInv.totalBill + +balanceBfwd.amount;
-    }
+    //no longer nedded since the balance bfwd was a legacy feature to cater for balances at the adoption of the system
+    // if (+balanceBfwd.amount > 0) {
+    //   newInv.balanceBfwd = balanceBfwd;
+    //   newInv.totalBill = +newInv.totalBill + +balanceBfwd.amount;
+    // }
     newInv.enrol = enrol;
     newInv.bills = [];
 
