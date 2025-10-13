@@ -29,7 +29,7 @@ import { EnrolEntity } from './entities/enrol.entity';
 import { ResourceByIdService } from '../resource-by-id/resource-by-id.service';
 import { EnrolStats } from './dtos/enrol-stats.dto';
 import { MarkRegisterDto } from './dtos/mark-register.dto';
-import { AttendanceEntity } from './entities/attendance.entity';
+import { AttendanceEntity } from '../attendance/entities/attendance.entity';
 import { StudentsSummary } from './models/students-summary.model';
 import { StudentsService } from 'src/profiles/students/students.service';
 import { UpdateEnrolDto } from './dtos/update-enrol.dto';
@@ -288,6 +288,10 @@ export class EnrolmentService {
   async getAllEnrolments(
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ): Promise<EnrolStats> {
+    if (!profile) {
+      throw new UnauthorizedException('User profile not found');
+    }
+
     switch (profile.role) {
       case ROLES.parent:
       case ROLES.student: {

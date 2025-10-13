@@ -14,6 +14,7 @@ import { FinanceModule } from './finance/finance.module';
 import { PaymentModule } from './payment/payment.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ExemptionsModule } from './exemptions/exemptions.module';
+import { AttendanceModule } from './attendance/attendance.module';
 import { APP_GUARD } from '@nestjs/core';
 import { RolesGuard } from './auth/guards/roles.guard';
 
@@ -85,6 +86,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
     PaymentModule,
     DashboardModule,
     ExemptionsModule,
+    AttendanceModule,
   ],
   controllers: [AppController],
   providers: [

@@ -13,7 +13,7 @@ import { ParentsEntity } from './parents.entity';
 import { EnrolEntity } from '../../enrolment/entities/enrol.entity';
 import { MarksEntity } from '../../marks/entities/marks.entity';
 import { AccountsEntity } from 'src/auth/entities/accounts.entity';
-import { AttendanceEntity } from 'src/enrolment/entities/attendance.entity';
+import { AttendanceEntity } from 'src/attendance/entities/attendance.entity';
 import { TeacherCommentEntity } from 'src/marks/entities/teacher-comments.entity';
 import { ReceiptEntity } from 'src/payment/entities/payment.entity';
 import { BillsEntity } from 'src/finance/entities/bills.entity';

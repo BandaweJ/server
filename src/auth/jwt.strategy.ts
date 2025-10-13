@@ -31,26 +31,35 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   ): Promise<TeachersEntity | ParentsEntity | StudentsEntity> {
     const { username, role, id } = payload;
 
+    if (!username || !role || !id) {
+      throw new UnauthorizedException('Invalid JWT payload');
+    }
+
     const user = await this.accountsRepository.findOne({ where: { username } });
 
     if (!user) {
       throw new UnauthorizedException('You are not Authorised');
     }
 
-    switch (role) {
-      case ROLES.teacher:
-      case ROLES.admin:
-      case ROLES.hod:
-      case ROLES.reception:
-      case ROLES.auditor:
-      case ROLES.director:
-        return await this.resourceById.getTeacherById(id);
-        break;
-      case 'parent':
-        return await this.resourceById.getParentByEmail(id);
-        break;
-      case 'student':
-        return await this.resourceById.getStudentByStudentNumber(id);
+    try {
+      switch (role) {
+        case ROLES.teacher:
+        case ROLES.admin:
+        case ROLES.hod:
+        case ROLES.reception:
+        case ROLES.auditor:
+        case ROLES.director:
+          return await this.resourceById.getTeacherById(id);
+        case ROLES.parent:
+          return await this.resourceById.getParentByEmail(id);
+        case ROLES.student:
+          return await this.resourceById.getStudentByStudentNumber(id);
+        default:
+          throw new UnauthorizedException(`Invalid user role: ${role}`);
+      }
+    } catch (error) {
+      console.error('JWT Strategy validation error:', error);
+      throw new UnauthorizedException('Failed to validate user profile');
     }
   }
 }

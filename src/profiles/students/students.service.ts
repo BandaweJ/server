@@ -85,7 +85,7 @@ export class StudentsService {
     profile: TeachersEntity | ParentsEntity | StudentsEntity,
   ): Promise<StudentsEntity> {
     // A more explicit way to handle roles
-    if (profile.role !== ROLES.admin) {
+    if (profile.role !== ROLES.admin && profile.role !== ROLES.reception) {
       throw new UnauthorizedException('Only admins can add new students');
     }
 
