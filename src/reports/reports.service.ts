@@ -309,7 +309,10 @@ export class ReportsService {
       });
     });
 
-    return reps;
+    // Filter out students without marks and recalculate positions
+    const filteredReps = this.filterStudentsWithMarks(reps);
+
+    return filteredReps;
   }
 
   // async generateReports(
@@ -1293,5 +1296,43 @@ export class ReportsService {
     }
     // If it's already in the single nested structure, 'reportEntity.report' remains as is.
     return reportEntity;
+  }
+
+  /**
+   * Filters out students who have no marks in any subject and recalculates positions
+   * Includes students who failed (subjectsPassed === 0) as long as they have some marks
+   * @param reports Array of ReportsModel to filter
+   * @returns Filtered array of ReportsModel with recalculated positions
+   */
+  private filterStudentsWithMarks(reports: ReportsModel[]): ReportsModel[] {
+    // First filter out students without marks
+    const filteredReports = reports.filter(report => {
+      const { report: studentReport } = report;
+      
+      // Check if student has any marks in subjects (including failing marks)
+      const hasAnyMarks = studentReport.subjectsTable.some(subject => 
+        subject && subject.mark > 0
+      );
+      
+      // Include student if they have any marks (regardless of pass/fail status)
+      return hasAnyMarks;
+    });
+
+    // Sort by percentage average (descending) to determine new positions
+    const sortedReports = filteredReports.sort((a, b) => 
+      b.report.percentageAverge - a.report.percentageAverge
+    );
+
+    // Recalculate positions and class size
+    const newClassSize = sortedReports.length;
+    
+    return sortedReports.map((report, index) => ({
+      ...report,
+      report: {
+        ...report.report,
+        classPosition: index + 1,  // New position (1-based)
+        classSize: newClassSize,   // Updated class size
+      }
+    }));
   }
 }
