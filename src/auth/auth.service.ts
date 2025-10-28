@@ -268,4 +268,43 @@ export class AuthService {
 
     return accountsWithDetails;
   }
+
+  async resetPassword(id: string): Promise<{ message: string; temporaryPassword: string }> {
+    const account = await this.accountsRepository.findOne({ where: { id } });
+    
+    if (!account) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Generate a random temporary password
+    const tempPassword = Math.random().toString(36).slice(-8) + 'A1!';
+    const salt = await bcrypt.genSalt();
+    
+    account.password = await this.hashPassword(tempPassword, salt);
+    account.salt = salt;
+    
+    await this.accountsRepository.save(account);
+    
+    return {
+      message: 'Password reset successfully',
+      temporaryPassword: tempPassword
+    };
+  }
+
+  async updateAccount(id: string, updateData: { username?: string }): Promise<{ message: string }> {
+    const account = await this.accountsRepository.findOne({ where: { id } });
+    
+    if (!account) {
+      throw new BadRequestException('User not found');
+    }
+
+    if (updateData.username) {
+      account.username = updateData.username;
+      await this.accountsRepository.save(account);
+    }
+    
+    return {
+      message: 'Account updated successfully'
+    };
+  }
 }

@@ -4,6 +4,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -45,5 +46,17 @@ export class AuthController {
   @UseGuards(AuthGuard())
   getUserDetails(@Param('id') id: string, @Param('role') role: string) {
     return this.authService.fetchUserDetails(id, role);
+  }
+
+  @Post('/:id/reset-password')
+  @UseGuards(AuthGuard())
+  resetPassword(@Param('id') id: string) {
+    return this.authService.resetPassword(id);
+  }
+
+  @Patch('/:id')
+  @UseGuards(AuthGuard())
+  updateAccount(@Param('id') id: string, @Body() updateData: { username?: string }) {
+    return this.authService.updateAccount(id, updateData);
   }
 }

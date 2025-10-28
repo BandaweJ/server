@@ -61,7 +61,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
           // Use migrations for production deployments.
           // Set to true only for development for automatic schema creation.
           // synchronize: process.env.NODE_ENV === 'development',
-          synchronize: false,
+          synchronize: true,
 
           // Optional: Enable logging in development for debugging queries
           // logging: process.env.NODE_ENV === 'development',
