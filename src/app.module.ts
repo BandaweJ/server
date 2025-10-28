@@ -35,6 +35,13 @@ import { RolesGuard } from './auth/guards/roles.guard';
         // Inject ConfigService here
         const databaseUrl = configService.get<string>('DATABASE_URL'); // For Render deployment
 
+        // Get individual database configuration
+        const dbHost = configService.get<string>('DB_HOST');
+        const dbPort = configService.get<string>('DB_PORT');
+        const dbUser = configService.get<string>('DB_USER');
+        const dbPassword = configService.get<string>('DB_PASSWORD');
+        const dbName = configService.get<string>('DB_NAME');
+
         // Construct the TypeORM options object dynamically
         const typeOrmOptions: TypeOrmModuleOptions = {
           type: 'postgres', // Database type
@@ -42,19 +49,11 @@ import { RolesGuard } from './auth/guards/roles.guard';
           // Conditionally use DATABASE_URL or individual host/port/user/password/db
           // This allows flexibility between Render's single URL and local environment variables.
           url: databaseUrl, // TypeORM can connect directly via a URL
-          host: databaseUrl ? undefined : configService.get<string>('DB_HOST'),
-          port: databaseUrl
-            ? undefined
-            : parseInt(configService.get<string>('DB_PORT')),
-          username: databaseUrl
-            ? undefined
-            : configService.get<string>('DB_USER'),
-          password: databaseUrl
-            ? undefined
-            : configService.get<string>('DB_PASSWORD'),
-          database: databaseUrl
-            ? undefined
-            : configService.get<string>('DB_NAME'),
+          host: databaseUrl ? undefined : dbHost,
+          port: databaseUrl ? undefined : dbPort ? parseInt(dbPort) : undefined,
+          username: databaseUrl ? undefined : dbUser,
+          password: databaseUrl ? undefined : dbPassword || '', // Ensure password is always a string
+          database: databaseUrl ? undefined : dbName,
           // Your existing options:
           autoLoadEntities: true, // Keep this as you had it
 
