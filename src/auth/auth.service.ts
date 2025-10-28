@@ -216,4 +216,56 @@ export class AuthService {
       return user;
     }
   }
+
+  async getAllAccounts() {
+    const accounts = await this.accountsRepository.find({
+      select: ['id', 'username', 'role', 'createdAt'],
+      relations: ['student', 'teacher'],
+    });
+
+    // Map accounts to include user details
+    const accountsWithDetails = await Promise.all(
+      accounts.map(async (account) => {
+        let userDetails = null;
+        let name = account.username;
+        let email = null;
+
+        try {
+          if (account.role === ROLES.student && account.student) {
+            userDetails = account.student;
+            name = `${account.student.name || ''} ${account.student.surname || ''}`.trim() || account.username;
+            email = account.student.email || null;
+          } else if (
+            [ROLES.teacher, ROLES.admin, ROLES.hod, ROLES.reception, ROLES.auditor, ROLES.director].includes(
+              account.role as ROLES
+            ) &&
+            account.teacher
+          ) {
+            userDetails = account.teacher;
+            name = `${account.teacher.name || ''} ${account.teacher.surname || ''}`.trim() || account.username;
+            email = account.teacher.email || null;
+          } else if (account.role === ROLES.parent) {
+            const parent = await this.resourceById.getParentByEmail(account.id);
+            userDetails = parent;
+            name = `${parent.surname || ''}`.trim() || account.username;
+            email = null;
+          }
+        } catch (error) {
+          console.error(`Error fetching details for account ${account.username}:`, error);
+        }
+
+        return {
+          id: account.id,
+          username: account.username,
+          role: account.role,
+          name: name,
+          email: email,
+          createdAt: account.createdAt,
+          status: 'active', // TODO: Add status field to accounts entity
+        };
+      })
+    );
+
+    return accountsWithDetails;
+  }
 }

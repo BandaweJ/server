@@ -29,15 +29,21 @@ export class AuthController {
     return this.authService.signin(signinDto);
   }
 
+  @Get('accounts/all')
+  @UseGuards(AuthGuard())
+  getAllAccounts() {
+    return this.authService.getAllAccounts();
+  }
+
+  @Get('accounts/stats')
+  @UseGuards(AuthGuard())
+  getAccountsStats() {
+    return this.authService.getAccountsStats();
+  }
+
   @Get('/:id/:role')
   @UseGuards(AuthGuard())
   getUserDetails(@Param('id') id: string, @Param('role') role: string) {
     return this.authService.fetchUserDetails(id, role);
-  }
-
-  @Get()
-  @UseGuards(AuthGuard())
-  getAccountsStats() {
-    return this.authService.getAccountsStats();
   }
 }
