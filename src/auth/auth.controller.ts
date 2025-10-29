@@ -54,6 +54,12 @@ export class AuthController {
     return this.authService.resetPassword(id);
   }
 
+  @Post('/:id/set-password')
+  @UseGuards(AuthGuard())
+  setCustomPassword(@Param('id') id: string, @Body() body: { password: string }) {
+    return this.authService.setCustomPassword(id, body.password);
+  }
+
   @Patch('/:id')
   @UseGuards(AuthGuard())
   updateAccount(@Param('id') id: string, @Body() updateData: { username?: string }) {

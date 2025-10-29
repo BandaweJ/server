@@ -287,25 +287,44 @@ export class AuthService {
     return accountsWithDetails;
   }
 
-  async resetPassword(id: string): Promise<{ message: string; temporaryPassword: string }> {
+  async resetPassword(id: string): Promise<{ message: string; generatedPassword: string }> {
     const account = await this.accountsRepository.findOne({ where: { id } });
     
     if (!account) {
       throw new BadRequestException('User not found');
     }
 
-    // Generate a random temporary password
-    const tempPassword = Math.random().toString(36).slice(-8) + 'A1!';
+    // Generate a random password
+    const generatedPassword = Math.random().toString(36).slice(-8) + 'A1!';
     const salt = await bcrypt.genSalt();
     
-    account.password = await this.hashPassword(tempPassword, salt);
+    account.password = await this.hashPassword(generatedPassword, salt);
     account.salt = salt;
     
     await this.accountsRepository.save(account);
     
     return {
       message: 'Password reset successfully',
-      temporaryPassword: tempPassword
+      generatedPassword: generatedPassword
+    };
+  }
+
+  async setCustomPassword(id: string, newPassword: string): Promise<{ message: string }> {
+    const account = await this.accountsRepository.findOne({ where: { id } });
+    
+    if (!account) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Generate new salt and hash the custom password
+    const salt = await bcrypt.genSalt();
+    account.password = await this.hashPassword(newPassword, salt);
+    account.salt = salt;
+    
+    await this.accountsRepository.save(account);
+    
+    return {
+      message: 'Password updated successfully'
     };
   }
 
