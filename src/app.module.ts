@@ -17,6 +17,7 @@ import { ExemptionsModule } from './exemptions/exemptions.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { APP_GUARD } from '@nestjs/core';
 import { RolesGuard } from './auth/guards/roles.guard';
+import { ActivityModule } from './activity/activity.module';
 
 @Module({
   imports: [
@@ -86,6 +87,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
     DashboardModule,
     ExemptionsModule,
     AttendanceModule,
+    ActivityModule,
   ],
   controllers: [AppController],
   providers: [

@@ -10,6 +10,7 @@ import { AccountsEntity } from './entities/accounts.entity';
 import { JwtStrategy } from './jwt.strategy';
 import { ResourceByIdModule } from '../resource-by-id/resource-by-id.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ActivityModule } from '../activity/activity.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     PassportModule.register({ defaultStrategy: 'jwt' }),
     TypeOrmModule.forFeature([AccountsEntity]),
     ResourceByIdModule,
+    ActivityModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],

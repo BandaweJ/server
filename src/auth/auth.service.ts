@@ -1,10 +1,4 @@
-/* eslint-disable prettier/prettier */
-import {
-  BadRequestException,
-  Injectable,
-  NotImplementedException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 
 import { AccountsDto } from './dtos/signup.dto';
 import { ROLES } from './models/roles.enum';
@@ -18,6 +12,10 @@ import { JwtService } from '@nestjs/jwt';
 import { JwtPayload } from './models/jwt-payload.interface';
 import { ResourceByIdService } from 'src/resource-by-id/resource-by-id.service';
 import { AccountStats } from './models/acc-stats.model';
+import { ActivityService } from '../activity/activity.service';
+import { Injectable } from '@nestjs/common';
+import { NotImplementedException } from '@nestjs/common';
+import { UnauthorizedException } from '@nestjs/common';
 
 @Injectable()
 export class AuthService {
@@ -26,6 +24,7 @@ export class AuthService {
     private accountsRepository: Repository<AccountsEntity>,
     private jwtService: JwtService,
     private resourceById: ResourceByIdService,
+    private activityService: ActivityService,
   ) {}
 
   async getAccountsStats() {
@@ -159,9 +158,20 @@ export class AuthService {
     const payload = { ...result };
     const accessToken = await this.jwtService.sign(payload);
 
-    return { accessToken };
+    // Log the login activity
+    try {
+      await this.activityService.logActivity({
+        userId: result.id,
+        action: 'LOGIN',
+        description: `User ${signinDto.username} logged in successfully`,
+        metadata: { username: signinDto.username },
+      });
+    } catch (error) {
+      // Don't fail the login if activity logging fails
+      console.error('Failed to log login activity:', error);
+    }
 
-    // return payload;
+    return { accessToken };
   }
 
   private async validatePassword(signinDto: SigninDto): Promise<JwtPayload> {
@@ -303,6 +313,20 @@ export class AuthService {
     
     await this.accountsRepository.save(account);
     
+    // Log the password reset activity
+    try {
+      await this.activityService.logActivity({
+        userId: id,
+        action: 'PASSWORD_RESET',
+        description: `Password reset for user ${account.username}`,
+        resourceType: 'user',
+        resourceId: id,
+        metadata: { username: account.username },
+      });
+    } catch (error) {
+      console.error('Failed to log password reset activity:', error);
+    }
+    
     return {
       message: 'Password reset successfully',
       generatedPassword: generatedPassword
@@ -322,6 +346,20 @@ export class AuthService {
     account.salt = salt;
     
     await this.accountsRepository.save(account);
+    
+    // Log the password change activity
+    try {
+      await this.activityService.logActivity({
+        userId: id,
+        action: 'PASSWORD_CHANGED',
+        description: `Password changed for user ${account.username}`,
+        resourceType: 'user',
+        resourceId: id,
+        metadata: { username: account.username },
+      });
+    } catch (error) {
+      console.error('Failed to log password change activity:', error);
+    }
     
     return {
       message: 'Password updated successfully'
@@ -364,64 +402,27 @@ export class AuthService {
       throw new BadRequestException('Profile not found for this user');
     }
     
+    // Log the profile update activity
+    try {
+      await this.activityService.logActivity({
+        userId: id,
+        action: 'PROFILE_UPDATED',
+        description: `Profile updated for user ${account.username}`,
+        resourceType: account.role,
+        resourceId: id,
+        metadata: { username: account.username, updatedFields: Object.keys(updateData) },
+      });
+    } catch (error) {
+      console.error('Failed to log profile update activity:', error);
+    }
+    
     return {
       message: 'Profile updated successfully'
     };
   }
 
   async getUserActivity(id: string, page: number = 1, limit: number = 20): Promise<any> {
-    // TODO: Implement proper activity logging
-    // For now, return mock activity data
-    // This should be replaced with actual database queries to an activity/audit log table
-    
-    const account = await this.accountsRepository.findOne({ where: { id } });
-    
-    if (!account) {
-      throw new BadRequestException('User not found');
-    }
-
-    // Mock activity data - replace with actual database query
-    const mockActivities = [
-      {
-        id: '1',
-        userId: id,
-        action: 'USER_UPDATED',
-        description: `User profile updated`,
-        timestamp: new Date(),
-        ipAddress: '192.168.1.1',
-        userAgent: 'Mozilla/5.0',
-        resourceType: 'user',
-        resourceId: id
-      },
-      {
-        id: '2',
-        userId: id,
-        action: 'LOGIN',
-        description: `User logged in successfully`,
-        timestamp: new Date(Date.now() - 3600000), // 1 hour ago
-        ipAddress: '192.168.1.1',
-        userAgent: 'Mozilla/5.0'
-      },
-      {
-        id: '3',
-        userId: id,
-        action: 'PASSWORD_RESET',
-        description: `Password was reset`,
-        timestamp: new Date(Date.now() - 86400000), // 1 day ago
-        ipAddress: '192.168.1.1'
-      }
-    ];
-
-    const total = mockActivities.length;
-    const skip = (page - 1) * limit;
-    const activities = mockActivities.slice(skip, skip + limit);
-
-    return {
-      activities,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit)
-    };
+    // Use the ActivityService to get real activity data
+    return await this.activityService.getUserActivities(id, page, limit);
   }
 }

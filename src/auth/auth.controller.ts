@@ -73,9 +73,10 @@ export class AuthController {
     return this.authService.updateProfile(id, '', updateData);
   }
 
-  @Get('/:id/activity')
+  @Get('/accounts/:id/activity')
   @UseGuards(AuthGuard())
   getUserActivity(@Param('id') id: string, @Query('page') page: string = '1', @Query('limit') limit: string = '20') {
     return this.authService.getUserActivity(id, parseInt(page), parseInt(limit));
   }
 }
+
