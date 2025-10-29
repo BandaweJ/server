@@ -198,23 +198,41 @@ export class AuthService {
   }
 
   async fetchUserDetails(id: string, role: string) {
-    if (role === ROLES.student) {
-      const user = await this.resourceById.getStudentByStudentNumber(id);
+    // First get the account to get username
+    const account = await this.accountsRepository.findOne({
+      where: { id },
+      relations: ['student', 'teacher']
+    });
 
-      return user;
-    } else if (
-      role === ROLES.teacher ||
-      role === ROLES.hod ||
-      role === ROLES.reception ||
-      role === ROLES.admin
-    ) {
-      const user = await this.resourceById.getTeacherById(id);
-
-      return user;
-    } else {
-      const user = await this.resourceById.getParentByEmail(id);
-      return user;
+    if (!account) {
+      throw new BadRequestException('Account not found');
     }
+
+    let userDetails = null;
+
+    if (role === ROLES.student && account.student) {
+      userDetails = account.student;
+    } else if (
+      [ROLES.teacher, ROLES.hod, ROLES.reception, ROLES.admin, ROLES.auditor, ROLES.director].includes(role as ROLES) &&
+      account.teacher
+    ) {
+      userDetails = account.teacher;
+    } else if (role === ROLES.parent) {
+      // For parents, we need to get the parent by email (since parent uses email as primary key)
+      userDetails = await this.resourceById.getParentByEmail(id);
+    }
+
+    if (!userDetails) {
+      throw new BadRequestException('User profile not found');
+    }
+
+    // Add username to the user details
+    return {
+      ...userDetails,
+      username: account.username,
+      accountId: account.id,
+      role: account.role
+    };
   }
 
   async getAllAccounts() {
