@@ -59,15 +59,19 @@ export class AuthService {
   async signup(accountsDto: AccountsDto): Promise<SignupResponse> {
     const { role, id, username, password } = accountsDto;
 
-    // const found = await this.accountsRepository.findOne({
-    //   where: { id },
-    // });
+    // Check if user already has an account
+    const existingAccount = await this.accountsRepository.findOne({
+      where: [
+        { id }, // Check by ID (studentNumber/teacher ID/parent email)
+        { username }, // Check by username
+      ],
+    });
 
-    // if (found) {
-    //   throw new BadRequestException(
-    //     `User with ID ${id} already has an account`,
-    //   );
-    // }
+    if (existingAccount) {
+      throw new BadRequestException(
+        `User with ID ${id} or username ${username} already has an account`,
+      );
+    }
 
     const salt = await bcrypt.genSalt();
 
@@ -77,6 +81,8 @@ export class AuthService {
     account.username = username;
     account.password = await this.hashPassword(password, salt);
     account.salt = salt;
+    account.active = true; // New accounts are active by default
+    account.deletedAt = null;
     // password = await this.hashPassword(password, salt);
 
     switch (role) {
@@ -152,7 +158,7 @@ export class AuthService {
     const result = await this.validatePassword(signinDto);
 
     if (!result) {
-      throw new UnauthorizedException('Invalid login creadentials');
+      throw new UnauthorizedException('Invalid login credentials');
     }
 
     const payload = { ...result };
@@ -179,7 +185,18 @@ export class AuthService {
 
     const user = await this.accountsRepository.findOne({ where: { username } });
 
-    if (user && (await user.validatePassword(password))) {
+    if (!user) {
+      return null; // User not found
+    }
+
+    // Check if user account is active (not deleted)
+    // For existing users without active field, default to true (handled by entity default value)
+    // We check explicitly for false to handle cases where the field exists but is false
+    if (user.active === false || user.deletedAt) {
+      throw new UnauthorizedException('Account has been deactivated. Please contact an administrator.');
+    }
+
+    if (await user.validatePassword(password)) {
       const rol = user.role;
       const id = user.id;
 
@@ -203,7 +220,7 @@ export class AuthService {
         }
       }
     } else {
-      return null;
+      return null; // Invalid password
     }
   }
 
@@ -247,8 +264,13 @@ export class AuthService {
 
   async getAllAccounts() {
     const accounts = await this.accountsRepository.find({
-      select: ['id', 'username', 'role', 'createdAt'],
+      select: ['id', 'username', 'role', 'createdAt', 'active', 'deletedAt'],
       relations: ['student', 'teacher'],
+      // Filter out soft-deleted accounts, but include all active ones (including those without active field set)
+      where: [
+        { active: true },
+        { active: null }, // For backward compatibility with existing users
+      ],
     });
 
     // Map accounts to include user details
@@ -289,7 +311,9 @@ export class AuthService {
           name: name,
           email: email,
           createdAt: account.createdAt,
-          status: 'active', // TODO: Add status field to accounts entity
+          status: account.active === false || account.deletedAt ? 'inactive' : 'active',
+          active: account.active !== false, // Treat null/undefined as true for backward compatibility
+          deletedAt: account.deletedAt || null,
         };
       })
     );
