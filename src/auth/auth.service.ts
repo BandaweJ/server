@@ -368,4 +368,60 @@ export class AuthService {
       message: 'Profile updated successfully'
     };
   }
+
+  async getUserActivity(id: string, page: number = 1, limit: number = 20): Promise<any> {
+    // TODO: Implement proper activity logging
+    // For now, return mock activity data
+    // This should be replaced with actual database queries to an activity/audit log table
+    
+    const account = await this.accountsRepository.findOne({ where: { id } });
+    
+    if (!account) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Mock activity data - replace with actual database query
+    const mockActivities = [
+      {
+        id: '1',
+        userId: id,
+        action: 'USER_UPDATED',
+        description: `User profile updated`,
+        timestamp: new Date(),
+        ipAddress: '192.168.1.1',
+        userAgent: 'Mozilla/5.0',
+        resourceType: 'user',
+        resourceId: id
+      },
+      {
+        id: '2',
+        userId: id,
+        action: 'LOGIN',
+        description: `User logged in successfully`,
+        timestamp: new Date(Date.now() - 3600000), // 1 hour ago
+        ipAddress: '192.168.1.1',
+        userAgent: 'Mozilla/5.0'
+      },
+      {
+        id: '3',
+        userId: id,
+        action: 'PASSWORD_RESET',
+        description: `Password was reset`,
+        timestamp: new Date(Date.now() - 86400000), // 1 day ago
+        ipAddress: '192.168.1.1'
+      }
+    ];
+
+    const total = mockActivities.length;
+    const skip = (page - 1) * limit;
+    const activities = mockActivities.slice(skip, skip + limit);
+
+    return {
+      activities,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    };
+  }
 }
