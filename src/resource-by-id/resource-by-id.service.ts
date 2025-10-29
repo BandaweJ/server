@@ -52,4 +52,34 @@ export class ResourceByIdService {
 
     return found;
   }
+
+  async updateTeacher(id: string, updateData: Partial<TeachersEntity>): Promise<TeachersEntity> {
+    const teacher = await this.getTeacherById(id);
+    return await this.teachersRepository.save({
+      ...teacher,
+      ...updateData,
+    });
+  }
+
+  async updateStudent(studentNumber: string, updateData: Partial<StudentsEntity>): Promise<StudentsEntity> {
+    const student = await this.studentsRepository.findOne({ where: { studentNumber } });
+    if (!student) {
+      throw new NotFoundException(`Student with Student Number ${studentNumber} not found`);
+    }
+    return await this.studentsRepository.save({
+      ...student,
+      ...updateData,
+    });
+  }
+
+  async updateParent(email: string, updateData: Partial<ParentsEntity>): Promise<ParentsEntity> {
+    const parent = await this.parentsRepository.findOne({ where: { email } });
+    if (!parent) {
+      throw new NotFoundException(`Parent with email ${email} not found`);
+    }
+    return await this.parentsRepository.save({
+      ...parent,
+      ...updateData,
+    });
+  }
 }

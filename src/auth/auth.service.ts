@@ -307,4 +307,28 @@ export class AuthService {
       message: 'Account updated successfully'
     };
   }
+
+  async updateProfile(id: string, role: string, updateData: any): Promise<{ message: string }> {
+    const account = await this.accountsRepository.findOne({ 
+      where: { id },
+      relations: ['student', 'teacher']
+    });
+    
+    if (!account) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Update profile based on role
+    if (account.role === 'student' && account.student) {
+      await this.resourceById.updateStudent(account.student.studentNumber, updateData);
+    } else if (['teacher', 'admin', 'hod', 'reception', 'auditor', 'director'].includes(account.role) && account.teacher) {
+      await this.resourceById.updateTeacher(account.teacher.id, updateData);
+    } else {
+      throw new BadRequestException('Profile not found for this user');
+    }
+    
+    return {
+      message: 'Profile updated successfully'
+    };
+  }
 }
