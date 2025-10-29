@@ -35,6 +35,12 @@ export class AccountsEntity extends BaseEntity {
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
 
+  @Column({ type: 'boolean', default: true })
+  active: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  deletedAt?: Date;
+
   async validatePassword(password: string): Promise<boolean> {
     const hash = await bcrypt.hash(password, this.salt);
     return hash === this.password;

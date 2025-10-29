@@ -421,6 +421,81 @@ export class AuthService {
     };
   }
 
+  async deleteAccount(id: string): Promise<{ message: string }> {
+    const account = await this.accountsRepository.findOne({ where: { id } });
+    
+    if (!account) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Check if already deleted
+    if (!account.active || account.deletedAt) {
+      throw new BadRequestException('User is already deleted');
+    }
+
+    // Soft delete: mark as inactive and set deletedAt timestamp
+    account.active = false;
+    account.deletedAt = new Date();
+    await this.accountsRepository.save(account);
+
+    // Log the deletion activity
+    try {
+      await this.activityService.logActivity({
+        userId: id,
+        action: 'USER_DELETED',
+        description: `User account ${account.username} was deleted`,
+        resourceType: 'user',
+        resourceId: id,
+        metadata: { 
+          username: account.username,
+          role: account.role,
+          deletedAt: account.deletedAt 
+        },
+      });
+    } catch (error) {
+      console.error('Failed to log user deletion activity:', error);
+    }
+
+    return {
+      message: 'User deleted successfully'
+    };
+  }
+
+  async restoreAccount(id: string): Promise<{ message: string }> {
+    const account = await this.accountsRepository.findOne({ where: { id } });
+    
+    if (!account) {
+      throw new BadRequestException('User not found');
+    }
+
+    if (account.active) {
+      throw new BadRequestException('User is already active');
+    }
+
+    // Restore the account
+    account.active = true;
+    account.deletedAt = null;
+    await this.accountsRepository.save(account);
+
+    // Log the restoration activity
+    try {
+      await this.activityService.logActivity({
+        userId: id,
+        action: 'USER_RESTORED',
+        description: `User account ${account.username} was restored`,
+        resourceType: 'user',
+        resourceId: id,
+        metadata: { username: account.username, role: account.role },
+      });
+    } catch (error) {
+      console.error('Failed to log user restoration activity:', error);
+    }
+
+    return {
+      message: 'User restored successfully'
+    };
+  }
+
   async getUserActivity(id: string, page: number = 1, limit: number = 20): Promise<any> {
     // Use the ActivityService to get real activity data
     return await this.activityService.getUserActivities(id, page, limit);

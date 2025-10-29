@@ -2,6 +2,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -77,6 +78,18 @@ export class AuthController {
   @UseGuards(AuthGuard())
   getUserActivity(@Param('id') id: string, @Query('page') page: string = '1', @Query('limit') limit: string = '20') {
     return this.authService.getUserActivity(id, parseInt(page), parseInt(limit));
+  }
+
+  @Delete('/accounts/:id')
+  @UseGuards(AuthGuard())
+  deleteAccount(@Param('id') id: string) {
+    return this.authService.deleteAccount(id);
+  }
+
+  @Post('/accounts/:id/restore')
+  @UseGuards(AuthGuard())
+  restoreAccount(@Param('id') id: string) {
+    return this.authService.restoreAccount(id);
   }
 }
 
