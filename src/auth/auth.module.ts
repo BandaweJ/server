@@ -22,13 +22,26 @@ import { ActivityModule } from '../activity/activity.module';
     // }),
     JwtModule.registerAsync({
       imports: [ConfigModule], // Import ConfigModule to make ConfigService available
-      useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET'), // Get the secret from the environment variable
-        signOptions: {
-          // You can also make expiresIn configurable
-          expiresIn: configService.get<string>('JWT_EXPIRES_IN') || '3600s', // Defaults to 1 hour if not set
-        },
-      }),
+      useFactory: (configService: ConfigService) => {
+        const expiresInStr = configService.get<string>('JWT_EXPIRES_IN') || '3600';
+        // Parse to number (in seconds) - convert string format like "3600s" to number
+        let expiresIn: number;
+        if (expiresInStr.endsWith('s')) {
+          expiresIn = parseInt(expiresInStr.slice(0, -1), 10) || 3600;
+        } else if (expiresInStr.endsWith('m')) {
+          expiresIn = (parseInt(expiresInStr.slice(0, -1), 10) || 60) * 60;
+        } else if (expiresInStr.endsWith('h')) {
+          expiresIn = (parseInt(expiresInStr.slice(0, -1), 10) || 1) * 3600;
+        } else {
+          expiresIn = parseInt(expiresInStr, 10) || 3600;
+        }
+        return {
+          secret: configService.get<string>('JWT_SECRET'), // Get the secret from the environment variable
+          signOptions: {
+            expiresIn, // Number in seconds (defaults to 1 hour = 3600 seconds)
+          },
+        };
+      },
       inject: [ConfigService], // Tell NestJS to inject ConfigService into useFactory
     }),
     PassportModule.register({ defaultStrategy: 'jwt' }),
