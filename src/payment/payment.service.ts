@@ -1195,103 +1195,150 @@ export class PaymentService {
     columnWidths: number[],
     headers: string[],
     finalTotalAmount: number | string | null | undefined,
-    headerColor = '#96d4d4',
-    textColor = '#000000',
+    headerColor = '#2196f3',
+    textColor = '#2c3e50',
     amountAlign: 'left' | 'right' = 'right',
   ): number {
-    const rowHeight = 20;
-    const headerHeight = 25;
-    const borderColor = '#96d4d4';
+    const rowHeight = 21;
+    const headerHeight = 28;
+    const borderColor = '#e0e0e0';
     const font = 'Helvetica';
     const boldFont = 'Helvetica-Bold';
-    const fontSize = 10;
-    const headerFontSize = 10;
-    const padding = 5;
+    const fontSize = 11;
+    const headerFontSize = 11;
+    const padding = 15;
 
     let y = startY;
 
-    // Draw table headers
+    // Draw table headers with gradient background
+    const totalWidth = columnWidths.reduce((a, b) => a + b, 0);
+    
+    // Gradient-like header background (blue)
+    doc
+      .rect(startX, y, totalWidth, headerHeight)
+      .fill(headerColor);
+
     doc.font(boldFont).fontSize(headerFontSize);
     headers.forEach((header, i) => {
+      const columnX = startX + columnWidths.slice(0, i).reduce((a, b) => a + b, 0);
+      
       doc
-        .rect(
-          startX + columnWidths.slice(0, i).reduce((a, b) => a + b, 0),
-          y,
-          columnWidths[i],
-          headerHeight,
-        )
-        .fill(headerColor)
-        .stroke(borderColor)
-        .fillColor('#000000')
+        .fillColor('#ffffff') // White text on blue background
         .text(
-          header,
-          startX +
-            columnWidths.slice(0, i).reduce((a, b) => a + b, 0) +
-            padding,
+          header.toUpperCase(),
+          columnX + padding,
           y + headerHeight / 2 - headerFontSize / 2,
           {
             width: columnWidths[i] - 2 * padding,
             align: i === headers.length - 1 ? amountAlign : 'left',
+            lineBreak: false,
           },
         );
     });
+    
+    doc.fillColor(textColor); // Reset text color
     y += headerHeight;
 
     // --- Draw Balance B/Fwd row if balanceBfwd.amount > 0 ---
     if (balanceBfwd && balanceBfwd.amount > 0) {
+      const totalRowWidth = columnWidths.reduce((a, b) => a + b, 0);
+      
+      // Orange background tint
+      doc
+        .rect(startX, y, totalRowWidth, rowHeight)
+        .fillOpacity(0.05)
+        .fill('#ff9800')
+        .fillOpacity(1.0);
+
+      // Orange left border accent
+      doc.rect(startX, y, 3, rowHeight).fill('#ff9800');
+
       doc.font(font).fontSize(fontSize).fillColor(textColor);
 
-      doc
-        .rect(
-          startX,
-          y,
-          columnWidths.reduce((a, b) => a + b, 0),
-          rowHeight,
-        )
-        .stroke(borderColor);
-
+      // Description
+      const bfwdDate = this.formatDate(balanceBfwd.dateCreated);
       doc.text(
-        'Balance B/Fwd as at ' +
-          new Date(balanceBfwd.dateCreated).toLocaleDateString(),
+        `Balance Brought Forward`,
         startX + padding,
-        y + rowHeight / 2 - fontSize / 2,
+        y + 5,
         {
           width: columnWidths[0] - 2 * padding,
           align: 'left',
         },
       );
+      doc
+        .fontSize(9)
+        .fillColor('#7f8c8d')
+        .font('Helvetica-Oblique')
+        .text(`as at ${bfwdDate}`, startX + padding, y + 18, {
+          width: columnWidths[0] - 2 * padding,
+          align: 'left',
+        });
 
-      doc.text(
-        `\$${balanceBfwd.amount.toFixed(2)}`,
-        startX + columnWidths[0] + padding,
-        y + rowHeight / 2 - fontSize / 2,
-        {
-          width: columnWidths[1] - 2 * padding,
-          align: amountAlign,
-        },
-      );
+      // Amount
+      doc
+        .fontSize(fontSize)
+        .fillColor(textColor)
+        .font('Helvetica-Bold')
+        .text(
+          this.formatCurrency(balanceBfwd.amount),
+          startX + columnWidths[0] + padding,
+          y + rowHeight / 2 - fontSize / 2,
+          {
+            width: columnWidths[1] - 2 * padding,
+            align: amountAlign,
+          },
+        );
+
+      // Bottom border
+      doc
+        .strokeColor(borderColor)
+        .lineWidth(1)
+        .moveTo(startX, y + rowHeight)
+        .lineTo(startX + totalRowWidth, y + rowHeight)
+        .stroke();
+
       y += rowHeight;
     }
 
     // Draw table rows
     doc.font(font).fontSize(fontSize).fillColor(textColor);
     data.forEach((row) => {
+      const isExemption = row.fees && row.fees.name === FeesNames.exemption;
+      const totalRowWidth = columnWidths.reduce((a, b) => a + b, 0);
+
+      // Green background for exemption rows
+      if (isExemption) {
+        doc
+          .rect(startX, y, totalRowWidth, rowHeight)
+          .fillOpacity(0.05)
+          .fill('#4caf50')
+          .fillOpacity(1.0);
+
+        // Green left border accent
+        doc.rect(startX, y, 3, rowHeight).fill('#4caf50');
+      }
+
       headers.forEach((header, i) => {
         let text = '';
         let align: 'left' | 'right' = 'left';
-        let rowTextColor = textColor; // Default text color
+        let rowTextColor = textColor;
 
         if (i === 0) {
-          if (
-            row.fees &&
-            row.fees.name === FeesNames.exemption &&
-            row.fees.exemptionType
-          ) {
-            text = this.feesNamesToString(
-              row.fees.name,
-              row.fees.exemptionType,
-            );
-            rowTextColor = 'green'; // Red color for exemption text
+          if (isExemption && row.fees.exemptionType) {
+            text = 'Exemption';
+            const exemptionDesc = `(${row.fees.exemptionType.replace(/_/g, ' ')}${
+              row.fees.description ? `: ${row.fees.description}` : ''
+            })`;
+            // Description below in italic
+            doc
+              .fontSize(9)
+              .fillColor('#7f8c8d')
+              .font('Helvetica-Oblique')
+              .text(exemptionDesc, startX + padding, y + 18, {
+                width: columnWidths[0] - 2 * padding,
+                align: 'left',
+              });
           } else if (
             row.fees &&
             row.fees.name !== undefined &&
@@ -1300,83 +1347,106 @@ export class PaymentService {
             text = this.feesNamesToString(row.fees.name);
           }
         } else if (i === 1) {
-          if (row.fees && row.fees.name === FeesNames.exemption) {
+          if (isExemption) {
             const amount = Number(row.fees.amount);
-            text = `-\$${Math.abs(amount).toFixed(2)}`; // Format: -$1,000.00
-            rowTextColor = 'green'; // Red color for exemption amount
+            text = `-${this.formatCurrency(Math.abs(amount))}`;
+            rowTextColor = '#4caf50';
           } else {
             text =
               row.fees &&
               row.fees.amount !== undefined &&
               row.fees.amount !== null
-                ? '$' + Number(row.fees.amount).toFixed(2)
+                ? this.formatCurrency(row.fees.amount)
                 : '';
           }
           align = amountAlign;
         }
 
-        doc
-          .rect(
-            startX + columnWidths.slice(0, i).reduce((a, b) => a + b, 0),
-            y,
-            columnWidths[i],
-            rowHeight,
-          )
-          .stroke(borderColor)
-          .fillColor(rowTextColor) // Apply row-specific text color
-          .text(
-            text,
-            startX +
-              columnWidths.slice(0, i).reduce((a, b) => a + b, 0) +
-              padding,
-            y + rowHeight / 2 - fontSize / 2,
-            {
+        doc.fillColor(rowTextColor);
+
+        // Description text
+        if (i === 0 && text) {
+          doc
+            .fontSize(fontSize)
+            .font('Helvetica-Bold')
+            .text(text, startX + padding, y + 5, {
+              width: columnWidths[i] - 2 * padding,
+              align: 'left',
+            });
+        } else if (i === 1) {
+          doc
+            .fontSize(fontSize)
+            .font('Helvetica-Bold')
+            .text(text, startX + columnWidths[0] + padding, y + rowHeight / 2 - fontSize / 2, {
               width: columnWidths[i] - 2 * padding,
               align: align,
-            },
-          );
+            });
+        }
       });
+
+      // Bottom border
+      doc
+        .strokeColor(borderColor)
+        .lineWidth(1)
+        .moveTo(startX, y + rowHeight)
+        .lineTo(startX + totalRowWidth, y + rowHeight)
+        .stroke();
+
       y += rowHeight;
     });
 
-    // --- Add the "Total" row within the table ---
-    doc.font(boldFont).fontSize(fontSize).fillColor(textColor);
+    // --- Add the "Total" row with blue background ---
+    const totalRowWidth = columnWidths.reduce((a, b) => a + b, 0);
+    
+    // Blue gradient background
     doc
-      .rect(
-        startX,
-        y,
-        columnWidths.reduce((a, b) => a + b, 0),
-        rowHeight,
-      )
-      .stroke(borderColor);
+      .rect(startX, y, totalRowWidth, rowHeight)
+      .fillOpacity(0.1)
+      .fill(headerColor)
+      .fillOpacity(1.0);
 
-    doc.text('Total', startX + padding, y + rowHeight / 2 - fontSize / 2, {
-      width: columnWidths[0] - 2 * padding,
-      align: 'left',
-    });
+    // Top border (blue, thicker)
+    doc
+      .strokeColor(headerColor)
+      .lineWidth(2)
+      .moveTo(startX, y)
+      .lineTo(startX + totalRowWidth, y)
+      .stroke();
+
+    doc.font(boldFont).fontSize(14).fillColor(textColor);
+    doc.text(
+      'Total'.toUpperCase(),
+      startX + padding,
+      y + rowHeight / 2 - 7,
+      {
+        width: columnWidths[0] - 2 * padding,
+        align: 'left',
+      },
+    );
 
     const displayTotalAmount = !isNaN(Number(finalTotalAmount))
       ? Number(finalTotalAmount)
       : 0;
-    doc.font(font);
-    doc.text(
-      `\$${displayTotalAmount.toFixed(2)}`,
-      startX + columnWidths[0] + padding,
-      y + rowHeight / 2 - fontSize / 2,
-      {
-        width: columnWidths[1] - 2 * padding,
-        align: amountAlign,
-      },
-    );
-    y += rowHeight;
-
-    // Draw the final thick line after the total row
+    
+    // Format total amount to prevent wrapping
+    const totalAmountText = this.formatCurrency(displayTotalAmount);
+    
     doc
-      .strokeColor('#000000')
-      .lineWidth(2)
-      .moveTo(startX, y)
-      .lineTo(startX + columnWidths.reduce((a, b) => a + b, 0), y)
-      .stroke();
+      .font('Helvetica-Bold')
+      .fontSize(14)
+      .fillColor(headerColor)
+      .text(
+        totalAmountText,
+        startX + columnWidths[0] + padding,
+        y + rowHeight / 2 - 7,
+        {
+          width: columnWidths[1] - 2 * padding,
+          align: amountAlign,
+          lineBreak: false,
+        },
+      );
+    
+    y += rowHeight;
 
     return y;
   }
@@ -1447,48 +1517,136 @@ export class PaymentService {
     const stream = new Stream.PassThrough();
     doc.pipe(stream);
 
-    // --- Document Header (Company Info & Logo) ---
+    // Color constants matching frontend
+    const primaryBlue = '#2196f3';
+    const primaryBlueDark = '#1976d2';
+    const textPrimary = '#2c3e50';
+    const textSecondary = '#7f8c8d';
+    const successGreen = '#4caf50';
+    const warningOrange = '#ff9800';
+    const errorRed = '#f44336';
+    const accentGold = '#ffc107';
+
+    let currentY = 50;
+
+    // --- Document Header with Logo and Contact (Centered) ---
     const companyName = 'Junior High School';
     const companyAddress = '30588 Lundi Drive, Rhodene, Masvingo';
     const companyPhone = '+263 392 263 293 / +263 78 223 8026';
     const companyEmail = 'info@juniorhighschool.ac.zw';
+    const companyWebsite = 'www.juniorhighschool.ac.zw';
 
+    // Logo
     try {
       const imgPath = path.join(process.cwd(), 'public', 'jhs_logo.jpg');
-      const imgBuffer = fs.readFileSync(imgPath);
-      doc.image(imgBuffer, 50, 30, { width: 100 });
+      if (fs.existsSync(imgPath)) {
+        doc.image(imgPath, 50, currentY, { width: 120, height: 120 });
+      }
     } catch (e) {
       console.log('Error adding image:', e.message);
     }
 
-    const companyInfoX = 200;
-    this.createAddressBlock(
-      doc,
-      companyInfoX,
-      50,
-      companyName,
-      companyAddress,
-      companyPhone,
-      companyEmail,
-    );
+    // Company info - positioned right after logo, left-aligned
+    const logoWidth = 120;
+    const logoEndX = 50 + logoWidth;
+    const textStartX = logoEndX + 15;
+    const textWidth = doc.page.width - textStartX - 50;
 
-    // --- Invoice Title ---
+    // School name - left-aligned, uppercase, blue
     doc
       .font('Helvetica-Bold')
-      .fontSize(18)
+      .fontSize(20)
+      .fillColor(primaryBlue)
+      .text(companyName.toUpperCase(), textStartX, currentY, {
+        align: 'left',
+        width: textWidth,
+      });
+
+    currentY += 20;
+
+    // Address - left-aligned
+    doc
+      .font('Helvetica')
+      .fontSize(10)
+      .fillColor(textSecondary)
+      .text(companyAddress, textStartX, currentY, {
+        align: 'left',
+        width: textWidth,
+      });
+
+    currentY += 16;
+
+    // Phone - left-aligned
+    doc.text(companyPhone, textStartX, currentY, {
+      align: 'left',
+      width: textWidth,
+    });
+
+    currentY += 16;
+
+    // Email and Website on same line - left-aligned
+    doc.text(
+      `${companyEmail} | ${companyWebsite}`,
+      textStartX,
+      currentY,
+      {
+        align: 'left',
+        width: textWidth,
+      },
+    );
+
+    // Calculate where blue border should be (below both logo and text)
+    const logoBottom = 50 + 120; // logo starts at 50, height is 120
+    const textBottom = currentY + 12; // text ends at currentY, add some padding
+    const borderY = Math.max(logoBottom, textBottom);
+
+    currentY = borderY + 15;
+
+    // Blue border bottom - positioned below both logo and text
+    doc
+      .strokeColor(primaryBlue)
+      .lineWidth(2)
+      .moveTo(50, currentY)
+      .lineTo(doc.page.width - 50, currentY)
+      .stroke();
+
+    currentY += 15;
+
+    // --- Invoice Title Section (with gradient background box) ---
+    const titleBoxY = currentY;
+    const titleBoxHeight = 58;
+    
+    // Gradient background box (light blue)
+    doc
+      .rect(50, titleBoxY, doc.page.width - 100, titleBoxHeight)
+      .fillOpacity(0.08)
+      .fill('#2196f3')
+      .fillOpacity(1.0);
+    
+    // Left border accent (blue)
+    doc
+      .rect(50, titleBoxY, 4, titleBoxHeight)
+      .fill(primaryBlue);
+
+    // Invoice title text - left side
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(28)
+      .fillColor(textPrimary)
+      .text('INVOICE', 70, titleBoxY + 8);
+
+    // Term text below title
+    doc
+      .font('Helvetica')
+      .fontSize(14)
+      .fillColor(textSecondary)
       .text(
-        'INVOICE FOR TERM ' +
-          invoiceData.enrol.num +
-          ' ' +
-          invoiceData.enrol.year,
-        50,
-        150,
-        { align: 'left' },
+        `Term ${invoiceData.enrol.num} ${invoiceData.enrol.year}`,
+        70,
+        titleBoxY + 37,
       );
 
-    // --- Invoice Details (Right Side) ---
-    const invoiceDetailsLabelX = 380;
-    const invoiceDetailsValueX = invoiceDetailsLabelX + 80;
+    // Invoice metadata - right side (each on separate lines)
     const invoiceNumber = invoiceData.invoiceNumber || 'N/A';
     const invoiceDate = invoiceData.invoiceDate
       ? new Date(invoiceData.invoiceDate)
@@ -1497,187 +1655,281 @@ export class PaymentService {
       ? new Date(invoiceData.invoiceDueDate)
       : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-    const dateFormatOptions: Intl.DateTimeFormatOptions = {
-      day: '2-digit',
-      month: '2-digit',
-      year: '2-digit',
-    };
+    const metaX = doc.page.width / 2 + 40;
+    let metaY = titleBoxY + 12;
 
+    // Invoice # on same line
     doc
       .font('Helvetica-Bold')
-      .fontSize(12)
-      .text(`Invoice #:`, invoiceDetailsLabelX, 150)
-      .font('Helvetica')
-      .text(invoiceNumber, invoiceDetailsValueX, 150)
+      .fontSize(9)
+      .fillColor(textSecondary)
+      .text('Invoice # ', metaX, metaY, { width: 50 });
+    doc
       .font('Helvetica-Bold')
-      .text(`Date:`, invoiceDetailsLabelX, 170)
-      .font('Helvetica')
-      .text(
-        invoiceDate.toLocaleDateString('en-GB', dateFormatOptions),
-        invoiceDetailsValueX,
-        170,
-      )
+      .fontSize(11)
+      .fillColor(textPrimary)
+      .text(invoiceNumber, metaX + 50, metaY, { width: 120 });
+
+    metaY += 18;
+
+    // Date on its own line
+    doc
       .font('Helvetica-Bold')
-      .text(`Due Date:`, invoiceDetailsLabelX, 190)
+      .fontSize(9)
+      .fillColor(textSecondary)
+      .text('Date ', metaX, metaY, { width: 35 });
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(11)
+      .fillColor(textPrimary)
+      .text(this.formatDate(invoiceDate), metaX + 35, metaY, { width: 120 });
+
+    metaY += 18;
+
+    // Due Date on its own line
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(9)
+      .fillColor(textSecondary)
+      .text('Due Date ', metaX, metaY, { width: 60 });
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(11)
+      .fillColor(textPrimary)
+      .text(this.formatDate(dueDate), metaX + 60, metaY, { width: 120 });
+
+    currentY = titleBoxY + titleBoxHeight + 15;
+
+    // --- Bill To and Summary Section (Two Column Grid) ---
+    const infoSectionY = currentY;
+    const columnWidth = (doc.page.width - 120) / 2;
+    const leftColumnX = 50;
+    const rightColumnX = leftColumnX + columnWidth + 20;
+
+    // Bill To Section (Left Column)
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(14)
+      .fillColor(primaryBlue)
+      .text('Bill To', leftColumnX, infoSectionY);
+
+    // Blue underline
+    doc
+      .strokeColor(primaryBlue)
+      .lineWidth(2)
+      .moveTo(leftColumnX, infoSectionY + 18)
+      .lineTo(leftColumnX + 150, infoSectionY + 18)
+      .stroke();
+
+    let billToY = infoSectionY + 30;
+    const lineHeight = 18;
+
+    // Name
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(10)
+      .fillColor(textSecondary)
+      .text('Name', leftColumnX, billToY, { width: 120 })
       .font('Helvetica')
+      .fontSize(10)
+      .fillColor(textPrimary)
       .text(
-        dueDate.toLocaleDateString('en-GB', dateFormatOptions),
-        invoiceDetailsValueX,
-        190,
+        `${invoiceData.student.surname} ${invoiceData.student.name}`,
+        leftColumnX,
+        billToY + 13,
+        { width: columnWidth - 10 },
       );
 
-    // --- Bill To Address & Student Details (Left Side, grid-like) ---
-    const billToStartY = 220;
-    const studentLabelX = 50;
-    const studentValueX = studentLabelX + 80;
-    const studentLineHeight = 18;
+    billToY += 30;
 
+    // Student Number
     doc
       .font('Helvetica-Bold')
-      .fontSize(12)
-      .fillColor('#3185fc')
-      .text('Bill To:', studentLabelX, billToStartY)
+      .fontSize(10)
+      .fillColor(textSecondary)
+      .text('Student Number', leftColumnX, billToY, { width: 120 })
       .font('Helvetica')
-      .fillColor('#000');
-
-    // Student Name
-    doc
-      .text(`Student:`, studentLabelX, billToStartY + studentLineHeight)
+      .fontSize(10)
+      .fillColor(textPrimary)
       .text(
-        `${invoiceData.student.name} ${invoiceData.student.surname}`,
-        studentValueX,
-        billToStartY + studentLineHeight,
+        invoiceData.student.studentNumber || 'N/A',
+        leftColumnX,
+        billToY + 13,
+        { width: columnWidth - 10 },
       );
+
+    billToY += 30;
 
     // Class
     doc
-      .text(`Class:`, studentLabelX, billToStartY + 2 * studentLineHeight)
+      .font('Helvetica-Bold')
+      .fontSize(10)
+      .fillColor(textSecondary)
+      .text('Class', leftColumnX, billToY, { width: 120 })
+      .font('Helvetica')
+      .fontSize(10)
+      .fillColor(textPrimary)
       .text(
-        `${invoiceData.enrol.name}`,
-        studentValueX,
-        billToStartY + 2 * studentLineHeight,
+        invoiceData.enrol.name || 'N/A',
+        leftColumnX,
+        billToY + 13,
+        { width: columnWidth - 10 },
       );
 
-    // Term (Num and Year)
-    doc
-      .text(`Term:`, studentLabelX, billToStartY + 3 * studentLineHeight)
-      .text(
-        `${invoiceData.enrol.num} ${invoiceData.enrol.year}`,
-        studentValueX,
-        billToStartY + 3 * studentLineHeight,
-      );
+    billToY += 30;
 
     // Residence
     doc
-      .text(`Residence:`, studentLabelX, billToStartY + 4 * studentLineHeight)
+      .font('Helvetica-Bold')
+      .fontSize(10)
+      .fillColor(textSecondary)
+      .text('Residence', leftColumnX, billToY, { width: 120 })
+      .font('Helvetica')
+      .fontSize(10)
+      .fillColor(textPrimary)
       .text(
-        `${invoiceData.enrol.residence}`,
-        studentValueX,
-        billToStartY + 4 * studentLineHeight,
+        invoiceData.enrol.residence || 'N/A',
+        leftColumnX,
+        billToY + 13,
+        { width: columnWidth - 10 },
       );
 
-    let currentStudentDetailY = billToStartY + 4 * studentLineHeight;
-
-    // Phone (if available)
     if (invoiceData.student.cell) {
-      currentStudentDetailY += studentLineHeight;
+      billToY += 30;
       doc
-        .text(`Phone:`, studentLabelX, currentStudentDetailY)
-        .text(
-          `${invoiceData.student.cell}`,
-          studentValueX,
-          currentStudentDetailY,
-        );
+        .font('Helvetica-Bold')
+        .fontSize(10)
+        .fillColor(textSecondary)
+        .text('Phone', leftColumnX, billToY, { width: 120 })
+        .font('Helvetica')
+        .fontSize(10)
+        .fillColor(textPrimary)
+        .text(invoiceData.student.cell, leftColumnX, billToY + 13, {
+          width: columnWidth - 10,
+        });
     }
 
-    // Email (if available)
     if (invoiceData.student.email) {
-      currentStudentDetailY += studentLineHeight;
+      billToY += 30;
       doc
-        .text(`Email:`, studentLabelX, currentStudentDetailY)
-        .text(
-          `${invoiceData.student.email}`,
-          studentValueX,
-          currentStudentDetailY,
-        );
+        .font('Helvetica-Bold')
+        .fontSize(10)
+        .fillColor(textSecondary)
+        .text('Email', leftColumnX, billToY, { width: 120 })
+        .font('Helvetica')
+        .fontSize(10)
+        .fillColor(textPrimary)
+        .text(invoiceData.student.email, leftColumnX, billToY + 13, {
+          width: columnWidth - 10,
+        });
     }
 
-    // --- Invoice Summary (Right Side, grid-like) ---
-    const invoiceSummaryLabelX = doc.page.width / 2;
-    const invoiceSummaryValueX = invoiceSummaryLabelX + 100;
-    const invoiceSummaryStartY = 220;
-    const summaryLineHeight = 20;
+    const billToEndY = billToY + 35;
 
+    // Invoice Summary Section (Right Column)
     doc
       .font('Helvetica-Bold')
-      .fontSize(12)
-      .fillColor('#3185fc')
-      .text('Invoice Summary:', invoiceSummaryLabelX, invoiceSummaryStartY)
-      .font('Helvetica')
-      .fillColor('#000');
+      .fontSize(14)
+      .fillColor(primaryBlue)
+      .text('Invoice Summary', rightColumnX, infoSectionY);
 
-    // Total Bill (Net bill after exemption) - Ensure it's a number here too
+    // Blue underline
     doc
-      .text(
-        `Total Bill:`,
-        invoiceSummaryLabelX,
-        invoiceSummaryStartY + summaryLineHeight,
-      )
-      .text(
-        `\$${Number(invoiceData.totalBill).toFixed(2)}`,
-        invoiceSummaryValueX,
-        invoiceSummaryStartY + summaryLineHeight,
-      );
+      .strokeColor(primaryBlue)
+      .lineWidth(2)
+      .moveTo(rightColumnX, infoSectionY + 18)
+      .lineTo(rightColumnX + 150, infoSectionY + 18)
+      .stroke();
 
-    // Amount Paid
-    doc
-      .text(
-        `Amount Paid:`,
-        invoiceSummaryLabelX,
-        invoiceSummaryStartY + 2 * summaryLineHeight,
-      )
-      .text(
-        `\$${Number(invoiceData.amountPaidOnInvoice).toFixed(2)}`,
-        invoiceSummaryValueX,
-        invoiceSummaryStartY + 2 * summaryLineHeight,
-      );
+    let summaryY = infoSectionY + 30;
+    const summaryItemHeight = 24;
 
-    // Balance Due
-    doc
-      .text(
-        `Balance Due:`,
-        invoiceSummaryLabelX,
-        invoiceSummaryStartY + 3 * summaryLineHeight,
-      )
-      .text(
-        `\$${Number(invoiceData.balance).toFixed(2)}`,
-        invoiceSummaryValueX,
-        invoiceSummaryStartY + 3 * summaryLineHeight,
-      );
+    // Get status color based on invoice status
+    const getStatusColor = (status: string): string => {
+      const statusLower = status?.toLowerCase() || '';
+      if (statusLower.includes('paid')) return successGreen;
+      if (statusLower.includes('pending') || statusLower.includes('partially')) return warningOrange;
+      if (statusLower.includes('overdue')) return errorRed;
+      return textSecondary;
+    };
 
-    // Status
-    doc
-      .text(
-        `Status:`,
-        invoiceSummaryLabelX,
-        invoiceSummaryStartY + 4 * summaryLineHeight,
-      )
-      .fillColor('#3185fc')
-      .text(
-        `${invoiceData.status}`,
-        invoiceSummaryValueX,
-        invoiceSummaryStartY + 4 * summaryLineHeight,
-      );
+    // Summary items with background boxes
+    const summaryItems = [
+      {
+        label: 'Total Bill',
+        value: this.formatCurrency(invoiceData.totalBill),
+        highlight: false,
+      },
+      {
+        label: 'Amount Paid',
+        value: this.formatCurrency(invoiceData.amountPaidOnInvoice),
+        highlight: false,
+      },
+      {
+        label: 'Balance Due',
+        value: this.formatCurrency(invoiceData.balance),
+        highlight: true,
+        color: errorRed,
+      },
+      {
+        label: 'Status',
+        value: invoiceData.status || 'N/A',
+        highlight: false,
+        isStatus: true,
+        statusColor: getStatusColor(invoiceData.status || ''),
+      },
+    ];
+
+    summaryItems.forEach((item, index) => {
+      const itemY = summaryY + index * summaryItemHeight;
+
+      // Background box (light blue)
+      doc
+        .rect(rightColumnX, itemY, columnWidth, 22)
+        .fillOpacity(0.05)
+        .fill(primaryBlue)
+        .fillOpacity(1.0);
+
+      // Left border accent
+      doc.rect(rightColumnX, itemY, 3, 22).fill(primaryBlue);
+
+      // Label and Value on same line, properly aligned
+      const labelWidth = 100;
+      const valueWidth = columnWidth - labelWidth - 20;
+      
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(10)
+        .fillColor(textSecondary)
+        .text(item.label, rightColumnX + 10, itemY + 6, {
+          width: labelWidth,
+        });
+
+      // Value - aligned right
+      const valueColor = item.isStatus
+        ? item.statusColor
+        : item.highlight && item.color
+        ? item.color
+        : textPrimary;
+      
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(11)
+        .fillColor(valueColor)
+        .text(item.value, rightColumnX + labelWidth + 10, itemY + 6, {
+          width: valueWidth,
+          align: 'right',
+        });
+    });
+
+    currentY = Math.max(billToEndY, summaryY + summaryItems.length * summaryItemHeight) + 8;
 
     // --- Invoice Items Table ---
     const tableStartX = 50;
-    const tableStartY = Math.max(
-      currentStudentDetailY + 20,
-      invoiceSummaryStartY + 5 * summaryLineHeight + 20,
-    );
+    const tableStartY = currentY;
 
     const columnWidths = [390, 100];
-    const headers = ['Fee Description', 'Amount'];
+    const headers = ['Description', 'Amount'];
 
     const items = invoiceData.bills || [];
 
@@ -1690,27 +1942,28 @@ export class PaymentService {
       if (calculatedExemptionAmount > 0) {
         // Create a dummy FeesEntity instance for the exemption
         const exemptionFees: FeesEntity = {
-          id: 0, // Using 0 as a dummy numeric ID for this generated FeesEntity
+          id: 0,
           name: FeesNames.exemption,
-          amount: -calculatedExemptionAmount, // The calculated negative amount
-          description: 'Exemption Discount', // A default description for the generated fee
-          bills: [], // As it's a dummy FeesEntity, this array can be empty
-          exemptionType: invoiceData.exemption.type, // Assign the exemption type from invoiceData.exemption
+          amount: -calculatedExemptionAmount,
+          description: 'Exemption Discount',
+          bills: [],
+          exemptionType: invoiceData.exemption.type,
         };
 
         // Create a dummy BillsEntity instance for the exemption row
         const exemptionBill: BillsEntity = {
-          id: 0, // Using 0 as a dummy numeric ID for this generated BillsEntity
-          date: new Date(), // Use current date for the bill date (matches BillsEntity's 'date' column)
-          student: invoiceData.student, // Link to the student from invoiceData
-          fees: exemptionFees, // Link to the dummy FeesEntity created above
-          enrol: invoiceData.enrol, // Link to the enrolment from invoiceData
-          invoice: invoiceData, // Link to the current invoiceData
+          id: 0,
+          date: new Date(),
+          student: invoiceData.student,
+          fees: exemptionFees,
+          enrol: invoiceData.enrol,
+          invoice: invoiceData,
         };
-        items.push(exemptionBill); // Append exemption to the list (now last entry)
+        items.push(exemptionBill);
       }
     }
 
+    // Use gradient blue header color for table
     const tableEndY = this.drawTable(
       doc,
       items,
@@ -1720,65 +1973,109 @@ export class PaymentService {
       columnWidths,
       headers,
       invoiceData.totalBill,
+      primaryBlue, // headerColor
+      textPrimary, // textColor
+      'right', // amountAlign
     );
 
-    // --- Terms and Conditions ---
-    const termsAndConditions = `Terms and Conditions: Payment is due within 30 days or before schools open whichever comes first. Please include the Student Number on your payment.`;
-    const termsStartY = tableEndY + 50;
+    currentY = tableEndY + 10;
 
+    // --- Terms and Conditions Section (Gold/Amber background) ---
+    const termsBoxY = currentY;
+    const termsBoxHeight = 45;
+
+    // Gold background box
     doc
-      .font('Helvetica')
-      .fontSize(10)
-      .fillColor('#555555')
-      .text(termsAndConditions, 50, termsStartY, {
-        align: 'left',
-        lineGap: 8,
-        width: doc.page.width - 100,
-      });
+      .rect(50, termsBoxY, doc.page.width - 100, termsBoxHeight)
+      .fillOpacity(0.5)
+      .fill('#fff3e0')
+      .fillOpacity(1.0);
 
-    // --- Banking Details ---
-    const bankingDetailsStartY = termsStartY + 40;
-    const accountName = 'JUNIOR HIGH SCHOOL';
-    const bank = 'ZB BANK';
-    const branch = 'MASVINGO';
-    const accountNumber = '4564 00321642 405';
-
-    // Calculate the Y position after the banking details block
-    const bankingDetailsEndLineY = bankingDetailsStartY + 80;
+    // Left border accent (gold)
+    doc.rect(50, termsBoxY, 4, termsBoxHeight).fill(accentGold);
 
     doc
       .font('Helvetica-Bold')
-      .text('BANKING DETAILS', 50, bankingDetailsStartY, {
-        align: 'left',
-        lineGap: 8,
-      })
-      .font('Helvetica')
-      .text('Account Name: ' + accountName, 50, bankingDetailsStartY + 20, {
-        align: 'left',
-        lineGap: 8,
-      })
-      .text('Bank: ' + bank, 50, bankingDetailsStartY + 40, {
-        align: 'left',
-        lineGap: 8,
-      })
-      .text('Branch: ' + branch, 50, bankingDetailsStartY + 60, {
-        align: 'left',
-        lineGap: 8,
-      })
-      .text('Account Number: ' + accountNumber, 50, bankingDetailsStartY + 80, {
-        align: 'left',
-        lineGap: 8,
-      });
+      .fontSize(11)
+      .fillColor(textPrimary)
+      .text('Terms and Conditions', 70, termsBoxY + 8);
 
-    // --- Footer (positioned directly after banking details) ---
-    const footerText = 'Thank you for your business!';
-    const footerY = bankingDetailsEndLineY + 20;
+    const termsText =
+      'Payment is due within 30 days or before schools open, whichever comes first. Please include the Student Number on your payment.';
 
     doc
       .font('Helvetica')
-      .fontSize(10)
-      .fillColor('#888888')
-      .text(footerText, 50, footerY, {
+      .fontSize(9)
+      .fillColor(textSecondary)
+      .text(termsText, 70, termsBoxY + 20, {
+        width: doc.page.width - 140,
+        lineGap: 2,
+      });
+
+    currentY = termsBoxY + termsBoxHeight + 10;
+
+    // --- Banking Details Section ---
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(13)
+      .fillColor(primaryBlue)
+      .text('Banking Details', 50, currentY);
+
+    // Blue underline
+    doc
+      .strokeColor(primaryBlue)
+      .lineWidth(2)
+      .moveTo(50, currentY + 16)
+      .lineTo(200, currentY + 16)
+      .stroke();
+
+    currentY += 24;
+
+    // Banking details grid - more compact
+    const bankingDetails = [
+      { label: 'Account Name', value: 'JUNIOR HIGH SCHOOL' },
+      { label: 'Bank', value: 'ZB BANK' },
+      { label: 'Branch', value: 'MASVINGO' },
+      {
+        label: 'Account Number',
+        value: '4564 00321642 405',
+        highlight: true,
+      },
+    ];
+
+    bankingDetails.forEach((item) => {
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(9)
+        .fillColor(textSecondary)
+        .text(item.label, 50, currentY, { width: 140 });
+      doc
+        .font(item.highlight ? 'Helvetica-Bold' : 'Helvetica')
+        .fontSize(item.highlight ? 10 : 9)
+        .fillColor(item.highlight ? primaryBlue : textPrimary)
+        .text(item.value, 190, currentY, { width: 250 });
+
+      currentY += 14;
+    });
+
+    currentY += 8;
+
+    // --- Footer ---
+    // Top border
+    doc
+      .strokeColor('#e0e0e0')
+      .lineWidth(1)
+      .moveTo(50, currentY)
+      .lineTo(doc.page.width - 50, currentY)
+      .stroke();
+
+    currentY += 8;
+
+    doc
+      .font('Helvetica-Oblique')
+      .fontSize(9)
+      .fillColor(textSecondary)
+      .text('Thank you for your business!', 50, currentY, {
         align: 'center',
         width: doc.page.width - 100,
       });
@@ -1902,10 +2199,6 @@ export class PaymentService {
     // Corrected path using process.cwd()
     const logoPath = path.join(process.cwd(), 'public', 'jhs_logo.jpg');
     // console.log('Attempting to load image from:', imgPath); // For debugging
-    const imgBuffer = fs.readFileSync(logoPath);
-
-    const logoWidthPt = this.pxToPt(100); // Your CSS print media query for header-logo was 100px
-    const logoHeightPt = this.pxToPt(100); // Assuming square aspect ratio or similar height
 
     return new Promise(async (resolve, reject) => {
       const doc = new PDFDocument({
@@ -1923,300 +2216,368 @@ export class PaymentService {
       let currentY = this.mmToPt(15); // Start at 15mm from top (like your CSS padding)
 
       // ========================== Header Section ==========================
-      const headerBarHeight = this.mmToPt(40); // Generous height for header bar
+      const headerBarHeight = this.mmToPt(55); // Increased height to accommodate logo with tagline
       const headerBarY = currentY;
 
-      // 1. Logo
+      // 2. Receipt Title ("RECEIPT") and Status Badge - Calculate title position first
+      const titleText = 'RECEIPT';
+      doc.font(defaultFontBold).fontSize(30); // Larger, more prominent
+      const titleWidth = doc.widthOfString(titleText);
+      const titleX = pageWidth / 2 - titleWidth / 2;
+      const titleY = headerBarY + this.mmToPt(8);
+
+      // 1. Logo Container - aligned with RECEIPT text (matching frontend glassy shade effect)
+      const logoWidthPt = this.pxToPt(100); // Logo width
+      const logoHeightPt = this.pxToPt(100); // Logo height
+      const logoPadding = this.mmToPt(2); // Padding inside container
+      const logoContainerWidth = logoWidthPt + logoPadding * 2;
+      const logoContainerHeight = logoHeightPt + logoPadding * 2;
       const logoX = pageMargin;
-      const logoY = headerBarY + (headerBarHeight - logoHeightPt) / 2; // Vertically center logo
+      // Align container top with RECEIPT title top
+      const logoContainerY = titleY;
+
+      // Draw logo container with glassy shade effect (matching frontend)
+      doc.save();
+      // Background with subtle grey (glassy shade)
+      doc.fillColor('#f5f7fa'); // Light grey background matching frontend
+      doc.roundedRect(logoX, logoContainerY, logoContainerWidth, logoContainerHeight, 3)
+        .fill();
+      // Border (light grey)
+      doc.strokeColor('#e0e0e0'); // Border color
+      doc.lineWidth(0.5);
+      doc.roundedRect(logoX, logoContainerY, logoContainerWidth, logoContainerHeight, 3)
+        .stroke();
+      doc.restore();
+
+      // Logo image inside container
+      const logoImageX = logoX + logoPadding;
+      const logoImageY = logoContainerY + logoPadding;
 
       try {
         if (fs.existsSync(logoPath)) {
-          doc.image(logoPath, logoX, logoY, {
+          // Load image to show full logo including tagline
+          doc.image(logoPath, logoImageX, logoImageY, {
             width: logoWidthPt,
-            height: logoHeightPt,
+            height: logoHeightPt
           });
         } else {
           doc
             .fillColor('#ccc')
             .text(
               'LOGO',
-              logoX + logoWidthPt / 2 - doc.widthOfString('LOGO') / 2,
-              logoY + logoHeightPt / 2 - doc.currentLineHeight() / 2,
+              logoImageX + logoWidthPt / 2 - doc.widthOfString('LOGO') / 2,
+              logoImageY + logoHeightPt / 2 - doc.currentLineHeight() / 2,
             );
         }
       } catch (error) {
-        doc.fillColor('red').text('LOGO_ERR', logoX, logoY + logoHeightPt / 2);
+        doc.fillColor('red').text('LOGO_ERR', logoImageX, logoImageY + logoHeightPt / 2);
       }
       doc.fillColor('#000'); // Reset fill color
-
-      // 2. Receipt Title ("RECEIPT")
-      const titleText = 'RECEIPT';
-      doc.font(defaultFontBold).fontSize(headerTitleFontSize);
-      const titleWidth = doc.widthOfString(titleText);
-      const titleX = pageWidth / 2 - titleWidth / 2; // Horizontally center title
-      const titleY =
-        headerBarY + (headerBarHeight - doc.currentLineHeight()) / 2; // Vertically center title
+      
+      // Draw title after logo positioning
+      doc.fillColor('#2196f3'); // Blue color for title
       doc.text(titleText, titleX, titleY);
+      doc.fillColor('#000'); // Reset
 
-      currentY = headerBarY + headerBarHeight + this.mmToPt(10); // Space after header
+      // Status Badge (Approved/Pending)
+      const statusText = receipt.approved ? 'APPROVED' : 'PENDING';
+      const statusColor = receipt.approved ? '#4caf50' : '#ff9800'; // Green for approved, orange for pending
+      const statusBgColor = receipt.approved ? '#e8f5e9' : '#fff3e0'; // Light green background for approved, light orange for pending
+      doc.font(defaultFontBold).fontSize(9);
+      const statusBadgeWidth = doc.widthOfString(statusText) + this.mmToPt(4);
+      const statusBadgeHeight = doc.currentLineHeight() + this.mmToPt(2);
+      const statusX = pageWidth / 2 - statusBadgeWidth / 2;
+      // Position badge below RECEIPT text with increased spacing
+      const statusY = titleY + doc.currentLineHeight() + this.mmToPt(8);
+      
+      // Draw badge background with proper colors
+      doc.save();
+      doc.fillColor(statusBgColor);
+      doc.roundedRect(statusX - this.mmToPt(2), statusY, statusBadgeWidth, statusBadgeHeight, 3).fill();
+      doc.restore();
+      
+      // Draw badge border
+      doc.save();
+      doc.strokeColor(statusColor);
+      doc.lineWidth(1);
+      doc.roundedRect(statusX - this.mmToPt(2), statusY, statusBadgeWidth, statusBadgeHeight, 3).stroke();
+      doc.restore();
+      
+      // Draw badge text
+      doc.fillColor(statusColor);
+      doc.text(statusText, statusX, statusY + this.mmToPt(1));
+      doc.fillColor('#000'); // Reset
+
+      // Position meta section below the logo (not just below status badge)
+      // Calculate the bottom of the logo container
+      const logoBottom = logoContainerY + logoContainerHeight;
+      // Ensure meta section starts below logo with reduced spacing
+      currentY = Math.max(statusY + statusBadgeHeight, logoBottom) + this.mmToPt(8); // Space after header
 
       // ========================== Receipt Details ==========================
-      const detailsPaddingY = this.mmToPt(5); // Padding inside details section
-      const detailsSectionHeight = this.mmToPt(30); // Estimated height for details section
-      const detailsLineY = currentY; // Top border line
+      const detailsPadding = this.mmToPt(5);
+      const detailsBoxY = currentY;
+      const detailsBoxHeight = this.mmToPt(30); // Reduced height
+      
+      // Draw background box for details
+      doc.roundedRect(pageMargin, detailsBoxY, contentWidth, detailsBoxHeight, 6)
+        .fillAndStroke('#f5f5f5', '#e0e0e0');
+      
+      currentY += detailsPadding;
 
-      doc.strokeColor('#eee').lineWidth(1);
-      doc
-        .moveTo(pageMargin, detailsLineY)
-        .lineTo(pageWidth - pageMargin, detailsLineY)
-        .stroke();
-
-      currentY += detailsPaddingY * 2;
-
-      doc.font(defaultFont).fontSize(detailItemFontSize);
-      const detailItemSpacing = contentWidth / 3; // For 'space-around' effect
+      // Set up for detail items
+      doc.font(defaultFont).fontSize(8); // Label size
+      const detailItemWidth = contentWidth / 3;
+      const detailItemHeight = this.mmToPt(20);
 
       // Detail Item 1: Receipt #
-      let detailLabelY = currentY;
-      let detailValueY = currentY + doc.currentLineHeight() * 1.8; // Position value below label
-      doc.fillColor('#555').text('Receipt #:', pageMargin, detailLabelY);
-      doc
-        .fillColor('#000')
-        .text(receipt.receiptNumber, pageMargin, detailValueY);
+      let detailX = pageMargin + this.mmToPt(6);
+      let detailY = currentY;
+      doc.fillColor('#7f8c8d').text('RECEIPT #', detailX, detailY);
+      doc.font(defaultFontBold).fontSize(11).fillColor('#000');
+      doc.text(receipt.receiptNumber || 'N/A', detailX, detailY + this.mmToPt(5));
 
       // Detail Item 2: Payment Date
-      detailLabelY = currentY;
-      detailValueY = currentY + doc.currentLineHeight() * 1.8;
-      doc
-        .fillColor('#555')
-        .text('Payment Date:', pageMargin + detailItemSpacing, detailLabelY);
-      doc
-        .fillColor('#000')
-        .text(
-          this.formatDate(receipt.paymentDate),
-          pageMargin + detailItemSpacing,
-          detailValueY,
-        );
+      detailX = pageMargin + detailItemWidth + this.mmToPt(6);
+      detailY = currentY;
+      doc.font(defaultFont).fontSize(8).fillColor('#7f8c8d');
+      doc.text('PAYMENT DATE', detailX, detailY);
+      doc.font(defaultFontBold).fontSize(11).fillColor('#000');
+      doc.text(this.formatDate(receipt.paymentDate), detailX, detailY + this.mmToPt(5));
 
       // Detail Item 3: Payment Method
-      detailLabelY = currentY;
-      detailValueY = currentY + doc.currentLineHeight() * 1.8;
-      doc
-        .fillColor('#555')
-        .text(
-          'Payment Method:',
-          pageMargin + 2 * detailItemSpacing,
-          detailLabelY,
-        );
-      doc
-        .fillColor('#000')
-        .text(
-          receipt.paymentMethod,
-          pageMargin + 2 * detailItemSpacing,
-          detailValueY,
-        );
+      detailX = pageMargin + 2 * detailItemWidth + this.mmToPt(6);
+      detailY = currentY;
+      doc.font(defaultFont).fontSize(8).fillColor('#7f8c8d');
+      doc.text('PAYMENT METHOD', detailX, detailY);
+      doc.font(defaultFontBold).fontSize(11).fillColor('#000');
+      doc.text(receipt.paymentMethod || 'N/A', detailX, detailY + this.mmToPt(5));
 
-      currentY += detailsSectionHeight - detailsPaddingY * 2; // Move cursor to end of details content
-      const detailsLineBottomY = currentY;
-
-      doc.strokeColor('#eee').lineWidth(1);
-      doc
-        .moveTo(pageMargin, detailsLineBottomY)
-        .lineTo(pageWidth - pageMargin, detailsLineBottomY)
-        .stroke();
-
-      currentY += this.mmToPt(10); // Space after details
+      currentY = detailsBoxY + detailsBoxHeight + this.mmToPt(8); // Space after details
 
       // ========================== From / To Section ==========================
-      const sectionHeadingY = currentY;
-      const sectionHeadingUnderlineOffset = this.mmToPt(2); // Distance below heading text for underline
-      const lineSpacing = this.mmToPt(4); // For lines in party blocks
+      // Section Header
+      doc.font(defaultFontBold).fontSize(sectionHeadingFontSize).fillColor('#000');
+      const sectionHeaderY = currentY;
+      doc.text('PARTIES', pageMargin, sectionHeaderY);
+      
+      // Draw underline
+      doc.strokeColor('#2196f3').lineWidth(2);
+      doc.moveTo(pageMargin, sectionHeaderY + doc.currentLineHeight() + this.mmToPt(2))
+        .lineTo(pageMargin + doc.widthOfString('PARTIES'), sectionHeaderY + doc.currentLineHeight() + this.mmToPt(2))
+        .stroke();
+      
+      currentY += doc.currentLineHeight() + this.mmToPt(5); // Reduced spacing
 
+      const partyBlockWidth = contentWidth / 2 - this.mmToPt(6); // Reduced gap
+      const partyBlockPadding = this.mmToPt(4); // Reduced padding
+      const lineSpacing = this.mmToPt(3); // Reduced line spacing
+
+      // From Block (Student) - Left side
+      const fromBlockX = pageMargin;
+      const fromBlockY = currentY;
+      const fromBlockHeight = this.mmToPt(45); // Reduced height
+      
+      // Draw From block background
+      doc.roundedRect(fromBlockX, fromBlockY, partyBlockWidth, fromBlockHeight, 5)
+        .fillAndStroke('#f5f7fa', '#2196f3');
+      doc.rect(fromBlockX, fromBlockY, 4, fromBlockHeight).fill('#2196f3'); // Left border
+      
       // From Block Heading
-      doc
-        .font(defaultFontBold)
-        .fontSize(sectionHeadingFontSize)
-        .fillColor('#000');
-      doc.text('From:', pageMargin, sectionHeadingY);
-      doc
-        .strokeColor('#ccc')
-        .lineWidth(1)
-        .moveTo(
-          pageMargin,
-          sectionHeadingY +
-            doc.currentLineHeight() +
-            sectionHeadingUnderlineOffset,
-        )
-        .lineTo(
-          pageMargin + doc.widthOfString('From:'),
-          sectionHeadingY +
-            doc.currentLineHeight() +
-            sectionHeadingUnderlineOffset,
-        )
-        .stroke();
-
-      // To Block Heading
-      const toBlockX = pageWidth / 2 + this.mmToPt(5); // Start of second column, with 5mm gap
-      doc.text('To:', toBlockX, sectionHeadingY);
-      doc
-        .strokeColor('#ccc')
-        .lineWidth(1)
-        .moveTo(
-          toBlockX,
-          sectionHeadingY +
-            doc.currentLineHeight() +
-            sectionHeadingUnderlineOffset,
-        )
-        .lineTo(
-          toBlockX + doc.widthOfString('To:'),
-          sectionHeadingY +
-            doc.currentLineHeight() +
-            sectionHeadingUnderlineOffset,
-        )
-        .stroke();
-
-      currentY += doc.currentLineHeight() + this.mmToPt(5); // Move cursor below headings
-
+      doc.font(defaultFontBold).fontSize(11).fillColor('#000');
+      doc.text('FROM', fromBlockX + partyBlockPadding, fromBlockY + partyBlockPadding);
+      
+      let fromContentY = fromBlockY + partyBlockPadding + doc.currentLineHeight() + this.mmToPt(2); // Reduced spacing
       doc.font(defaultFont).fontSize(defaultFontSize).fillColor('#000');
-      const partyBlockContentWidth = contentWidth / 2 - this.mmToPt(5); // Width for each party block
+      
+      // Student name (bold)
+      if (receipt.student) {
+        doc.font(defaultFontBold).fontSize(10);
+        doc.text(
+          `${receipt.student.name} ${receipt.student.surname} (${receipt.student.studentNumber})`,
+          fromBlockX + partyBlockPadding,
+          fromContentY,
+          { width: partyBlockWidth - partyBlockPadding * 2 }
+        );
+        fromContentY += doc.currentLineHeight() + lineSpacing;
+        doc.font(defaultFont).fontSize(9);
+        
+        if (receipt.enrol) {
+          doc.text(
+            `Enrolled in ${receipt.enrol.name} Term ${receipt.enrol.num}, ${receipt.enrol.year}`,
+            fromBlockX + partyBlockPadding,
+            fromContentY,
+            { width: partyBlockWidth - partyBlockPadding * 2 }
+          );
+          fromContentY += doc.currentLineHeight() + lineSpacing;
+        }
+        
+        if (receipt.student.address) {
+          doc.text(
+            receipt.student.address,
+            fromBlockX + partyBlockPadding,
+            fromContentY,
+            { width: partyBlockWidth - partyBlockPadding * 2 }
+          );
+          fromContentY += doc.currentLineHeight() + lineSpacing;
+        }
+        
+        if (receipt.student.cell) {
+          doc.text(
+            receipt.student.cell,
+            fromBlockX + partyBlockPadding,
+            fromContentY,
+            { width: partyBlockWidth - partyBlockPadding * 2 }
+          );
+          fromContentY += doc.currentLineHeight() + lineSpacing;
+        }
+        
+        if (receipt.student.email) {
+          doc.text(
+            receipt.student.email,
+            fromBlockX + partyBlockPadding,
+            fromContentY,
+            { width: partyBlockWidth - partyBlockPadding * 2 }
+          );
+        }
+      }
 
-      // From Block Content
-      let fromContentY = currentY;
-      doc.text('Junior High School', pageMargin, fromContentY);
-      fromContentY += doc.currentLineHeight() + lineSpacing;
-      doc.text(
-        '30588 Lundi Drive, Rhodene, Masvingo',
-        pageMargin,
-        fromContentY,
-      );
-      fromContentY += doc.currentLineHeight() + lineSpacing;
-      doc.text('+263 392 263 293', pageMargin, fromContentY);
-      fromContentY += doc.currentLineHeight() + lineSpacing;
-      doc.text('+263 78 223 8026', pageMargin, fromContentY);
-      fromContentY += doc.currentLineHeight() + lineSpacing;
-      doc.text('info@juniorhighschool.ac.zw', pageMargin, fromContentY);
+      // To Block (School) - Right side
+      const toBlockX = pageMargin + partyBlockWidth + this.mmToPt(6); // Reduced gap
+      const toBlockY = currentY;
+      const toBlockHeight = this.mmToPt(45); // Reduced height
+      
+      // Draw To block background
+      doc.roundedRect(toBlockX, toBlockY, partyBlockWidth, toBlockHeight, 5)
+        .fillAndStroke('#f5f7fa', '#4caf50');
+      doc.rect(toBlockX, toBlockY, 4, toBlockHeight).fill('#4caf50'); // Left border (green)
+      
+      // To Block Heading
+      doc.font(defaultFontBold).fontSize(11).fillColor('#000');
+      doc.text('TO', toBlockX + partyBlockPadding, toBlockY + partyBlockPadding);
+      
+      let toContentY = toBlockY + partyBlockPadding + doc.currentLineHeight() + this.mmToPt(2); // Reduced spacing
+      doc.font(defaultFont).fontSize(defaultFontSize).fillColor('#000');
+      
+      // School name (bold)
+      doc.font(defaultFontBold).fontSize(10);
+      doc.text('Junior High School', toBlockX + partyBlockPadding, toContentY);
+      toContentY += doc.currentLineHeight() + lineSpacing;
+      doc.font(defaultFont).fontSize(9);
+      
+      doc.text('30588 Lundi Drive, Rhodene, Masvingo', toBlockX + partyBlockPadding, toContentY);
+      toContentY += doc.currentLineHeight() + lineSpacing;
+      doc.text('+263 392 263 293', toBlockX + partyBlockPadding, toContentY);
+      toContentY += doc.currentLineHeight() + lineSpacing;
+      doc.text('+263 78 223 8026', toBlockX + partyBlockPadding, toContentY);
+      toContentY += doc.currentLineHeight() + lineSpacing;
+      doc.text('info@juniorhighschool.ac.zw', toBlockX + partyBlockPadding, toContentY);
 
-      // To Block Content
-      let toContentY = currentY;
-      doc.text(
-        `${receipt.student.name} ${receipt.student.surname} (${receipt.student.studentNumber})`,
-        toBlockX,
-        toContentY,
-      );
-      toContentY += doc.currentLineHeight() + lineSpacing;
-      doc.text(
-        `Enrolled in ${receipt.enrol.name} Term ${receipt.enrol.num}, ${receipt.enrol.year}`,
-        toBlockX,
-        toContentY,
-      );
-      toContentY += doc.currentLineHeight() + lineSpacing;
-      doc.text(receipt.student.address, toBlockX, toContentY);
-      toContentY += doc.currentLineHeight() + lineSpacing;
-      doc.text(receipt.student.cell, toBlockX, toContentY);
-      toContentY += doc.currentLineHeight() + lineSpacing;
-      doc.text(receipt.student.email, toBlockX, toContentY);
-
-      currentY = Math.max(fromContentY, toContentY) + this.mmToPt(10); // Move cursor below the lower of the two blocks
+      currentY = Math.max(fromBlockY + fromBlockHeight, toBlockY + toBlockHeight) + this.mmToPt(8); // Reduced spacing
 
       // ========================== Summary Section ==========================
-      const summaryTotalsWidth = this.mmToPt(80); // Adjusted width for totals block
-      // const summaryTotalsX = pageWidth - pageMargin - summaryTotalsWidth;
-      const summaryTotalsX = pageMargin;
-      let totalsY = currentY + this.mmToPt(10); // Space before totals
-
-      // Total Due
-      doc.font(defaultFontBold).fontSize(totalRowFontSize).fillColor('#000');
-      doc
-        .strokeColor('#333')
-        .lineWidth(2)
-        .moveTo(summaryTotalsX, totalsY)
-        .lineTo(pageWidth - pageMargin, totalsY)
+      // Section Header
+      doc.font(defaultFontBold).fontSize(sectionHeadingFontSize).fillColor('#000');
+      const summaryHeaderY = currentY;
+      doc.text('PAYMENT SUMMARY', pageMargin, summaryHeaderY);
+      
+      // Draw underline
+      doc.strokeColor('#2196f3').lineWidth(2);
+      doc.moveTo(pageMargin, summaryHeaderY + doc.currentLineHeight() + this.mmToPt(2))
+        .lineTo(pageMargin + doc.widthOfString('PAYMENT SUMMARY'), summaryHeaderY + doc.currentLineHeight() + this.mmToPt(2))
         .stroke();
-      totalsY += this.mmToPt(5); // Padding top
+      
+      currentY += doc.currentLineHeight() + this.mmToPt(6); // Reduced spacing
 
-      const invoiceNumbersString = receipt.allocations
-        .map((all) => all.invoice.invoiceNumber) // Get an array of just the invoice numbers
-        .join(', '); // Join them into a single string, separated by ', '
+      const summaryBoxY = currentY;
+      const summaryBoxHeight = this.mmToPt(42); // Reduced height
+      
+      // Draw summary box background
+      doc.roundedRect(pageMargin, summaryBoxY, contentWidth, summaryBoxHeight, 6)
+        .fillAndStroke('#f5f5f5', '#e0e0e0');
+      
+      let summaryY = summaryBoxY + this.mmToPt(4); // Reduced padding
+      const rowHeight = this.mmToPt(12);
+      const padding = this.mmToPt(4);
+      const valueStartX = pageWidth - pageMargin - padding; // Right edge minus padding
 
-      doc.text(
-        receipt.allocations.length > 1 ? 'Invoices Paid' : 'Invoice Paid',
-        summaryTotalsX,
-        totalsY,
-      );
-      doc.text(
-        invoiceNumbersString,
-        pageWidth - pageMargin - doc.widthOfString(invoiceNumbersString),
-        totalsY,
-        // { align: 'right' },
-      );
-      totalsY += doc.currentLineHeight() + this.mmToPt(5); // Line height + padding
-
-      // Amount Paid
-      doc.font(defaultFontBold).fontSize(totalRowFontSize).fillColor('#28a745'); // Green color
-      doc
-        .strokeColor('#28a745')
-        .lineWidth(2)
-        .moveTo(summaryTotalsX, totalsY)
-        .lineTo(pageWidth - pageMargin, totalsY)
+      // Invoice Paid Row
+      doc.font(defaultFont).fontSize(9).fillColor('#7f8c8d');
+      doc.text('INVOICE PAID', pageMargin + padding, summaryY);
+      
+      const invoiceNumbersString = receipt.allocations && receipt.allocations.length > 0
+        ? receipt.allocations
+            .map((all) => all.invoice?.invoiceNumber || 'N/A')
+            .join(', ')
+        : 'None';
+      
+      doc.font(defaultFontBold).fontSize(10).fillColor('#000');
+      // Right-align invoice number
+      const invoiceWidth = doc.widthOfString(invoiceNumbersString);
+      doc.text(invoiceNumbersString, valueStartX - invoiceWidth, summaryY);
+      
+      // Draw separator line
+      summaryY += doc.currentLineHeight() + this.mmToPt(1.5); // Reduced spacing
+      doc.strokeColor('#ddd').lineWidth(0.5);
+      doc.moveTo(pageMargin + padding, summaryY)
+        .lineTo(pageWidth - pageMargin - padding, summaryY)
         .stroke();
-      totalsY += this.mmToPt(5); // Padding top
-      doc.text('Amount Paid:', summaryTotalsX, totalsY);
-      doc.text(
-        this.formatCurrency(receipt.amountPaid),
-        pageWidth - pageMargin - doc.widthOfString(receipt.amountPaid + ''),
-        totalsY,
-        // { align: 'right' },
-      );
-      totalsY += doc.currentLineHeight() + this.mmToPt(5); // Line height + padding
+      
+      summaryY += this.mmToPt(3); // Reduced spacing
 
-      // Amount Outstanding
-      doc.font(defaultFontBold).fontSize(totalRowFontSize).fillColor('#000'); // Label black
-      doc
-        .strokeColor('#28a745')
-        .lineWidth(2) // Border green as per your CSS
-        .moveTo(summaryTotalsX, totalsY)
-        .lineTo(pageWidth - pageMargin, totalsY)
+      // Amount Paid Row (Green)
+      doc.font(defaultFont).fontSize(9).fillColor('#7f8c8d');
+      doc.text('AMOUNT PAID', pageMargin + padding, summaryY);
+      
+      doc.font(defaultFontBold).fontSize(11).fillColor('#4caf50');
+      // Right-align amount paid
+      const amountPaidText = this.formatCurrency(receipt.amountPaid);
+      const amountPaidWidth = doc.widthOfString(amountPaidText);
+      doc.text(amountPaidText, valueStartX - amountPaidWidth, summaryY);
+      
+      // Draw separator line (green)
+      summaryY += doc.currentLineHeight() + this.mmToPt(1.5); // Reduced spacing
+      doc.strokeColor('#4caf50').lineWidth(1.5);
+      doc.moveTo(pageMargin + padding, summaryY)
+        .lineTo(pageWidth - pageMargin - padding, summaryY)
         .stroke();
-      totalsY += this.mmToPt(5); // Padding top
+      
+      summaryY += this.mmToPt(3); // Reduced spacing
 
-      const amountOutstanding = await this.getStudentBalance(
-        receipt.student.studentNumber,
-      );
-      doc.text('Amount Outstanding:', summaryTotalsX, totalsY);
-      doc.fillColor('red').text(
-        this.formatCurrency(amountOutstanding.amountDue),
-        pageWidth -
-          pageMargin -
-          doc.widthOfString(amountOutstanding.amountDue + ''),
-        totalsY,
-        // { align: 'right' },
-      );
+      // Amount Outstanding Row (Red)
+      doc.font(defaultFont).fontSize(9).fillColor('#7f8c8d');
+      doc.text('AMOUNT OUTSTANDING', pageMargin + padding, summaryY);
+      
+      const amountOutstanding = receipt.student 
+        ? await this.getStudentBalance(receipt.student.studentNumber)
+        : { amountDue: 0 };
+      
+      doc.font(defaultFontBold).fontSize(11).fillColor('#f44336');
+      // Right-align amount outstanding
+      const amountOutstandingText = this.formatCurrency(amountOutstanding.amountDue);
+      const amountOutstandingWidth = doc.widthOfString(amountOutstandingText);
+      doc.text(amountOutstandingText, valueStartX - amountOutstandingWidth, summaryY);
+      
       doc.fillColor('#000'); // Reset color
 
-      currentY = totalsY + this.mmToPt(10); // Space after summary totals
+      currentY = summaryBoxY + summaryBoxHeight + this.mmToPt(8); // Space after summary (reduced)
 
       // ========================== Remarks ==========================
-      currentY += this.mmToPt(10); // Add extra space for remarks
+      currentY += this.mmToPt(6); // Reduced extra space for remarks
       doc
         .font(defaultFontBold)
         .fontSize(sectionHeadingFontSize)
         .fillColor('#000');
-      doc.text('Remarks:', pageMargin, currentY);
-      doc
-        .strokeColor('#ccc')
-        .lineWidth(1)
-        .moveTo(
-          pageMargin,
-          currentY + doc.currentLineHeight() + sectionHeadingUnderlineOffset,
-        )
-        .lineTo(
-          pageMargin + doc.widthOfString('Remarks:'),
-          currentY + doc.currentLineHeight() + sectionHeadingUnderlineOffset,
-        )
+      const remarksHeaderY = currentY;
+      doc.text('REMARKS:', pageMargin, remarksHeaderY);
+      
+      // Draw underline
+      doc.strokeColor('#2196f3').lineWidth(2);
+      doc.moveTo(pageMargin, remarksHeaderY + doc.currentLineHeight() + this.mmToPt(2))
+        .lineTo(pageMargin + doc.widthOfString('REMARKS:'), remarksHeaderY + doc.currentLineHeight() + this.mmToPt(2))
         .stroke();
 
-      currentY += doc.currentLineHeight() + this.mmToPt(5);
+      currentY += doc.currentLineHeight() + this.mmToPt(5); // Reduced spacing
 
       doc.font(defaultFont).fontSize(defaultFontSize).fillColor('#000');
       const remarksText =
@@ -2228,9 +2589,9 @@ export class PaymentService {
       });
 
       // ========================== Footer ==========================
-      const footerContentHeight = this.mmToPt(20); // Estimated height for footer text
-      const footerBorderTopOffset = this.mmToPt(10); // Space from content to footer line
-      const footerPaddingTop = this.mmToPt(5);
+      const footerContentHeight = this.mmToPt(18); // Reduced height for footer text
+      const footerBorderTopOffset = this.mmToPt(8); // Reduced space from content to footer line
+      const footerPaddingTop = this.mmToPt(4); // Reduced padding
 
       // Calculate the Y position for the footer, ensuring it's at the bottom if content is short
       const minFooterY =
@@ -2263,6 +2624,51 @@ export class PaymentService {
           align: 'center',
         },
       );
+
+      // ========================== Void Overlay (drawn on top) ==========================
+      if (receipt.isVoided) {
+        // Draw semi-transparent overlay
+        doc.save();
+        doc.fillOpacity(0.25);
+        doc.rect(0, 0, pageWidth, pageHeight).fill('#000');
+        doc.restore();
+        
+        // Draw large diagonal VOID text
+        doc.save();
+        doc.translate(pageWidth / 2, pageHeight / 2);
+        doc.rotate(45);
+        doc.font(defaultFontBold).fontSize(72).fillColor('#f44336');
+        const voidText = 'VOIDED';
+        const voidWidth = doc.widthOfString(voidText);
+        doc.text(voidText, -voidWidth / 2, 0, {
+          align: 'center',
+          width: voidWidth
+        });
+        doc.restore();
+        
+        // Void details at bottom
+        doc.font(defaultFontBold).fontSize(16).fillColor('#f44336');
+        doc.text('VOIDED', pageWidth / 2, pageHeight - this.mmToPt(40), {
+          align: 'center',
+          width: contentWidth
+        });
+        
+        if (receipt.voidedBy) {
+          doc.font(defaultFont).fontSize(10).fillColor('#666');
+          doc.text(`By: ${receipt.voidedBy}`, pageWidth / 2, pageHeight - this.mmToPt(35), {
+            align: 'center',
+            width: contentWidth
+          });
+        }
+        
+        if (receipt.voidedAt) {
+          doc.font(defaultFont).fontSize(10).fillColor('#666');
+          doc.text(`On: ${this.formatDate(receipt.voidedAt)}`, pageWidth / 2, pageHeight - this.mmToPt(30), {
+            align: 'center',
+            width: contentWidth
+          });
+        }
+      }
 
       // --- Finalize Document ---
       doc.end();

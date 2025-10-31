@@ -10,6 +10,7 @@ import { StudentsService } from 'src/profiles/students/students.service';
 import { PaymentService } from 'src/payment/payment.service';
 import { ExemptionEntity } from './entities/exemptions.entity'; // Corrected import path for ExemptionType
 import { CreateExemptionDto } from './dtos/createExemption.dto'; // Corrected import path for DTO
+import { UpdateExemptionDto } from './dtos/updateExemption.dto';
 import { ExemptionType } from './enums/exemptions-type.enum';
 
 @Injectable()
@@ -142,5 +143,136 @@ export class ExemptionService {
     );
     // As clarified, no need to affect previous invoices when deactivating.
     return deactivatedExemption;
+  }
+
+  /**
+   * Get all exemptions with optional filters
+   */
+  async getAllExemptions(
+    studentNumber?: string,
+    type?: ExemptionType,
+    isActive?: boolean,
+  ): Promise<ExemptionEntity[]> {
+    const queryBuilder = this.exemptionRepository
+      .createQueryBuilder('exemption')
+      .leftJoinAndSelect('exemption.student', 'student')
+      .orderBy('exemption.createdAt', 'DESC');
+
+    if (studentNumber) {
+      queryBuilder.andWhere('student.studentNumber = :studentNumber', {
+        studentNumber,
+      });
+    }
+
+    if (type) {
+      queryBuilder.andWhere('exemption.type = :type', { type });
+    }
+
+    if (isActive !== undefined) {
+      queryBuilder.andWhere('exemption.isActive = :isActive', { isActive });
+    }
+
+    return queryBuilder.getMany();
+  }
+
+  /**
+   * Get exemption by ID
+   */
+  async getExemptionById(id: number): Promise<ExemptionEntity> {
+    const exemption = await this.exemptionRepository.findOne({
+      where: { id },
+      relations: ['student'],
+    });
+
+    if (!exemption) {
+      throw new NotFoundException(`Exemption with ID ${id} not found.`);
+    }
+
+    return exemption;
+  }
+
+  /**
+   * Update exemption by ID
+   */
+  async updateExemption(
+    id: number,
+    updateExemptionDto: UpdateExemptionDto,
+  ): Promise<ExemptionEntity> {
+    const exemption = await this.exemptionRepository.findOne({
+      where: { id },
+      relations: ['student'],
+    });
+
+    if (!exemption) {
+      throw new NotFoundException(`Exemption with ID ${id} not found.`);
+    }
+
+    const { type, fixedAmount, percentageAmount, description, isActive } =
+      updateExemptionDto;
+
+    // Validate and update type if provided
+    if (type !== undefined) {
+      exemption.type = type;
+    }
+
+    // Validate and update amounts based on type
+    const exemptionType = type || exemption.type;
+
+    if (exemptionType === ExemptionType.PERCENTAGE) {
+      if (percentageAmount !== undefined) {
+        if (percentageAmount < 0 || percentageAmount > 100) {
+          throw new BadRequestException(
+            'Percentage amount must be between 0 and 100.',
+          );
+        }
+        exemption.percentageAmount = percentageAmount;
+      }
+      exemption.fixedAmount = null;
+    } else if (exemptionType === ExemptionType.FIXED_AMOUNT) {
+      if (fixedAmount !== undefined) {
+        if (fixedAmount < 0) {
+          throw new BadRequestException('Fixed amount cannot be negative.');
+        }
+        exemption.fixedAmount = fixedAmount;
+      }
+      exemption.percentageAmount = null;
+    } else if (exemptionType === ExemptionType.STAFF_SIBLING) {
+      exemption.fixedAmount = null;
+      exemption.percentageAmount = null;
+    }
+
+    // Update other fields if provided
+    if (description !== undefined) {
+      exemption.description = description;
+    }
+
+    if (isActive !== undefined) {
+      exemption.isActive = isActive;
+    }
+
+    const updatedExemption = await this.exemptionRepository.save(exemption);
+
+    // Apply the exemption to any existing invoices for this student
+    await this.paymentService.applyExemptionToExistingInvoices(
+      exemption.student.studentNumber,
+    );
+
+    return updatedExemption;
+  }
+
+  /**
+   * Delete exemption by ID
+   */
+  async deleteExemption(id: number): Promise<void> {
+    const exemption = await this.exemptionRepository.findOne({
+      where: { id },
+      relations: ['student'],
+    });
+
+    if (!exemption) {
+      throw new NotFoundException(`Exemption with ID ${id} not found.`);
+    }
+
+    await this.exemptionRepository.remove(exemption);
   }
 }

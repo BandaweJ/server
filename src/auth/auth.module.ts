@@ -1,5 +1,5 @@
 /* eslint-disable prettier/prettier */
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -34,7 +34,7 @@ import { ActivityModule } from '../activity/activity.module';
     PassportModule.register({ defaultStrategy: 'jwt' }),
     TypeOrmModule.forFeature([AccountsEntity]),
     ResourceByIdModule,
-    ActivityModule,
+    forwardRef(() => ActivityModule), // Use forwardRef to handle circular dependency
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],

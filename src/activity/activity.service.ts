@@ -54,7 +54,6 @@ export class ActivityService {
       order: { timestamp: 'DESC' },
       take: limit,
       skip: (page - 1) * limit,
-      relations: ['user'],
     });
 
     return {
@@ -120,12 +119,16 @@ export class ActivityService {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - daysOld);
 
-    const result = await this.activityRepository.update(
-      { timestamp: { $lt: cutoffDate } as any },
-      { active: false },
-    );
+    // Use TypeORM QueryBuilder for proper date comparison
+    const result = await this.activityRepository
+      .createQueryBuilder()
+      .update(ActivityEntity)
+      .set({ active: false })
+      .where('timestamp < :cutoffDate', { cutoffDate })
+      .execute();
 
     return result.affected || 0;
   }
 }
+
 

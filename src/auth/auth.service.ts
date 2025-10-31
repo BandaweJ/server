@@ -263,14 +263,11 @@ export class AuthService {
   }
 
   async getAllAccounts() {
+    // Include ALL accounts (active and inactive/deleted) so they can be managed and reactivated
     const accounts = await this.accountsRepository.find({
       select: ['id', 'username', 'role', 'createdAt', 'active', 'deletedAt'],
       relations: ['student', 'teacher'],
-      // Filter out soft-deleted accounts, but include all active ones (including those without active field set)
-      where: [
-        { active: true },
-        { active: null }, // For backward compatibility with existing users
-      ],
+      // No filtering - return all accounts so deleted ones can be reactivated
     });
 
     // Map accounts to include user details
@@ -415,6 +412,50 @@ export class AuthService {
     
     if (!account) {
       throw new BadRequestException('User not found');
+    }
+
+    // Handle active status change (activate/deactivate user)
+    if (updateData.active !== undefined) {
+      account.active = updateData.active;
+      
+      if (updateData.active) {
+        // Reactivate: clear deletedAt and set active to true
+        account.deletedAt = null;
+        account.active = true;
+      } else {
+        // Deactivate: set active to false and set deletedAt if not already set
+        account.active = false;
+        if (!account.deletedAt) {
+          account.deletedAt = new Date();
+        }
+      }
+      
+      await this.accountsRepository.save(account);
+      
+      // Log the activation/deactivation activity
+      try {
+        await this.activityService.logActivity({
+          userId: id,
+          action: updateData.active ? 'USER_RESTORED' : 'USER_DELETED',
+          description: updateData.active 
+            ? `User ${account.username} was reactivated` 
+            : `User ${account.username} was deactivated`,
+          resourceType: 'user',
+          resourceId: id,
+          metadata: { username: account.username, active: updateData.active },
+        });
+      } catch (error) {
+        console.error('Failed to log activity:', error);
+      }
+      
+      // Remove active from updateData so it doesn't get passed to profile update
+      const { active, ...profileUpdateData } = updateData;
+      if (Object.keys(profileUpdateData).length === 0) {
+        return {
+          message: updateData.active ? 'User reactivated successfully' : 'User deactivated successfully'
+        };
+      }
+      updateData = profileUpdateData;
     }
 
     // Update profile based on role
