@@ -94,7 +94,7 @@ import { ActivityModule } from './activity/activity.module';
     AppService,
     {
       provide: APP_GUARD,
-      useClass: RolesGuard,
+      useClass: RolesGuard, // RolesGuard is provided in AuthModule and can access AccountsEntity
     },
   ],
 })

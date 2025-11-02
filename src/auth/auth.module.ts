@@ -7,10 +7,15 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AccountsEntity } from './entities/accounts.entity';
+import { RoleEntity } from './entities/role.entity';
+import { PermissionEntity } from './entities/permission.entity';
 import { JwtStrategy } from './jwt.strategy';
 import { ResourceByIdModule } from '../resource-by-id/resource-by-id.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ActivityModule } from '../activity/activity.module';
+import { RolesPermissionsController } from './controllers/roles-permissions.controller';
+import { RolesPermissionsService } from './services/roles-permissions.service';
+import { RolesGuard } from './guards/roles.guard';
 
 @Module({
   imports: [
@@ -45,12 +50,23 @@ import { ActivityModule } from '../activity/activity.module';
       inject: [ConfigService], // Tell NestJS to inject ConfigService into useFactory
     }),
     PassportModule.register({ defaultStrategy: 'jwt' }),
-    TypeOrmModule.forFeature([AccountsEntity]),
+    TypeOrmModule.forFeature([AccountsEntity, RoleEntity, PermissionEntity]),
     ResourceByIdModule,
     forwardRef(() => ActivityModule), // Use forwardRef to handle circular dependency
   ],
-  controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
-  exports: [JwtStrategy, PassportModule],
+  controllers: [AuthController, RolesPermissionsController],
+  providers: [
+    AuthService, 
+    JwtStrategy, 
+    RolesPermissionsService,
+    RolesGuard, // Provide RolesGuard here so it can access AccountsEntity repository
+  ],
+  exports: [
+    JwtStrategy, 
+    PassportModule, 
+    RolesPermissionsService,
+    RolesGuard, // Export RolesGuard so AppModule can use it as APP_GUARD
+    TypeOrmModule, // Export TypeOrmModule so RolesGuard can access AccountsEntity
+  ],
 })
 export class AuthModule {}

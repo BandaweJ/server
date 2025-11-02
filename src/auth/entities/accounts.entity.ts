@@ -4,6 +4,7 @@ import {
   Column,
   Entity,
   JoinColumn,
+  ManyToOne,
   OneToOne,
   PrimaryColumn,
   PrimaryGeneratedColumn,
@@ -13,12 +14,20 @@ import { ROLES } from '../models/roles.enum';
 import * as bcrypt from 'bcrypt';
 import { StudentsEntity } from 'src/profiles/entities/students.entity';
 import { TeachersEntity } from 'src/profiles/entities/teachers.entity';
+import { RoleEntity } from './role.entity';
 
 @Entity('accounts')
 @Unique(['username'])
 export class AccountsEntity extends BaseEntity {
   @Column()
-  role: ROLES;
+  role: ROLES; // Keep for backward compatibility
+
+  @ManyToOne(() => RoleEntity, (roleEntity) => roleEntity.accounts, { nullable: true })
+  @JoinColumn({ name: 'roleId' })
+  roleEntity?: RoleEntity;
+
+  @Column({ nullable: true })
+  roleId?: string;
 
   @Column()
   username: string;
