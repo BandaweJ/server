@@ -5211,4 +5211,631 @@ export class PaymentService {
 
     return result;
   }
+
+  /**
+   * Comprehensive student-by-student data repair
+   * Replays all transactions chronologically for a single student
+   * @param studentNumber - The student number to repair
+   * @param dryRun - If true, only reports what would be fixed without making changes
+   * @returns Report of repairs made for this student
+   */
+  async repairStudentData(
+    studentNumber: string,
+    dryRun: boolean = true,
+  ): Promise<{
+    studentNumber: string;
+    success: boolean;
+    invoicesProcessed: number;
+    receiptsProcessed: number;
+    allocationsCreated: number;
+    creditAllocationsCreated: number;
+    creditsCreated: number;
+    creditsUpdated: number;
+    errors: string[];
+    details: {
+      invoiceUpdates: Array<{
+        invoiceId: number;
+        invoiceNumber: string;
+        oldBalance: number;
+        newBalance: number;
+        oldAmountPaid: number;
+        newAmountPaid: number;
+        oldStatus: InvoiceStatus;
+        newStatus: InvoiceStatus;
+      }>;
+      receiptAllocations: Array<{
+        receiptId: number;
+        receiptNumber: string;
+        invoiceId: number;
+        invoiceNumber: string;
+        amountApplied: number;
+      }>;
+      creditAllocations: Array<{
+        invoiceId: number;
+        invoiceNumber: string;
+        amountApplied: number;
+      }>;
+      creditsCreated: Array<{
+        creditId: number;
+        amount: number;
+        source: string;
+      }>;
+    };
+  }> {
+    this.logger.log(
+      `Starting student-by-student repair for ${studentNumber} (dryRun: ${dryRun})...`,
+    );
+
+    const errors: string[] = [];
+    const details = {
+      invoiceUpdates: [] as Array<{
+        invoiceId: number;
+        invoiceNumber: string;
+        oldBalance: number;
+        newBalance: number;
+        oldAmountPaid: number;
+        newAmountPaid: number;
+        oldStatus: InvoiceStatus;
+        newStatus: InvoiceStatus;
+      }>,
+      receiptAllocations: [] as Array<{
+        receiptId: number;
+        receiptNumber: string;
+        invoiceId: number;
+        invoiceNumber: string;
+        amountApplied: number;
+      }>,
+      creditAllocations: [] as Array<{
+        invoiceId: number;
+        invoiceNumber: string;
+        amountApplied: number;
+      }>,
+      creditsCreated: [] as Array<{
+        creditId: number;
+        amount: number;
+        source: string;
+      }>,
+    };
+
+    return await this.dataSource.transaction(
+      async (transactionalEntityManager) => {
+        try {
+          // 1. Load all invoices for this student (sorted by invoiceDate)
+          const allInvoices = await transactionalEntityManager.find(
+            InvoiceEntity,
+            {
+              where: {
+                student: { studentNumber },
+                isVoided: false, // Exclude voided invoices
+              },
+              relations: [
+                'student',
+                'enrol',
+                'balanceBfwd',
+                'bills',
+                'bills.fees',
+                'exemption',
+                'allocations',
+                'creditAllocations',
+              ],
+              order: {
+                invoiceDate: 'ASC',
+              },
+            },
+          );
+
+          // 2. Load all receipts for this student (sorted by paymentDate)
+          const allReceipts = await transactionalEntityManager.find(
+            ReceiptEntity,
+            {
+              where: {
+                student: { studentNumber },
+                isVoided: false, // Exclude voided receipts
+              },
+              relations: [
+                'allocations',
+                'allocations.invoice',
+                'receiptCredits',
+                'receiptCredits.studentCredit',
+              ],
+              order: {
+                paymentDate: 'ASC',
+              },
+            },
+          );
+
+          if (allInvoices.length === 0 && allReceipts.length === 0) {
+            this.logger.warn(
+              `No invoices or receipts found for student ${studentNumber}`,
+            );
+            return {
+              studentNumber,
+              success: true,
+              invoicesProcessed: 0,
+              receiptsProcessed: 0,
+              allocationsCreated: 0,
+              creditAllocationsCreated: 0,
+              creditsCreated: 0,
+              creditsUpdated: 0,
+              errors: [`No invoices or receipts found for student ${studentNumber}`],
+              details,
+            };
+          }
+
+          // 3. Store old values for comparison
+          const invoiceOldValues = new Map<
+            number,
+            {
+              balance: number;
+              amountPaid: number;
+              status: InvoiceStatus;
+            }
+          >();
+          for (const invoice of allInvoices) {
+            invoiceOldValues.set(invoice.id, {
+              balance: Number(invoice.balance),
+              amountPaid: Number(invoice.amountPaidOnInvoice),
+              status: invoice.status,
+            });
+          }
+
+          // 4. Reset invoice balances
+          for (const invoice of allInvoices) {
+            invoice.balance = Number(invoice.totalBill);
+            invoice.amountPaidOnInvoice = 0;
+            invoice.status = InvoiceStatus.Pending;
+            if (invoice.balance <= 0) {
+              invoice.status = InvoiceStatus.Paid;
+            } else if (new Date() > invoice.invoiceDueDate) {
+              invoice.status = InvoiceStatus.Overdue;
+            }
+          }
+
+          // 5. Delete existing allocations (if not dry run)
+          if (!dryRun) {
+            // Delete receipt allocations
+            for (const invoice of allInvoices) {
+              if (invoice.allocations && invoice.allocations.length > 0) {
+                await transactionalEntityManager.remove(invoice.allocations);
+              }
+              if (
+                invoice.creditAllocations &&
+                invoice.creditAllocations.length > 0
+              ) {
+                await transactionalEntityManager.remove(
+                  invoice.creditAllocations,
+                );
+              }
+            }
+
+            // Delete receipt credits
+            for (const receipt of allReceipts) {
+              if (receipt.receiptCredits && receipt.receiptCredits.length > 0) {
+                await transactionalEntityManager.remove(receipt.receiptCredits);
+              }
+            }
+
+            // Delete or reset student credit
+            const existingCredit = await transactionalEntityManager.findOne(
+              StudentCreditEntity,
+              {
+                where: { studentNumber },
+              },
+            );
+            if (existingCredit) {
+              existingCredit.amount = 0;
+              existingCredit.lastCreditSource =
+                'Reset for student-by-student repair';
+              await transactionalEntityManager.save(existingCredit);
+            }
+          }
+
+          // 6. Track student credit balance (simulated during dry run)
+          let studentCreditBalance = 0;
+          let studentCreditEntity: StudentCreditEntity | null = null;
+
+          if (!dryRun) {
+            studentCreditEntity = await transactionalEntityManager.findOne(
+              StudentCreditEntity,
+              {
+                where: { studentNumber },
+              },
+            );
+            if (studentCreditEntity) {
+              studentCreditBalance = Number(studentCreditEntity.amount);
+            }
+          }
+
+          // 7. Process receipts chronologically
+          let allocationsCreated = 0;
+          let creditsCreated = 0;
+          let creditsUpdated = 0;
+
+          for (const receipt of allReceipts) {
+            let remainingAmount = Number(receipt.amountPaid);
+
+            // Get open invoices (not fully paid, sorted by due date)
+            const openInvoices = allInvoices
+              .filter(
+                (inv) =>
+                  Number(inv.balance) > 0.01 &&
+                  !inv.isVoided &&
+                  new Date(receipt.paymentDate) >= new Date(inv.invoiceDate), // Receipt must be after invoice
+              )
+              .sort((a, b) => {
+                // Sort by due date (FIFO)
+                return (
+                  new Date(a.invoiceDueDate).getTime() -
+                  new Date(b.invoiceDueDate).getTime()
+                );
+              });
+
+            // Apply receipt to invoices
+            for (const invoice of openInvoices) {
+              if (remainingAmount <= 0.01) {
+                break;
+              }
+
+              const invoiceBalance = Number(invoice.balance);
+              if (invoiceBalance <= 0.01) {
+                continue;
+              }
+
+              const amountToAllocate = Math.min(remainingAmount, invoiceBalance);
+
+              if (!dryRun) {
+                // Create allocation
+                const allocation = transactionalEntityManager.create(
+                  ReceiptInvoiceAllocationEntity,
+                  {
+                    receipt: receipt,
+                    invoice: invoice,
+                    amountApplied: amountToAllocate,
+                    allocationDate: receipt.paymentDate || new Date(),
+                  },
+                );
+                await transactionalEntityManager.save(allocation);
+
+                // Update invoice
+                invoice.amountPaidOnInvoice =
+                  Number(invoice.amountPaidOnInvoice) + amountToAllocate;
+                invoice.balance = Number(invoice.balance) - amountToAllocate;
+                invoice.status = this.getInvoiceStatus(invoice);
+                await transactionalEntityManager.save(invoice);
+
+                details.receiptAllocations.push({
+                  receiptId: receipt.id,
+                  receiptNumber: receipt.receiptNumber,
+                  invoiceId: invoice.id,
+                  invoiceNumber: invoice.invoiceNumber,
+                  amountApplied: amountToAllocate,
+                });
+              } else {
+                // Dry run: just track
+                details.receiptAllocations.push({
+                  receiptId: receipt.id,
+                  receiptNumber: receipt.receiptNumber,
+                  invoiceId: invoice.id,
+                  invoiceNumber: invoice.invoiceNumber,
+                  amountApplied: amountToAllocate,
+                });
+              }
+
+              allocationsCreated++;
+              remainingAmount -= amountToAllocate;
+            }
+
+            // Handle overpayment (create credit)
+            if (remainingAmount > 0.01) {
+              if (!dryRun) {
+                // Create or update student credit
+                const credit = await this.createOrUpdateStudentCredit(
+                  studentNumber,
+                  remainingAmount,
+                  transactionalEntityManager,
+                  `Overpayment from Receipt ${receipt.receiptNumber} (system-repair)`,
+                );
+
+                // Create ReceiptCreditEntity link
+                const receiptCredit = transactionalEntityManager.create(
+                  ReceiptCreditEntity,
+                  {
+                    receipt: receipt,
+                    studentCredit: credit,
+                    creditAmount: remainingAmount,
+                    createdAt: receipt.paymentDate || new Date(),
+                  },
+                );
+                await transactionalEntityManager.save(receiptCredit);
+
+                if (studentCreditEntity && studentCreditEntity.id === credit.id) {
+                  creditsUpdated++;
+                } else {
+                  creditsCreated++;
+                }
+
+                studentCreditEntity = credit;
+                studentCreditBalance = Number(credit.amount);
+
+                details.creditsCreated.push({
+                  creditId: credit.id,
+                  amount: remainingAmount,
+                  source: `Overpayment from Receipt ${receipt.receiptNumber}`,
+                });
+              } else {
+                // Dry run: just track
+                studentCreditBalance += remainingAmount;
+                details.creditsCreated.push({
+                  creditId: 0,
+                  amount: remainingAmount,
+                  source: `Overpayment from Receipt ${receipt.receiptNumber}`,
+                });
+                creditsCreated++;
+              }
+            }
+          }
+
+          // 8. Apply student credit to remaining open invoices
+          let creditAllocationsCreated = 0;
+          if (studentCreditBalance > 0.01) {
+            const openInvoicesForCredit = allInvoices
+              .filter((inv) => Number(inv.balance) > 0.01 && !inv.isVoided)
+              .sort((a, b) => {
+                // Sort by due date (FIFO)
+                return (
+                  new Date(a.invoiceDueDate).getTime() -
+                  new Date(b.invoiceDueDate).getTime()
+                );
+              });
+
+            let remainingCredit = studentCreditBalance;
+
+            for (const invoice of openInvoicesForCredit) {
+              if (remainingCredit <= 0.01) {
+                break;
+              }
+
+              const invoiceBalance = Number(invoice.balance);
+              if (invoiceBalance <= 0.01) {
+                continue;
+              }
+
+              const amountToApply = Math.min(remainingCredit, invoiceBalance);
+
+              if (!dryRun && studentCreditEntity) {
+                // Create credit allocation
+                const creditAllocation = transactionalEntityManager.create(
+                  CreditInvoiceAllocationEntity,
+                  {
+                    studentCredit: studentCreditEntity,
+                    invoice: invoice,
+                    amountApplied: amountToApply,
+                    allocationDate: invoice.invoiceDate || new Date(),
+                  },
+                );
+                await transactionalEntityManager.save(creditAllocation);
+
+                // Update invoice
+                invoice.amountPaidOnInvoice =
+                  Number(invoice.amountPaidOnInvoice) + amountToApply;
+                invoice.balance = Number(invoice.balance) - amountToApply;
+                invoice.status = this.getInvoiceStatus(invoice);
+                await transactionalEntityManager.save(invoice);
+
+                // Deduct from credit
+                await this.deductStudentCredit(
+                  studentNumber,
+                  amountToApply,
+                  transactionalEntityManager,
+                  `Applied to Invoice ${invoice.invoiceNumber} (system-repair)`,
+                );
+
+                // Update tracked balance
+                studentCreditBalance -= amountToApply;
+
+                details.creditAllocations.push({
+                  invoiceId: invoice.id,
+                  invoiceNumber: invoice.invoiceNumber,
+                  amountApplied: amountToApply,
+                });
+              } else {
+                // Dry run: just track
+                details.creditAllocations.push({
+                  invoiceId: invoice.id,
+                  invoiceNumber: invoice.invoiceNumber,
+                  amountApplied: amountToApply,
+                });
+              }
+
+              creditAllocationsCreated++;
+              remainingCredit -= amountToApply;
+            }
+          }
+
+          // 9. Update invoice details for comparison
+          for (const invoice of allInvoices) {
+            const oldValues = invoiceOldValues.get(invoice.id);
+            if (oldValues) {
+              const newBalance = Number(invoice.balance);
+              const newAmountPaid = Number(invoice.amountPaidOnInvoice);
+              const newStatus = invoice.status;
+
+              // Only add to details if something changed
+              if (
+                Math.abs(oldValues.balance - newBalance) > 0.01 ||
+                Math.abs(oldValues.amountPaid - newAmountPaid) > 0.01 ||
+                oldValues.status !== newStatus
+              ) {
+                details.invoiceUpdates.push({
+                  invoiceId: invoice.id,
+                  invoiceNumber: invoice.invoiceNumber,
+                  oldBalance: oldValues.balance,
+                  newBalance: newBalance,
+                  oldAmountPaid: oldValues.amountPaid,
+                  newAmountPaid: newAmountPaid,
+                  oldStatus: oldValues.status,
+                  newStatus: newStatus,
+                });
+              }
+            }
+
+            // Verify balance
+            if (!dryRun) {
+              this.verifyInvoiceBalance(invoice);
+            }
+          }
+
+          // 10. Save all updated invoices (if not dry run)
+          if (!dryRun) {
+            await transactionalEntityManager.save(allInvoices);
+          }
+
+          this.logger.log(
+            `Student repair completed for ${studentNumber}: ${allInvoices.length} invoices, ${allReceipts.length} receipts, ${allocationsCreated} allocations, ${creditAllocationsCreated} credit allocations (dryRun: ${dryRun})`,
+          );
+
+          return {
+            studentNumber,
+            success: true,
+            invoicesProcessed: allInvoices.length,
+            receiptsProcessed: allReceipts.length,
+            allocationsCreated,
+            creditAllocationsCreated,
+            creditsCreated,
+            creditsUpdated,
+            errors,
+            details,
+          };
+        } catch (error) {
+          const errorMessage = `Error repairing student ${studentNumber}: ${error.message}`;
+          this.logger.error(errorMessage, { error, studentNumber });
+          errors.push(errorMessage);
+          throw error; // Re-throw to trigger transaction rollback
+        }
+      },
+    );
+  }
+
+  /**
+   * Repairs data for multiple selected students
+   * @param studentNumbers - Array of student numbers to repair
+   * @param dryRun - If true, only reports what would be fixed without making changes
+   * @returns Report of repairs made for all students
+   */
+  async repairSelectedStudentsData(
+    studentNumbers: string[],
+    dryRun: boolean = true,
+  ): Promise<{
+    studentsProcessed: number;
+    studentsFixed: number;
+    studentsWithErrors: number;
+    totalInvoicesProcessed: number;
+    totalReceiptsProcessed: number;
+    totalAllocationsCreated: number;
+    totalCreditAllocationsCreated: number;
+    totalCreditsCreated: number;
+    totalCreditsUpdated: number;
+    studentResults: Array<{
+      studentNumber: string;
+      success: boolean;
+      invoicesProcessed: number;
+      receiptsProcessed: number;
+      allocationsCreated: number;
+      creditAllocationsCreated: number;
+      creditsCreated: number;
+      creditsUpdated: number;
+      errors: string[];
+    }>;
+  }> {
+    this.logger.log(
+      `Starting repair for ${studentNumbers.length} selected students (dryRun: ${dryRun})...`,
+    );
+
+    const studentResults: Array<{
+      studentNumber: string;
+      success: boolean;
+      invoicesProcessed: number;
+      receiptsProcessed: number;
+      allocationsCreated: number;
+      creditAllocationsCreated: number;
+      creditsCreated: number;
+      creditsUpdated: number;
+      errors: string[];
+    }> = [];
+
+    let studentsFixed = 0;
+    let studentsWithErrors = 0;
+    let totalInvoicesProcessed = 0;
+    let totalReceiptsProcessed = 0;
+    let totalAllocationsCreated = 0;
+    let totalCreditAllocationsCreated = 0;
+    let totalCreditsCreated = 0;
+    let totalCreditsUpdated = 0;
+
+    // Process each student individually (each in its own transaction)
+    for (const studentNumber of studentNumbers) {
+      try {
+        const result = await this.repairStudentData(studentNumber, dryRun);
+
+        studentResults.push({
+          studentNumber: result.studentNumber,
+          success: result.success,
+          invoicesProcessed: result.invoicesProcessed,
+          receiptsProcessed: result.receiptsProcessed,
+          allocationsCreated: result.allocationsCreated,
+          creditAllocationsCreated: result.creditAllocationsCreated,
+          creditsCreated: result.creditsCreated,
+          creditsUpdated: result.creditsUpdated,
+          errors: result.errors,
+        });
+
+        if (result.success && result.errors.length === 0) {
+          studentsFixed++;
+        } else {
+          studentsWithErrors++;
+        }
+
+        totalInvoicesProcessed += result.invoicesProcessed;
+        totalReceiptsProcessed += result.receiptsProcessed;
+        totalAllocationsCreated += result.allocationsCreated;
+        totalCreditAllocationsCreated += result.creditAllocationsCreated;
+        totalCreditsCreated += result.creditsCreated;
+        totalCreditsUpdated += result.creditsUpdated;
+      } catch (error) {
+        this.logger.error(
+          `Error repairing student ${studentNumber}`,
+          { error, studentNumber },
+        );
+        studentResults.push({
+          studentNumber,
+          success: false,
+          invoicesProcessed: 0,
+          receiptsProcessed: 0,
+          allocationsCreated: 0,
+          creditAllocationsCreated: 0,
+          creditsCreated: 0,
+          creditsUpdated: 0,
+          errors: [error.message || 'Unknown error'],
+        });
+        studentsWithErrors++;
+      }
+    }
+
+    this.logger.log(
+      `Repair completed for ${studentNumbers.length} students: ${studentsFixed} fixed, ${studentsWithErrors} with errors (dryRun: ${dryRun})`,
+    );
+
+    return {
+      studentsProcessed: studentNumbers.length,
+      studentsFixed,
+      studentsWithErrors,
+      totalInvoicesProcessed,
+      totalReceiptsProcessed,
+      totalAllocationsCreated,
+      totalCreditAllocationsCreated,
+      totalCreditsCreated,
+      totalCreditsUpdated,
+      studentResults,
+    };
+  }
 }

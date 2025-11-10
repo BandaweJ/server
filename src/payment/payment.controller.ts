@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier */
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -293,6 +294,31 @@ export class PaymentController {
   @Post('repair/all')
   repairAllData(@Body() body: { dryRun?: boolean }) {
     return this.paymentService.repairAllData(
+      body.dryRun !== undefined ? body.dryRun : true,
+    );
+  }
+
+  @Post('repair/student/:studentNumber')
+  repairStudentData(
+    @Param('studentNumber') studentNumber: string,
+    @Body() body: { dryRun?: boolean },
+  ) {
+    return this.paymentService.repairStudentData(
+      studentNumber,
+      body.dryRun !== undefined ? body.dryRun : true,
+    );
+  }
+
+  @Post('repair/selected-students')
+  repairSelectedStudentsData(@Body() body: {
+    studentNumbers: string[];
+    dryRun?: boolean;
+  }) {
+    if (!body.studentNumbers || !Array.isArray(body.studentNumbers) || body.studentNumbers.length === 0) {
+      throw new BadRequestException('studentNumbers array is required and must not be empty');
+    }
+    return this.paymentService.repairSelectedStudentsData(
+      body.studentNumbers,
       body.dryRun !== undefined ? body.dryRun : true,
     );
   }
