@@ -741,62 +741,89 @@ export class PaymentService {
         const allocationsToSave: ReceiptInvoiceAllocationEntity[] = [];
         const updatedInvoices: InvoiceEntity[] = [];
 
-        // 3. Fetch and Order Outstanding Invoices
-        const openInvoices = await transactionalEntityManager.find(
-          InvoiceEntity,
-          {
-            where: {
-              student: { studentNumber },
-              status: In([
-                InvoiceStatus.Pending,
-                InvoiceStatus.PartiallyPaid,
-                InvoiceStatus.Overdue,
-              ]),
+        // 3. Apply payment amount to invoices sequentially (FIFO)
+        // Continue allocating until remaining amount is exhausted or no more open invoices
+        while (remainingPaymentAmount > 0.01) {
+          // Fetch open invoices dynamically to account for updated balances
+          const openInvoices = await transactionalEntityManager.find(
+            InvoiceEntity,
+            {
+              where: {
+                student: { studentNumber },
+                status: In([
+                  InvoiceStatus.Pending,
+                  InvoiceStatus.PartiallyPaid,
+                  InvoiceStatus.Overdue,
+                ]),
+              },
+              order: {
+                invoiceDueDate: 'ASC',
+              },
             },
-            order: {
-              invoiceDueDate: 'ASC',
-            },
-          },
-        );
+          );
 
-        // 4. Apply payment amount to invoices sequentially (FIFO)
-        for (const invoice of openInvoices) {
-          if (remainingPaymentAmount <= 0) {
+          // If no open invoices, break and create credit
+          if (openInvoices.length === 0) {
             break;
           }
 
-          const invoiceCurrentBalance = Number(invoice.balance);
+          // Apply payment to invoices (FIFO by due date)
+          let allocatedThisIteration = false;
+          const invoicesToSaveThisIteration: InvoiceEntity[] = [];
+          const allocationsToSaveThisIteration: ReceiptInvoiceAllocationEntity[] = [];
 
-          if (invoiceCurrentBalance <= 0) {
-            continue;
+          for (const invoice of openInvoices) {
+            if (remainingPaymentAmount <= 0.01) {
+              break;
+            }
+
+            const invoiceCurrentBalance = Number(invoice.balance);
+
+            if (invoiceCurrentBalance <= 0.01) {
+              continue;
+            }
+
+            const amountToApplyToCurrentInvoice = Math.min(
+              remainingPaymentAmount,
+              invoiceCurrentBalance,
+            );
+
+            const allocation = transactionalEntityManager.create(
+              ReceiptInvoiceAllocationEntity,
+              {
+                receipt: savedReceipt,
+                invoice: invoice,
+                amountApplied: amountToApplyToCurrentInvoice,
+                allocationDate: new Date(),
+              },
+            );
+            allocationsToSaveThisIteration.push(allocation);
+            allocationsToSave.push(allocation);
+
+            invoice.amountPaidOnInvoice =
+              Number(invoice.amountPaidOnInvoice) + amountToApplyToCurrentInvoice;
+
+            invoice.balance =
+              Number(invoice.balance) - amountToApplyToCurrentInvoice;
+            invoice.status = this.getInvoiceStatus(invoice);
+            invoicesToSaveThisIteration.push(invoice);
+            updatedInvoices.push(invoice);
+
+            remainingPaymentAmount =
+              remainingPaymentAmount - amountToApplyToCurrentInvoice;
+            allocatedThisIteration = true;
           }
 
-          const amountToApplyToCurrentInvoice = Math.min(
-            remainingPaymentAmount,
-            invoiceCurrentBalance,
-          );
+          // Save invoices and allocations after each iteration so next query sees updated balances
+          if (allocatedThisIteration) {
+            await transactionalEntityManager.save(invoicesToSaveThisIteration);
+            await transactionalEntityManager.save(allocationsToSaveThisIteration);
+          }
 
-          const allocation = transactionalEntityManager.create(
-            ReceiptInvoiceAllocationEntity,
-            {
-              receipt: savedReceipt,
-              invoice: invoice,
-              amountApplied: amountToApplyToCurrentInvoice,
-              allocationDate: new Date(),
-            },
-          );
-          allocationsToSave.push(allocation);
-
-          invoice.amountPaidOnInvoice =
-            Number(invoice.amountPaidOnInvoice) + amountToApplyToCurrentInvoice;
-
-          invoice.balance =
-            Number(invoice.balance) - amountToApplyToCurrentInvoice;
-          invoice.status = this.getInvoiceStatus(invoice);
-          updatedInvoices.push(invoice);
-
-          remainingPaymentAmount =
-            remainingPaymentAmount - amountToApplyToCurrentInvoice;
+          // If we couldn't allocate anything this iteration, break to avoid infinite loop
+          if (!allocatedThisIteration) {
+            break;
+          }
         }
 
         // 5. Handle any remaining payment amount as a credit
@@ -822,9 +849,15 @@ export class PaymentService {
           await transactionalEntityManager.save(receiptCredit);
         }
 
-        // 6. Save all changes within the transaction
-        await transactionalEntityManager.save(updatedInvoices);
-        await transactionalEntityManager.save(allocationsToSave);
+        // 6. Save any remaining changes within the transaction
+        // Note: Invoices and allocations are already saved during the allocation loop,
+        // but we keep this for any edge cases and to ensure all changes are persisted
+        if (updatedInvoices.length > 0) {
+          await transactionalEntityManager.save(updatedInvoices);
+        }
+        if (allocationsToSave.length > 0) {
+          await transactionalEntityManager.save(allocationsToSave);
+        }
 
         // 7. Verify allocations sum correctly
         this.verifyReceiptAllocations(savedReceipt, allocationsToSave);
@@ -5454,78 +5487,94 @@ export class PaymentService {
           for (const receipt of allReceipts) {
             let remainingAmount = Number(receipt.amountPaid);
 
-            // Get open invoices (not fully paid, sorted by due date)
-            const openInvoices = allInvoices
-              .filter(
-                (inv) =>
-                  Number(inv.balance) > 0.01 &&
-                  !inv.isVoided &&
-                  new Date(receipt.paymentDate) >= new Date(inv.invoiceDate), // Receipt must be after invoice
-              )
-              .sort((a, b) => {
-                // Sort by due date (FIFO)
-                return (
-                  new Date(a.invoiceDueDate).getTime() -
-                  new Date(b.invoiceDueDate).getTime()
-                );
-              });
+            // Continue allocating until remaining amount is exhausted or no more open invoices
+            while (remainingAmount > 0.01) {
+              // Get open invoices (not fully paid, sorted by due date)
+              // Recalculate each iteration to account for updated balances
+              const openInvoices = allInvoices
+                .filter(
+                  (inv) =>
+                    Number(inv.balance) > 0.01 &&
+                    !inv.isVoided &&
+                    new Date(receipt.paymentDate) >= new Date(inv.invoiceDate), // Receipt must be after invoice
+                )
+                .sort((a, b) => {
+                  // Sort by due date (FIFO)
+                  return (
+                    new Date(a.invoiceDueDate).getTime() -
+                    new Date(b.invoiceDueDate).getTime()
+                  );
+                });
 
-            // Apply receipt to invoices
-            for (const invoice of openInvoices) {
-              if (remainingAmount <= 0.01) {
+              // If no open invoices, break and create credit
+              if (openInvoices.length === 0) {
                 break;
               }
 
-              const invoiceBalance = Number(invoice.balance);
-              if (invoiceBalance <= 0.01) {
-                continue;
-              }
+              // Apply receipt to invoices (FIFO by due date)
+              let allocatedThisIteration = false;
+              for (const invoice of openInvoices) {
+                if (remainingAmount <= 0.01) {
+                  break;
+                }
 
-              const amountToAllocate = Math.min(remainingAmount, invoiceBalance);
+                const invoiceBalance = Number(invoice.balance);
+                if (invoiceBalance <= 0.01) {
+                  continue;
+                }
 
-              if (!dryRun) {
-                // Create allocation
-                const allocation = transactionalEntityManager.create(
-                  ReceiptInvoiceAllocationEntity,
-                  {
-                    receipt: receipt,
-                    invoice: invoice,
+                const amountToAllocate = Math.min(remainingAmount, invoiceBalance);
+
+                if (!dryRun) {
+                  // Create allocation
+                  const allocation = transactionalEntityManager.create(
+                    ReceiptInvoiceAllocationEntity,
+                    {
+                      receipt: receipt,
+                      invoice: invoice,
+                      amountApplied: amountToAllocate,
+                      allocationDate: receipt.paymentDate || new Date(),
+                    },
+                  );
+                  await transactionalEntityManager.save(allocation);
+
+                  // Update invoice
+                  invoice.amountPaidOnInvoice =
+                    Number(invoice.amountPaidOnInvoice) + amountToAllocate;
+                  invoice.balance = Number(invoice.balance) - amountToAllocate;
+                  invoice.status = this.getInvoiceStatus(invoice);
+                  await transactionalEntityManager.save(invoice);
+
+                  details.receiptAllocations.push({
+                    receiptId: receipt.id,
+                    receiptNumber: receipt.receiptNumber,
+                    invoiceId: invoice.id,
+                    invoiceNumber: invoice.invoiceNumber,
                     amountApplied: amountToAllocate,
-                    allocationDate: receipt.paymentDate || new Date(),
-                  },
-                );
-                await transactionalEntityManager.save(allocation);
+                  });
+                } else {
+                  // Dry run: just track
+                  details.receiptAllocations.push({
+                    receiptId: receipt.id,
+                    receiptNumber: receipt.receiptNumber,
+                    invoiceId: invoice.id,
+                    invoiceNumber: invoice.invoiceNumber,
+                    amountApplied: amountToAllocate,
+                  });
+                }
 
-                // Update invoice
-                invoice.amountPaidOnInvoice =
-                  Number(invoice.amountPaidOnInvoice) + amountToAllocate;
-                invoice.balance = Number(invoice.balance) - amountToAllocate;
-                invoice.status = this.getInvoiceStatus(invoice);
-                await transactionalEntityManager.save(invoice);
-
-                details.receiptAllocations.push({
-                  receiptId: receipt.id,
-                  receiptNumber: receipt.receiptNumber,
-                  invoiceId: invoice.id,
-                  invoiceNumber: invoice.invoiceNumber,
-                  amountApplied: amountToAllocate,
-                });
-              } else {
-                // Dry run: just track
-                details.receiptAllocations.push({
-                  receiptId: receipt.id,
-                  receiptNumber: receipt.receiptNumber,
-                  invoiceId: invoice.id,
-                  invoiceNumber: invoice.invoiceNumber,
-                  amountApplied: amountToAllocate,
-                });
+                allocationsCreated++;
+                remainingAmount -= amountToAllocate;
+                allocatedThisIteration = true;
               }
 
-              allocationsCreated++;
-              remainingAmount -= amountToAllocate;
+              // If we couldn't allocate anything this iteration, break to avoid infinite loop
+              if (!allocatedThisIteration) {
+                break;
+              }
             }
 
-            // Handle overpayment (create credit)
+            // Handle overpayment (create credit) - only if there's remaining amount AND no open invoices
             if (remainingAmount > 0.01) {
               if (!dryRun) {
                 // Create or update student credit
@@ -5578,77 +5627,94 @@ export class PaymentService {
           // 8. Apply student credit to remaining open invoices
           let creditAllocationsCreated = 0;
           if (studentCreditBalance > 0.01) {
-            const openInvoicesForCredit = allInvoices
-              .filter((inv) => Number(inv.balance) > 0.01 && !inv.isVoided)
-              .sort((a, b) => {
-                // Sort by due date (FIFO)
-                return (
-                  new Date(a.invoiceDueDate).getTime() -
-                  new Date(b.invoiceDueDate).getTime()
-                );
-              });
-
             let remainingCredit = studentCreditBalance;
 
-            for (const invoice of openInvoicesForCredit) {
-              if (remainingCredit <= 0.01) {
+            // Continue allocating credit until exhausted or no more open invoices
+            while (remainingCredit > 0.01) {
+              // Recalculate open invoices each iteration to account for updated balances
+              const openInvoicesForCredit = allInvoices
+                .filter((inv) => Number(inv.balance) > 0.01 && !inv.isVoided)
+                .sort((a, b) => {
+                  // Sort by due date (FIFO)
+                  return (
+                    new Date(a.invoiceDueDate).getTime() -
+                    new Date(b.invoiceDueDate).getTime()
+                  );
+                });
+
+              // If no open invoices, break (credit remains as student credit)
+              if (openInvoicesForCredit.length === 0) {
                 break;
               }
 
-              const invoiceBalance = Number(invoice.balance);
-              if (invoiceBalance <= 0.01) {
-                continue;
-              }
+              // Apply credit to invoices (FIFO by due date)
+              let allocatedThisIteration = false;
+              for (const invoice of openInvoicesForCredit) {
+                if (remainingCredit <= 0.01) {
+                  break;
+                }
 
-              const amountToApply = Math.min(remainingCredit, invoiceBalance);
+                const invoiceBalance = Number(invoice.balance);
+                if (invoiceBalance <= 0.01) {
+                  continue;
+                }
 
-              if (!dryRun && studentCreditEntity) {
-                // Create credit allocation
-                const creditAllocation = transactionalEntityManager.create(
-                  CreditInvoiceAllocationEntity,
-                  {
-                    studentCredit: studentCreditEntity,
-                    invoice: invoice,
+                const amountToApply = Math.min(remainingCredit, invoiceBalance);
+
+                if (!dryRun && studentCreditEntity) {
+                  // Create credit allocation
+                  const creditAllocation = transactionalEntityManager.create(
+                    CreditInvoiceAllocationEntity,
+                    {
+                      studentCredit: studentCreditEntity,
+                      invoice: invoice,
+                      amountApplied: amountToApply,
+                      allocationDate: invoice.invoiceDate || new Date(),
+                    },
+                  );
+                  await transactionalEntityManager.save(creditAllocation);
+
+                  // Update invoice
+                  invoice.amountPaidOnInvoice =
+                    Number(invoice.amountPaidOnInvoice) + amountToApply;
+                  invoice.balance = Number(invoice.balance) - amountToApply;
+                  invoice.status = this.getInvoiceStatus(invoice);
+                  await transactionalEntityManager.save(invoice);
+
+                  // Deduct from credit
+                  await this.deductStudentCredit(
+                    studentNumber,
+                    amountToApply,
+                    transactionalEntityManager,
+                    `Applied to Invoice ${invoice.invoiceNumber} (system-repair)`,
+                  );
+
+                  // Update tracked balance
+                  studentCreditBalance -= amountToApply;
+
+                  details.creditAllocations.push({
+                    invoiceId: invoice.id,
+                    invoiceNumber: invoice.invoiceNumber,
                     amountApplied: amountToApply,
-                    allocationDate: invoice.invoiceDate || new Date(),
-                  },
-                );
-                await transactionalEntityManager.save(creditAllocation);
+                  });
+                } else {
+                  // Dry run: just track
+                  details.creditAllocations.push({
+                    invoiceId: invoice.id,
+                    invoiceNumber: invoice.invoiceNumber,
+                    amountApplied: amountToApply,
+                  });
+                }
 
-                // Update invoice
-                invoice.amountPaidOnInvoice =
-                  Number(invoice.amountPaidOnInvoice) + amountToApply;
-                invoice.balance = Number(invoice.balance) - amountToApply;
-                invoice.status = this.getInvoiceStatus(invoice);
-                await transactionalEntityManager.save(invoice);
-
-                // Deduct from credit
-                await this.deductStudentCredit(
-                  studentNumber,
-                  amountToApply,
-                  transactionalEntityManager,
-                  `Applied to Invoice ${invoice.invoiceNumber} (system-repair)`,
-                );
-
-                // Update tracked balance
-                studentCreditBalance -= amountToApply;
-
-                details.creditAllocations.push({
-                  invoiceId: invoice.id,
-                  invoiceNumber: invoice.invoiceNumber,
-                  amountApplied: amountToApply,
-                });
-              } else {
-                // Dry run: just track
-                details.creditAllocations.push({
-                  invoiceId: invoice.id,
-                  invoiceNumber: invoice.invoiceNumber,
-                  amountApplied: amountToApply,
-                });
+                creditAllocationsCreated++;
+                remainingCredit -= amountToApply;
+                allocatedThisIteration = true;
               }
 
-              creditAllocationsCreated++;
-              remainingCredit -= amountToApply;
+              // If we couldn't allocate anything this iteration, break to avoid infinite loop
+              if (!allocatedThisIteration) {
+                break;
+              }
             }
           }
 
