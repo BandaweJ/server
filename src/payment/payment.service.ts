@@ -3433,6 +3433,16 @@ export class PaymentService {
       totalReceiptAllocations: number;
       missingCreditAmount: number;
     }>;
+    invoicesWithDeletedBalanceBfwd: Array<{
+      invoiceId: number;
+      invoiceNumber: string;
+      studentNumber: string;
+      balanceId: number | null;
+      totalBill: number;
+      calculatedTotalBill: number;
+      possibleBalanceBfwdAmount: number;
+      note: string;
+    }>;
     voidedReceiptsWithIncompleteReversals: Array<{
       receiptId: number;
       receiptNumber: string;
@@ -3446,6 +3456,7 @@ export class PaymentService {
       invoicesWithIssues: number;
       totalReceipts: number;
       voidedReceiptsWithIssues: number;
+      invoicesWithDeletedBalanceBfwd: number;
     };
   }> {
     this.logger.log('Starting data integrity audit...');
@@ -3456,12 +3467,30 @@ export class PaymentService {
         'allocations',
         'creditAllocations',
         'creditAllocations.studentCredit',
+        'balanceBfwd', // Load balance brought forward for older invoices
+        'bills',
+        'bills.fees',
+        'exemption',
       ],
     });
 
     const allReceipts = await this.receiptRepository.find({
       relations: ['allocations', 'student'],
     });
+
+    // Query invoices with balanceId to detect deleted balanceBfwd
+    // This helps identify cases where balanceBfwd was deleted but totalBill still includes it
+    const invoicesWithBalanceId = await this.invoiceRepository
+      .createQueryBuilder('invoice')
+      .select(['invoice.id', 'invoice.balanceId'])
+      .where('invoice.balanceId IS NOT NULL')
+      .getMany();
+
+    // Create a map for quick lookup
+    const balanceIdMap = new Map<number, number | null>();
+    for (const inv of invoicesWithBalanceId) {
+      balanceIdMap.set(inv.id, (inv as any).balanceId);
+    }
 
     const invoicesWithBalanceIssues: Array<{
       invoiceId: number;
@@ -3481,6 +3510,17 @@ export class PaymentService {
       missingCreditAmount: number;
     }> = [];
 
+    const invoicesWithDeletedBalanceBfwd: Array<{
+      invoiceId: number;
+      invoiceNumber: string;
+      studentNumber: string;
+      balanceId: number | null;
+      totalBill: number;
+      calculatedTotalBill: number;
+      possibleBalanceBfwdAmount: number;
+      note: string;
+    }> = [];
+
     const voidedReceiptsWithIncompleteReversals: Array<{
       receiptId: number;
       receiptNumber: string;
@@ -3492,7 +3532,40 @@ export class PaymentService {
 
     // Audit invoices
     for (const invoice of allInvoices) {
+      // Check for deleted balanceBfwd: balanceId exists but balanceBfwd is null
+      // Calculate what totalBill should be from bills and exemption
+      const totalBillsAmount = invoice.bills?.reduce(
+        (sum, bill) => sum + Number(bill.fees?.amount || 0),
+        0,
+      ) || 0;
+      const exemptedAmount = Number(invoice.exemptedAmount || 0);
+      const calculatedTotalBill = totalBillsAmount - exemptedAmount;
+      const actualTotalBill = Number(invoice.totalBill);
+
+      // Check if balanceId exists but balanceBfwd is null (deleted)
+      const balanceId = balanceIdMap.get(invoice.id);
+      const hasBalanceId = balanceId !== undefined && balanceId !== null;
+      const balanceBfwdDeleted =
+        hasBalanceId && !invoice.balanceBfwd && actualTotalBill > calculatedTotalBill;
+
+      if (balanceBfwdDeleted) {
+        const possibleBalanceBfwdAmount = actualTotalBill - calculatedTotalBill;
+        invoicesWithDeletedBalanceBfwd.push({
+          invoiceId: invoice.id,
+          invoiceNumber: invoice.invoiceNumber,
+          studentNumber: invoice.student?.studentNumber || 'Unknown',
+          balanceId: balanceId || null,
+          totalBill: actualTotalBill,
+          calculatedTotalBill,
+          possibleBalanceBfwdAmount,
+          note: 'Balance brought forward was deleted but totalBill still includes it. Balance calculation should still be correct.',
+        });
+      }
+
       // Check balance consistency
+      // Note: totalBill should already include balanceBfwd if it exists (from saveInvoice)
+      // Expected balance = totalBill (which includes balanceBfwd) - amountPaidOnInvoice
+      // This is correct even if balanceBfwd was deleted, as long as totalBill includes it
       const expectedBalance =
         Number(invoice.totalBill) - Number(invoice.amountPaidOnInvoice);
       const actualBalance = Number(invoice.balance);
@@ -3566,6 +3639,7 @@ export class PaymentService {
         invoicesWithMissingCreditAllocations.length,
       totalReceipts: allReceipts.length,
       voidedReceiptsWithIssues: voidedReceiptsWithIncompleteReversals.length,
+      invoicesWithDeletedBalanceBfwd: invoicesWithDeletedBalanceBfwd.length,
     };
 
     this.logger.log('Data integrity audit completed', summary);
@@ -3573,6 +3647,7 @@ export class PaymentService {
     return {
       invoicesWithBalanceIssues,
       invoicesWithMissingCreditAllocations,
+      invoicesWithDeletedBalanceBfwd,
       voidedReceiptsWithIncompleteReversals,
       summary,
     };
@@ -3611,8 +3686,22 @@ export class PaymentService {
         'allocations',
         'creditAllocations',
         'creditAllocations.studentCredit',
+        'balanceBfwd', // Load balance brought forward for older invoices
+        'bills',
+        'bills.fees',
+        'exemption',
       ],
     });
+
+    // Also query invoices with balanceId to detect deleted balanceBfwd
+    const invoicesWithBalanceId = await this.invoiceRepository
+      .createQueryBuilder('invoice')
+      .leftJoinAndSelect('invoice.student', 'student')
+      .leftJoinAndSelect('invoice.bills', 'bills')
+      .leftJoinAndSelect('bills.fees', 'fees')
+      .leftJoinAndSelect('invoice.exemption', 'exemption')
+      .where('invoice.balanceId IS NOT NULL')
+      .getMany();
 
     const invoicesWithMismatchedAmountPaid: Array<{
       invoiceId: number;
@@ -3738,6 +3827,19 @@ export class PaymentService {
         willCreateCreditAllocation: boolean;
       }>;
     };
+    deletedBalanceBfwdIssues: {
+      totalIssues: number;
+      invoices: Array<{
+        invoiceId: number;
+        invoiceNumber: string;
+        studentNumber: string;
+        balanceId: number | null;
+        totalBill: number;
+        calculatedTotalBill: number;
+        possibleBalanceBfwdAmount: number;
+        note: string;
+      }>;
+    };
     summary: {
       totalIssues: number;
       totalInvoicesAffected: number;
@@ -3789,7 +3891,7 @@ export class PaymentService {
     for (const issue of audit.invoicesWithBalanceIssues) {
       const invoice = await this.invoiceRepository.findOne({
         where: { id: issue.invoiceId },
-        relations: ['student', 'allocations', 'creditAllocations'],
+        relations: ['student', 'allocations', 'creditAllocations', 'balanceBfwd'],
       });
 
       if (!invoice) continue;
@@ -3901,7 +4003,7 @@ export class PaymentService {
     for (const issue of audit.invoicesWithMissingCreditAllocations) {
       const invoice = await this.invoiceRepository.findOne({
         where: { id: issue.invoiceId },
-        relations: ['student'],
+        relations: ['student', 'balanceBfwd'],
       });
 
       if (!invoice) continue;
@@ -3924,6 +4026,9 @@ export class PaymentService {
       r.invoicesAffected.forEach((inv) => affectedInvoiceIds.add(inv.invoiceId)),
     );
     missingCreditAllocationRepairs.forEach((r) =>
+      affectedInvoiceIds.add(r.invoiceId),
+    );
+    audit.invoicesWithDeletedBalanceBfwd.forEach((r) =>
       affectedInvoiceIds.add(r.invoiceId),
     );
 
@@ -3955,6 +4060,10 @@ export class PaymentService {
       missingCreditAllocationRepairs: {
         totalIssues: audit.invoicesWithMissingCreditAllocations.length,
         repairs: missingCreditAllocationRepairs,
+      },
+      deletedBalanceBfwdIssues: {
+        totalIssues: audit.invoicesWithDeletedBalanceBfwd.length,
+        invoices: audit.invoicesWithDeletedBalanceBfwd,
       },
       summary,
     };
@@ -3998,7 +4107,7 @@ export class PaymentService {
               InvoiceEntity,
               {
                 where: { id: issue.invoiceId },
-                relations: ['allocations', 'creditAllocations'],
+                relations: ['allocations', 'creditAllocations', 'balanceBfwd'],
               },
             );
 
@@ -4009,6 +4118,16 @@ export class PaymentService {
 
             const oldBalance = Number(invoice.balance);
             const newBalance = issue.expectedBalance;
+
+            // Note: expectedBalance is calculated as totalBill - amountPaidOnInvoice
+            // totalBill should already include balanceBfwd if it exists (from saveInvoice)
+            // This repair will set balance = totalBill - amountPaidOnInvoice
+            // which correctly accounts for balanceBfwd since it's included in totalBill
+            //
+            // IMPORTANT: Even if balanceBfwd was deleted after being applied to the invoice,
+            // totalBill should still include it (it was added when the invoice was saved).
+            // We do NOT modify totalBill in this repair - we only fix the balance calculation.
+            // This ensures that invoices with deleted balanceBfwd are handled correctly.
 
             if (!dryRun) {
               invoice.balance = newBalance;
@@ -4219,6 +4338,7 @@ export class PaymentService {
                   'student',
                   'creditAllocations',
                   'creditAllocations.studentCredit',
+                  'balanceBfwd', // Load balance brought forward for older invoices
                 ],
               },
             );
@@ -4342,6 +4462,16 @@ export class PaymentService {
         totalReceiptAllocations: number;
         missingCreditAmount: number;
       }>;
+      invoicesWithDeletedBalanceBfwd: Array<{
+        invoiceId: number;
+        invoiceNumber: string;
+        studentNumber: string;
+        balanceId: number | null;
+        totalBill: number;
+        calculatedTotalBill: number;
+        possibleBalanceBfwdAmount: number;
+        note: string;
+      }>;
       voidedReceiptsWithIncompleteReversals: Array<{
         receiptId: number;
         receiptNumber: string;
@@ -4355,6 +4485,7 @@ export class PaymentService {
         invoicesWithIssues: number;
         totalReceipts: number;
         voidedReceiptsWithIssues: number;
+        invoicesWithDeletedBalanceBfwd: number;
       };
     };
     balanceRepairs: {
