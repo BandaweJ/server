@@ -3735,6 +3735,22 @@ export class PaymentService {
         for (const creditAlloc of studentCredit.creditAllocations) {
           const invoice = creditAlloc.invoice;
           const amountApplied = Number(creditAlloc.amountApplied);
+
+          // Skip if invoice is null (deleted invoice but allocation still exists)
+          if (!invoice) {
+            anomalyAllocations.push({
+              allocationId: creditAlloc.id,
+              allocationType: 'credit',
+              invoiceId: 0,
+              invoiceNumber: 'DELETED',
+              studentNumber: studentCredit.studentNumber,
+              amountApplied,
+              issue: 'deleted_invoice',
+              note: `Credit allocation to deleted invoice (allocation ID: ${creditAlloc.id})`,
+            });
+            continue;
+          }
+
           const invoiceBalance = Number(invoice.balance);
           const invoiceTotalBill = Number(invoice.totalBill);
           const invoiceAmountPaid = Number(invoice.amountPaidOnInvoice);
@@ -3776,10 +3792,28 @@ export class PaymentService {
         for (const alloc of receipt.allocations) {
           const invoice = alloc.invoice;
           const amountApplied = Number(alloc.amountApplied);
+          const receiptAmountPaid = Number(receipt.amountPaid);
+
+          // Skip if invoice is null (deleted invoice but allocation still exists)
+          if (!invoice) {
+            anomalyAllocations.push({
+              allocationId: alloc.id,
+              allocationType: 'receipt',
+              receiptId: receipt.id,
+              receiptNumber: receipt.receiptNumber,
+              invoiceId: 0,
+              invoiceNumber: 'DELETED',
+              studentNumber: receipt.student?.studentNumber || 'Unknown',
+              amountApplied,
+              issue: 'deleted_invoice',
+              note: `Allocation to deleted invoice (allocation ID: ${alloc.id})`,
+            });
+            continue;
+          }
+
           const invoiceBalance = Number(invoice.balance);
           const invoiceTotalBill = Number(invoice.totalBill);
           const invoiceAmountPaid = Number(invoice.amountPaidOnInvoice);
-          const receiptAmountPaid = Number(receipt.amountPaid);
 
           // Check if allocation is from voided receipt
           if (receipt.isVoided) {
@@ -4739,6 +4773,7 @@ export class PaymentService {
             const unallocatedAmount = issue.unallocatedAmount;
 
             // Find open invoices for this student (FIFO by due date)
+            // Exclude voided invoices
             const openInvoices = await transactionalEntityManager.find(
               InvoiceEntity,
               {
@@ -4749,6 +4784,7 @@ export class PaymentService {
                     InvoiceStatus.PartiallyPaid,
                     InvoiceStatus.Overdue,
                   ]),
+                  isVoided: false,
                 },
                 relations: ['allocations', 'student'],
                 order: {
@@ -4770,7 +4806,7 @@ export class PaymentService {
 
               const amountToAllocate = Math.min(remainingAmount, invoiceBalance);
 
-              // Create allocation
+              // Create allocation (or track for dry run)
               if (!dryRun) {
                 const allocation = transactionalEntityManager.create(
                   ReceiptInvoiceAllocationEntity,
@@ -4788,6 +4824,16 @@ export class PaymentService {
                   Number(invoice.amountPaidOnInvoice) + amountToAllocate;
                 invoice.balance = invoiceBalance - amountToAllocate;
                 invoice.status = this.getInvoiceStatus(invoice);
+                invoicesToUpdate.push(invoice);
+              } else {
+                // In dry run, still track what would be allocated
+                allocationsToCreate.push({
+                  id: 0, // Placeholder for dry run
+                  receipt: receipt,
+                  invoice: invoice,
+                  amountApplied: amountToAllocate,
+                  allocationDate: receipt.paymentDate || new Date(),
+                } as any);
                 invoicesToUpdate.push(invoice);
               }
 
