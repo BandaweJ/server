@@ -1603,6 +1603,9 @@ export class PaymentService {
         'bills',
         'bills.fees',
         'exemption',
+        'allocations',
+        'creditAllocations',
+        'creditAllocations.studentCredit',
       ],
     });
   }
@@ -1621,6 +1624,9 @@ export class PaymentService {
         'bills',
         'bills.fees',
         'exemption',
+        'allocations',
+        'creditAllocations',
+        'creditAllocations.studentCredit',
       ],
     });
   }
