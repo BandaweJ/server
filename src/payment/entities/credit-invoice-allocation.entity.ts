@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { StudentCreditEntity } from './student-credit.entity'; // Import the StudentCreditEntity
 import { InvoiceEntity } from './invoice.entity'; // Import the InvoiceEntity
+import { numberTransformer } from 'src/common/transformers/number.transformer';
 
 @Entity('credit_invoice_allocations')
 export class CreditInvoiceAllocationEntity {
@@ -23,6 +24,7 @@ export class CreditInvoiceAllocationEntity {
     (studentCredit) => studentCredit.creditAllocations,
     {
       onDelete: 'RESTRICT', // Prevent deleting a credit balance if allocations exist
+      nullable: false,
     },
   )
   @JoinColumn({ name: 'studentCreditId' }) // Foreign key column
@@ -32,6 +34,7 @@ export class CreditInvoiceAllocationEntity {
   // This links the credit application to the invoice it was applied to
   @ManyToOne(() => InvoiceEntity, (invoice) => invoice.creditAllocations, {
     onDelete: 'RESTRICT', // Usually RESTRICT for financial data
+    nullable: false,
   })
   @JoinColumn({ name: 'invoiceId' }) // Foreign key column
   invoice: InvoiceEntity;
@@ -40,6 +43,8 @@ export class CreditInvoiceAllocationEntity {
     type: 'decimal',
     precision: 10,
     scale: 2,
+    transformer: numberTransformer,
+    nullable: false,
     comment: 'Amount of student credit applied to this specific invoice',
   })
   amountApplied: number;

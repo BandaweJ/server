@@ -13,6 +13,7 @@ import { StudentsEntity } from '../../profiles/entities/students.entity';
 import { PaymentMethods } from 'src/finance/models/payment-methods.model';
 import { EnrolEntity } from 'src/enrolment/entities/enrol.entity';
 import { ReceiptInvoiceAllocationEntity } from './receipt-invoice-allocation.entity';
+import { ReceiptCreditEntity } from './receipt-credit.entity';
 
 @Entity('receipts')
 export class ReceiptEntity {
@@ -59,6 +60,13 @@ export class ReceiptEntity {
     (allocation) => allocation.receipt,
   )
   allocations: ReceiptInvoiceAllocationEntity[];
+
+  // NEW: One-to-many relationship with receipt credits
+  @OneToMany(
+    () => ReceiptCreditEntity,
+    (receiptCredit) => receiptCredit.receipt,
+  )
+  receiptCredits: ReceiptCreditEntity[];
 
   // NEW: Fields for voiding
   @Column({ default: false })

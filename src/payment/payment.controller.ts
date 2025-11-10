@@ -36,6 +36,14 @@ export class PaymentController {
     return this.paymentService.voidReceipt(receiptId, profile.email);
   }
 
+  @Patch('invoice/void/:invoiceId')
+  voidInvoice(
+    @Param('invoiceId', ParseIntPipe) invoiceId: number,
+    @GetUser() profile: TeachersEntity,
+  ) {
+    return this.paymentService.voidInvoice(invoiceId, profile.email);
+  }
+
   @Get('studentBalance/:studentNumber')
   getStudentBalance(@Param('studentNumber') studentNumber: string) {
     return this.paymentService.getStudentBalance(studentNumber);
@@ -229,5 +237,49 @@ export class PaymentController {
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
     return this.paymentService.updatePayment(receiptNumber, approved, profile);
+  }
+
+  // Data Repair Endpoints
+  @Get('repair/audit')
+  auditDataIntegrity() {
+    return this.paymentService.auditDataIntegrity();
+  }
+
+  @Get('repair/verify-amount-paid')
+  verifyAmountPaidOnInvoice() {
+    return this.paymentService.verifyAmountPaidOnInvoice();
+  }
+
+  @Get('repair/report')
+  generateRepairReport() {
+    return this.paymentService.generateRepairReport();
+  }
+
+  @Post('repair/balances')
+  repairInvoiceBalances(@Body() body: { dryRun?: boolean }) {
+    return this.paymentService.repairInvoiceBalances(
+      body.dryRun !== undefined ? body.dryRun : true,
+    );
+  }
+
+  @Post('repair/voided-receipts')
+  repairVoidedReceipts(@Body() body: { dryRun?: boolean }) {
+    return this.paymentService.repairVoidedReceipts(
+      body.dryRun !== undefined ? body.dryRun : true,
+    );
+  }
+
+  @Post('repair/missing-credit-allocations')
+  repairMissingCreditAllocations(@Body() body: { dryRun?: boolean }) {
+    return this.paymentService.repairMissingCreditAllocations(
+      body.dryRun !== undefined ? body.dryRun : true,
+    );
+  }
+
+  @Post('repair/all')
+  repairAllData(@Body() body: { dryRun?: boolean }) {
+    return this.paymentService.repairAllData(
+      body.dryRun !== undefined ? body.dryRun : true,
+    );
   }
 }

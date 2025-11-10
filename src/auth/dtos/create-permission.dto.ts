@@ -22,3 +22,4 @@ export class CreatePermissionDto {
   active?: boolean;
 }
 
+

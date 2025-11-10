@@ -13,6 +13,7 @@ import {
 import { StudentsEntity } from 'src/profiles/entities/students.entity';
 import { numberTransformer } from 'src/common/transformers/number.transformer'; // Assuming you have this
 import { CreditInvoiceAllocationEntity } from './credit-invoice-allocation.entity'; // ADD THIS IMPORT
+import { ReceiptCreditEntity } from './receipt-credit.entity';
 
 @Entity('student_credits')
 export class StudentCreditEntity {
@@ -51,4 +52,11 @@ export class StudentCreditEntity {
     (allocation) => allocation.studentCredit, // ADD THIS LINE
   )
   creditAllocations: CreditInvoiceAllocationEntity[]; // ADD THIS LINE
+
+  // NEW: One-to-many relationship with receipt credits
+  @OneToMany(
+    () => ReceiptCreditEntity,
+    (receiptCredit) => receiptCredit.studentCredit,
+  )
+  receiptCredits: ReceiptCreditEntity[];
 }

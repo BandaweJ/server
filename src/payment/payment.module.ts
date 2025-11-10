@@ -14,6 +14,7 @@ import { ReceiptInvoiceAllocationEntity } from './entities/receipt-invoice-alloc
 import { ExemptionEntity } from '../exemptions/entities/exemptions.entity';
 import { StudentCreditEntity } from './entities/student-credit.entity';
 import { CreditInvoiceAllocationEntity } from './entities/credit-invoice-allocation.entity';
+import { ReceiptCreditEntity } from './entities/receipt-credit.entity';
 
 @Module({
   controllers: [PaymentController],
@@ -31,6 +32,7 @@ import { CreditInvoiceAllocationEntity } from './entities/credit-invoice-allocat
       ReceiptInvoiceAllocationEntity,
       StudentCreditEntity,
       CreditInvoiceAllocationEntity,
+      ReceiptCreditEntity,
     ]),
     ResourceByIdModule,
   ],
