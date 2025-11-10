@@ -61,6 +61,8 @@ export class PaymentService {
     private allocationRepository: Repository<ReceiptInvoiceAllocationEntity>,
     @InjectRepository(CreditInvoiceAllocationEntity)
     private readonly creditAllocationRepository: Repository<CreditInvoiceAllocationEntity>,
+    @InjectRepository(StudentCreditEntity)
+    private readonly studentCreditRepository: Repository<StudentCreditEntity>,
     private readonly enrolmentService: EnrolmentService,
     private readonly financeService: FinanceService,
     private studentsService: StudentsService,
@@ -3451,12 +3453,42 @@ export class PaymentService {
       totalAllocations: number;
       shouldHaveReversed: number;
     }>;
+    receiptsWithUnallocatedAmounts: Array<{
+      receiptId: number;
+      receiptNumber: string;
+      studentNumber: string;
+      amountPaid: number;
+      totalAllocations: number;
+      unallocatedAmount: number;
+    }>;
+    unrecordedCredits: Array<{
+      studentCreditId: number;
+      studentNumber: string;
+      creditAmount: number;
+      receiptCreditsCount: number;
+      note: string;
+    }>;
+    anomalyAllocations: Array<{
+      allocationId: number;
+      allocationType: 'receipt' | 'credit';
+      receiptId?: number;
+      receiptNumber?: string;
+      invoiceId: number;
+      invoiceNumber: string;
+      studentNumber: string;
+      amountApplied: number;
+      issue: string;
+      note: string;
+    }>;
     summary: {
       totalInvoices: number;
       invoicesWithIssues: number;
       totalReceipts: number;
       voidedReceiptsWithIssues: number;
       invoicesWithDeletedBalanceBfwd: number;
+      receiptsWithUnallocatedAmounts: number;
+      unrecordedCredits: number;
+      anomalyAllocations: number;
     };
   }> {
     this.logger.log('Starting data integrity audit...');
@@ -3475,7 +3507,11 @@ export class PaymentService {
     });
 
     const allReceipts = await this.receiptRepository.find({
-      relations: ['allocations', 'student'],
+      relations: ['allocations', 'allocations.invoice', 'student', 'receiptCredits'],
+    });
+
+    const allStudentCredits = await this.studentCreditRepository.find({
+      relations: ['receiptCredits', 'creditAllocations', 'creditAllocations.invoice'],
     });
 
     // Query invoices with balanceId to detect deleted balanceBfwd
@@ -3528,6 +3564,36 @@ export class PaymentService {
       amountPaid: number;
       totalAllocations: number;
       shouldHaveReversed: number;
+    }> = [];
+
+    const receiptsWithUnallocatedAmounts: Array<{
+      receiptId: number;
+      receiptNumber: string;
+      studentNumber: string;
+      amountPaid: number;
+      totalAllocations: number;
+      unallocatedAmount: number;
+    }> = [];
+
+    const unrecordedCredits: Array<{
+      studentCreditId: number;
+      studentNumber: string;
+      creditAmount: number;
+      receiptCreditsCount: number;
+      note: string;
+    }> = [];
+
+    const anomalyAllocations: Array<{
+      allocationId: number;
+      allocationType: 'receipt' | 'credit';
+      receiptId?: number;
+      receiptNumber?: string;
+      invoiceId: number;
+      invoiceNumber: string;
+      studentNumber: string;
+      amountApplied: number;
+      issue: string;
+      note: string;
     }> = [];
 
     // Audit invoices
@@ -3609,15 +3675,15 @@ export class PaymentService {
       }
     }
 
-    // Audit voided receipts
+    // Audit receipts
     for (const receipt of allReceipts) {
-      if (receipt.isVoided) {
-        const totalAllocations = receipt.allocations.reduce(
-          (sum, alloc) => sum + Number(alloc.amountApplied),
-          0,
-        );
-        const amountPaid = Number(receipt.amountPaid);
+      const totalAllocations = receipt.allocations.reduce(
+        (sum, alloc) => sum + Number(alloc.amountApplied),
+        0,
+      );
+      const amountPaid = Number(receipt.amountPaid);
 
+      if (receipt.isVoided) {
         // If allocations still exist, the reversal wasn't complete
         if (totalAllocations > 0.01) {
           voidedReceiptsWithIncompleteReversals.push({
@@ -3628,6 +3694,174 @@ export class PaymentService {
             totalAllocations,
             shouldHaveReversed: totalAllocations,
           });
+        }
+      } else {
+        // Check for unallocated amounts in non-voided receipts
+        const unallocatedAmount = amountPaid - totalAllocations;
+        const tolerance = 0.01;
+
+        if (unallocatedAmount > tolerance) {
+          receiptsWithUnallocatedAmounts.push({
+            receiptId: receipt.id,
+            receiptNumber: receipt.receiptNumber,
+            studentNumber: receipt.student?.studentNumber || 'Unknown',
+            amountPaid,
+            totalAllocations,
+            unallocatedAmount,
+          });
+        }
+      }
+    }
+
+    // Audit student credits for unrecorded credits
+    for (const studentCredit of allStudentCredits) {
+      const creditAmount = Number(studentCredit.amount);
+      const receiptCreditsCount = studentCredit.receiptCredits?.length || 0;
+
+      // If credit exists but has no ReceiptCreditEntity links, it's unrecorded
+      // This means the credit was created but not properly linked to a receipt
+      if (creditAmount > 0.01 && receiptCreditsCount === 0) {
+        unrecordedCredits.push({
+          studentCreditId: studentCredit.id,
+          studentNumber: studentCredit.studentNumber,
+          creditAmount,
+          receiptCreditsCount,
+          note: 'Credit exists but has no ReceiptCreditEntity link. May have been created before full implementation.',
+        });
+      }
+
+      // Check credit allocations for anomalies
+      if (studentCredit.creditAllocations) {
+        for (const creditAlloc of studentCredit.creditAllocations) {
+          const invoice = creditAlloc.invoice;
+          const amountApplied = Number(creditAlloc.amountApplied);
+          const invoiceBalance = Number(invoice.balance);
+          const invoiceTotalBill = Number(invoice.totalBill);
+          const invoiceAmountPaid = Number(invoice.amountPaidOnInvoice);
+
+          // Check if allocation exceeds invoice balance
+          if (amountApplied > invoiceBalance + 0.01) {
+            anomalyAllocations.push({
+              allocationId: creditAlloc.id,
+              allocationType: 'credit',
+              invoiceId: invoice.id,
+              invoiceNumber: invoice.invoiceNumber,
+              studentNumber: studentCredit.studentNumber,
+              amountApplied,
+              issue: 'over_allocation',
+              note: `Credit allocation (${amountApplied}) exceeds invoice balance (${invoiceBalance}). Invoice total: ${invoiceTotalBill}, Amount paid: ${invoiceAmountPaid}`,
+            });
+          }
+
+          // Check if allocation is to voided invoice
+          if (invoice.isVoided) {
+            anomalyAllocations.push({
+              allocationId: creditAlloc.id,
+              allocationType: 'credit',
+              invoiceId: invoice.id,
+              invoiceNumber: invoice.invoiceNumber,
+              studentNumber: studentCredit.studentNumber,
+              amountApplied,
+              issue: 'voided_invoice',
+              note: `Credit allocation to voided invoice ${invoice.invoiceNumber}`,
+            });
+          }
+        }
+      }
+    }
+
+    // Audit receipt allocations for anomalies
+    for (const receipt of allReceipts) {
+      if (receipt.allocations) {
+        for (const alloc of receipt.allocations) {
+          const invoice = alloc.invoice;
+          const amountApplied = Number(alloc.amountApplied);
+          const invoiceBalance = Number(invoice.balance);
+          const invoiceTotalBill = Number(invoice.totalBill);
+          const invoiceAmountPaid = Number(invoice.amountPaidOnInvoice);
+          const receiptAmountPaid = Number(receipt.amountPaid);
+
+          // Check if allocation is from voided receipt
+          if (receipt.isVoided) {
+            anomalyAllocations.push({
+              allocationId: alloc.id,
+              allocationType: 'receipt',
+              receiptId: receipt.id,
+              receiptNumber: receipt.receiptNumber,
+              invoiceId: invoice.id,
+              invoiceNumber: invoice.invoiceNumber,
+              studentNumber: receipt.student?.studentNumber || 'Unknown',
+              amountApplied,
+              issue: 'voided_receipt',
+              note: `Allocation from voided receipt ${receipt.receiptNumber}`,
+            });
+          }
+
+          // Check if allocation exceeds invoice balance
+          if (amountApplied > invoiceBalance + 0.01) {
+            anomalyAllocations.push({
+              allocationId: alloc.id,
+              allocationType: 'receipt',
+              receiptId: receipt.id,
+              receiptNumber: receipt.receiptNumber,
+              invoiceId: invoice.id,
+              invoiceNumber: invoice.invoiceNumber,
+              studentNumber: receipt.student?.studentNumber || 'Unknown',
+              amountApplied,
+              issue: 'over_allocation',
+              note: `Receipt allocation (${amountApplied}) exceeds invoice balance (${invoiceBalance}). Invoice total: ${invoiceTotalBill}, Amount paid: ${invoiceAmountPaid}`,
+            });
+          }
+
+          // Check if allocation is to voided invoice
+          if (invoice.isVoided) {
+            anomalyAllocations.push({
+              allocationId: alloc.id,
+              allocationType: 'receipt',
+              receiptId: receipt.id,
+              receiptNumber: receipt.receiptNumber,
+              invoiceId: invoice.id,
+              invoiceNumber: invoice.invoiceNumber,
+              studentNumber: receipt.student?.studentNumber || 'Unknown',
+              amountApplied,
+              issue: 'voided_invoice',
+              note: `Receipt allocation to voided invoice ${invoice.invoiceNumber}`,
+            });
+          }
+
+          // Check if allocation exceeds receipt amount
+          if (amountApplied > receiptAmountPaid + 0.01) {
+            anomalyAllocations.push({
+              allocationId: alloc.id,
+              allocationType: 'receipt',
+              receiptId: receipt.id,
+              receiptNumber: receipt.receiptNumber,
+              invoiceId: invoice.id,
+              invoiceNumber: invoice.invoiceNumber,
+              studentNumber: receipt.student?.studentNumber || 'Unknown',
+              amountApplied,
+              issue: 'exceeds_receipt',
+              note: `Allocation (${amountApplied}) exceeds receipt amount (${receiptAmountPaid})`,
+            });
+          }
+
+          // Check if receipt and invoice belong to different students
+          if (
+            receipt.student?.studentNumber !== invoice.student?.studentNumber
+          ) {
+            anomalyAllocations.push({
+              allocationId: alloc.id,
+              allocationType: 'receipt',
+              receiptId: receipt.id,
+              receiptNumber: receipt.receiptNumber,
+              invoiceId: invoice.id,
+              invoiceNumber: invoice.invoiceNumber,
+              studentNumber: receipt.student?.studentNumber || 'Unknown',
+              amountApplied,
+              issue: 'student_mismatch',
+              note: `Receipt student (${receipt.student?.studentNumber}) does not match invoice student (${invoice.student?.studentNumber})`,
+            });
+          }
         }
       }
     }
@@ -3640,6 +3874,9 @@ export class PaymentService {
       totalReceipts: allReceipts.length,
       voidedReceiptsWithIssues: voidedReceiptsWithIncompleteReversals.length,
       invoicesWithDeletedBalanceBfwd: invoicesWithDeletedBalanceBfwd.length,
+      receiptsWithUnallocatedAmounts: receiptsWithUnallocatedAmounts.length,
+      unrecordedCredits: unrecordedCredits.length,
+      anomalyAllocations: anomalyAllocations.length,
     };
 
     this.logger.log('Data integrity audit completed', summary);
@@ -3649,6 +3886,9 @@ export class PaymentService {
       invoicesWithMissingCreditAllocations,
       invoicesWithDeletedBalanceBfwd,
       voidedReceiptsWithIncompleteReversals,
+      receiptsWithUnallocatedAmounts,
+      unrecordedCredits,
+      anomalyAllocations,
       summary,
     };
   }
@@ -4444,6 +4684,319 @@ export class PaymentService {
    * @param dryRun - If true, only reports what would be fixed without making changes
    * @returns Complete report of all repairs
    */
+  /**
+   * Repairs unallocated receipt amounts by allocating them to invoices
+   * @param dryRun - If true, only reports what would be fixed without making changes
+   * @returns Report of repairs made
+   */
+  async repairUnallocatedReceiptAmounts(dryRun: boolean = true): Promise<{
+    fixed: number;
+    errors: number;
+    details: Array<{
+      receiptId: number;
+      receiptNumber: string;
+      studentNumber: string;
+      unallocatedAmount: number;
+      allocationsCreated: number;
+      invoicesUpdated: number;
+    }>;
+  }> {
+    this.logger.log(
+      `Starting unallocated receipt amounts repair (dryRun: ${dryRun})...`,
+    );
+
+    const audit = await this.auditDataIntegrity();
+    const details: Array<{
+      receiptId: number;
+      receiptNumber: string;
+      studentNumber: string;
+      unallocatedAmount: number;
+      allocationsCreated: number;
+      invoicesUpdated: number;
+    }> = [];
+
+    let fixed = 0;
+    let errors = 0;
+
+    return await this.dataSource.transaction(
+      async (transactionalEntityManager) => {
+        for (const issue of audit.receiptsWithUnallocatedAmounts) {
+          try {
+            const receipt = await transactionalEntityManager.findOne(
+              ReceiptEntity,
+              {
+                where: { id: issue.receiptId },
+                relations: ['allocations', 'allocations.invoice', 'student'],
+              },
+            );
+
+            if (!receipt || !receipt.student || receipt.isVoided) {
+              errors++;
+              continue;
+            }
+
+            const studentNumber = receipt.student.studentNumber;
+            const unallocatedAmount = issue.unallocatedAmount;
+
+            // Find open invoices for this student (FIFO by due date)
+            const openInvoices = await transactionalEntityManager.find(
+              InvoiceEntity,
+              {
+                where: {
+                  student: { studentNumber },
+                  status: In([
+                    InvoiceStatus.Pending,
+                    InvoiceStatus.PartiallyPaid,
+                    InvoiceStatus.Overdue,
+                  ]),
+                },
+                relations: ['allocations', 'student'],
+                order: {
+                  invoiceDueDate: 'ASC',
+                },
+              },
+            );
+
+            let remainingAmount = unallocatedAmount;
+            const allocationsToCreate: ReceiptInvoiceAllocationEntity[] = [];
+            const invoicesToUpdate: InvoiceEntity[] = [];
+
+            // Allocate unallocated amount to open invoices (FIFO)
+            for (const invoice of openInvoices) {
+              if (remainingAmount <= 0) break;
+
+              const invoiceBalance = Number(invoice.balance);
+              if (invoiceBalance <= 0) continue;
+
+              const amountToAllocate = Math.min(remainingAmount, invoiceBalance);
+
+              // Create allocation
+              if (!dryRun) {
+                const allocation = transactionalEntityManager.create(
+                  ReceiptInvoiceAllocationEntity,
+                  {
+                    receipt: receipt,
+                    invoice: invoice,
+                    amountApplied: amountToAllocate,
+                    allocationDate: receipt.paymentDate || new Date(),
+                  },
+                );
+                allocationsToCreate.push(allocation);
+
+                // Update invoice
+                invoice.amountPaidOnInvoice =
+                  Number(invoice.amountPaidOnInvoice) + amountToAllocate;
+                invoice.balance = invoiceBalance - amountToAllocate;
+                invoice.status = this.getInvoiceStatus(invoice);
+                invoicesToUpdate.push(invoice);
+              }
+
+              remainingAmount -= amountToAllocate;
+            }
+
+            // If there's still remaining amount after allocating to all open invoices,
+            // create student credit (overpayment)
+            if (remainingAmount > 0.01 && !dryRun) {
+              const studentCredit = await this.createOrUpdateStudentCredit(
+                studentNumber,
+                remainingAmount,
+                transactionalEntityManager,
+                `Overpayment from Receipt ${receipt.receiptNumber} (system-repair)`,
+              );
+
+              // Create ReceiptCreditEntity to track the link
+              const receiptCredit = transactionalEntityManager.create(
+                ReceiptCreditEntity,
+                {
+                  receipt: receipt,
+                  studentCredit: studentCredit,
+                  creditAmount: remainingAmount,
+                  createdAt: receipt.paymentDate || new Date(),
+                },
+              );
+              await transactionalEntityManager.save(receiptCredit);
+            }
+
+            // Save allocations and invoices
+            if (!dryRun) {
+              await transactionalEntityManager.save(allocationsToCreate);
+              await transactionalEntityManager.save(invoicesToUpdate);
+
+              // Verify balances
+              for (const invoice of invoicesToUpdate) {
+                this.verifyInvoiceBalance(invoice);
+              }
+            }
+
+            details.push({
+              receiptId: receipt.id,
+              receiptNumber: receipt.receiptNumber,
+              studentNumber,
+              unallocatedAmount,
+              allocationsCreated: allocationsToCreate.length,
+              invoicesUpdated: invoicesToUpdate.length,
+            });
+
+            fixed++;
+          } catch (error) {
+            this.logger.error(
+              `Error repairing unallocated receipt amount ${issue.receiptId}`,
+              { error, receiptId: issue.receiptId },
+            );
+            errors++;
+          }
+        }
+
+        this.logger.log(
+          `Unallocated receipt amounts repair completed: Fixed ${fixed}, Errors ${errors} (dryRun: ${dryRun})`,
+        );
+
+        return { fixed, errors, details };
+      },
+    );
+  }
+
+  /**
+   * Repairs unrecorded credits by attempting to link them to receipts
+   * @param dryRun - If true, only reports what would be fixed without making changes
+   * @returns Report of repairs made
+   */
+  async repairUnrecordedCredits(dryRun: boolean = true): Promise<{
+    fixed: number;
+    errors: number;
+    details: Array<{
+      studentCreditId: number;
+      studentNumber: string;
+      creditAmount: number;
+      receiptCreditsCreated: number;
+    }>;
+  }> {
+    this.logger.log(
+      `Starting unrecorded credits repair (dryRun: ${dryRun})...`,
+    );
+
+    const audit = await this.auditDataIntegrity();
+    const details: Array<{
+      studentCreditId: number;
+      studentNumber: string;
+      creditAmount: number;
+      receiptCreditsCreated: number;
+    }> = [];
+
+    let fixed = 0;
+    let errors = 0;
+
+    return await this.dataSource.transaction(
+      async (transactionalEntityManager) => {
+        for (const issue of audit.unrecordedCredits) {
+          try {
+            const studentCredit = await transactionalEntityManager.findOne(
+              StudentCreditEntity,
+              {
+                where: { id: issue.studentCreditId },
+                relations: ['receiptCredits'],
+              },
+            );
+
+            if (!studentCredit) {
+              errors++;
+              continue;
+            }
+
+            const studentNumber = studentCredit.studentNumber;
+            const creditAmount = Number(studentCredit.amount);
+
+            // Find receipts for this student that have unallocated amounts
+            // These might be the source of the credit
+            const studentReceipts = await transactionalEntityManager.find(
+              ReceiptEntity,
+              {
+                where: {
+                  student: { studentNumber },
+                  isVoided: false,
+                },
+                relations: ['allocations', 'receiptCredits'],
+              },
+            );
+
+            let receiptCreditsCreated = 0;
+            let remainingCredit = creditAmount;
+
+            // Try to match credit with receipts that have unallocated amounts
+            for (const receipt of studentReceipts) {
+              if (remainingCredit <= 0.01) break;
+
+              const totalAllocations = receipt.allocations.reduce(
+                (sum, alloc) => sum + Number(alloc.amountApplied),
+                0,
+              );
+              const unallocatedAmount =
+                Number(receipt.amountPaid) - totalAllocations;
+
+              // Check if this receipt already has a ReceiptCreditEntity
+              const hasReceiptCredit =
+                receipt.receiptCredits && receipt.receiptCredits.length > 0;
+
+              // If receipt has unallocated amount and no ReceiptCreditEntity,
+              // create a link (assuming this receipt created the credit)
+              if (
+                unallocatedAmount > 0.01 &&
+                !hasReceiptCredit &&
+                remainingCredit > 0.01 &&
+                !dryRun
+              ) {
+                const creditToLink = Math.min(unallocatedAmount, remainingCredit);
+
+                const receiptCredit = transactionalEntityManager.create(
+                  ReceiptCreditEntity,
+                  {
+                    receipt: receipt,
+                    studentCredit: studentCredit,
+                    creditAmount: creditToLink,
+                    createdAt: receipt.paymentDate || new Date(),
+                  },
+                );
+                await transactionalEntityManager.save(receiptCredit);
+                receiptCreditsCreated++;
+                remainingCredit -= creditToLink;
+              }
+            }
+
+            // If we couldn't link all credit, create a note
+            if (remainingCredit > 0.01 && !dryRun) {
+              this.logger.warn(
+                `Could not fully link credit for student ${studentNumber}. Remaining: ${remainingCredit}`,
+              );
+            }
+
+            details.push({
+              studentCreditId: studentCredit.id,
+              studentNumber,
+              creditAmount,
+              receiptCreditsCreated,
+            });
+
+            if (receiptCreditsCreated > 0) {
+              fixed++;
+            }
+          } catch (error) {
+            this.logger.error(
+              `Error repairing unrecorded credit ${issue.studentCreditId}`,
+              { error, studentCreditId: issue.studentCreditId },
+            );
+            errors++;
+          }
+        }
+
+        this.logger.log(
+          `Unrecorded credits repair completed: Fixed ${fixed}, Errors ${errors} (dryRun: ${dryRun})`,
+        );
+
+        return { fixed, errors, details };
+      },
+    );
+  }
+
   async repairAllData(dryRun: boolean = true): Promise<{
     audit: {
       invoicesWithBalanceIssues: Array<{
@@ -4480,12 +5033,42 @@ export class PaymentService {
         totalAllocations: number;
         shouldHaveReversed: number;
       }>;
+      receiptsWithUnallocatedAmounts: Array<{
+        receiptId: number;
+        receiptNumber: string;
+        studentNumber: string;
+        amountPaid: number;
+        totalAllocations: number;
+        unallocatedAmount: number;
+      }>;
+      unrecordedCredits: Array<{
+        studentCreditId: number;
+        studentNumber: string;
+        creditAmount: number;
+        receiptCreditsCount: number;
+        note: string;
+      }>;
+      anomalyAllocations: Array<{
+        allocationId: number;
+        allocationType: 'receipt' | 'credit';
+        receiptId?: number;
+        receiptNumber?: string;
+        invoiceId: number;
+        invoiceNumber: string;
+        studentNumber: string;
+        amountApplied: number;
+        issue: string;
+        note: string;
+      }>;
       summary: {
         totalInvoices: number;
         invoicesWithIssues: number;
         totalReceipts: number;
         voidedReceiptsWithIssues: number;
         invoicesWithDeletedBalanceBfwd: number;
+        receiptsWithUnallocatedAmounts: number;
+        unrecordedCredits: number;
+        anomalyAllocations: number;
       };
     };
     balanceRepairs: {
@@ -4518,6 +5101,28 @@ export class PaymentService {
         creditAllocationsCreated: number;
       }>;
     };
+    unallocatedReceiptAmountsRepairs: {
+      fixed: number;
+      errors: number;
+      details: Array<{
+        receiptId: number;
+        receiptNumber: string;
+        studentNumber: string;
+        unallocatedAmount: number;
+        allocationsCreated: number;
+        invoicesUpdated: number;
+      }>;
+    };
+    unrecordedCreditsRepairs: {
+      fixed: number;
+      errors: number;
+      details: Array<{
+        studentCreditId: number;
+        studentNumber: string;
+        creditAmount: number;
+        receiptCreditsCreated: number;
+      }>;
+    };
     timestamp: Date;
   }> {
     this.logger.log(
@@ -4528,12 +5133,16 @@ export class PaymentService {
     const balanceRepairs = await this.repairInvoiceBalances(dryRun);
     const voidedReceiptRepairs = await this.repairVoidedReceipts(dryRun);
     const missingCreditAllocationRepairs = await this.repairMissingCreditAllocations(dryRun);
+    const unallocatedReceiptAmountsRepairs = await this.repairUnallocatedReceiptAmounts(dryRun);
+    const unrecordedCreditsRepairs = await this.repairUnrecordedCredits(dryRun);
 
     const result = {
       audit,
       balanceRepairs,
       voidedReceiptRepairs,
       missingCreditAllocationRepairs,
+      unallocatedReceiptAmountsRepairs,
+      unrecordedCreditsRepairs,
       timestamp: new Date(),
     };
 
@@ -4543,6 +5152,8 @@ export class PaymentService {
         balanceRepairsFixed: balanceRepairs.fixed,
         voidedReceiptRepairsFixed: voidedReceiptRepairs.fixed,
         missingCreditAllocationRepairsFixed: missingCreditAllocationRepairs.fixed,
+        unallocatedReceiptAmountsRepairsFixed: unallocatedReceiptAmountsRepairs.fixed,
+        unrecordedCreditsRepairsFixed: unrecordedCreditsRepairs.fixed,
       },
     );
 

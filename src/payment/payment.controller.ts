@@ -276,6 +276,20 @@ export class PaymentController {
     );
   }
 
+  @Post('repair/unallocated-receipt-amounts')
+  repairUnallocatedReceiptAmounts(@Body() body: { dryRun?: boolean }) {
+    return this.paymentService.repairUnallocatedReceiptAmounts(
+      body.dryRun !== undefined ? body.dryRun : true,
+    );
+  }
+
+  @Post('repair/unrecorded-credits')
+  repairUnrecordedCredits(@Body() body: { dryRun?: boolean }) {
+    return this.paymentService.repairUnrecordedCredits(
+      body.dryRun !== undefined ? body.dryRun : true,
+    );
+  }
+
   @Post('repair/all')
   repairAllData(@Body() body: { dryRun?: boolean }) {
     return this.paymentService.repairAllData(
