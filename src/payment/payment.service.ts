@@ -5426,25 +5426,54 @@ export class PaymentService {
 
           // 5. Delete existing allocations (if not dry run)
           if (!dryRun) {
-            // Delete receipt allocations
-            for (const invoice of allInvoices) {
-              if (invoice.allocations && invoice.allocations.length > 0) {
-                await transactionalEntityManager.remove(invoice.allocations);
-              }
-              if (
-                invoice.creditAllocations &&
-                invoice.creditAllocations.length > 0
-              ) {
+            // Delete receipt allocations - query directly to ensure we get all allocations
+            const receiptIds = allReceipts.map((r) => r.id);
+            if (receiptIds.length > 0) {
+              const existingReceiptAllocations =
+                await transactionalEntityManager.find(
+                  ReceiptInvoiceAllocationEntity,
+                  {
+                    where: {
+                      receipt: { id: In(receiptIds) },
+                    },
+                  },
+                );
+              if (existingReceiptAllocations.length > 0) {
                 await transactionalEntityManager.remove(
-                  invoice.creditAllocations,
+                  existingReceiptAllocations,
                 );
               }
             }
 
-            // Delete receipt credits
-            for (const receipt of allReceipts) {
-              if (receipt.receiptCredits && receipt.receiptCredits.length > 0) {
-                await transactionalEntityManager.remove(receipt.receiptCredits);
+            // Delete credit allocations - query directly to ensure we get all allocations
+            const invoiceIds = allInvoices.map((inv) => inv.id);
+            if (invoiceIds.length > 0) {
+              const existingCreditAllocations =
+                await transactionalEntityManager.find(
+                  CreditInvoiceAllocationEntity,
+                  {
+                    where: {
+                      invoice: { id: In(invoiceIds) },
+                    },
+                  },
+                );
+              if (existingCreditAllocations.length > 0) {
+                await transactionalEntityManager.remove(
+                  existingCreditAllocations,
+                );
+              }
+            }
+
+            // Delete receipt credits - query directly
+            if (receiptIds.length > 0) {
+              const existingReceiptCredits =
+                await transactionalEntityManager.find(ReceiptCreditEntity, {
+                  where: {
+                    receipt: { id: In(receiptIds) },
+                  },
+                });
+              if (existingReceiptCredits.length > 0) {
+                await transactionalEntityManager.remove(existingReceiptCredits);
               }
             }
 
