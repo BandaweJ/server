@@ -4,10 +4,18 @@ import { ValidationPipe } from '@nestjs/common/pipes';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalFilters(new AllExceptionsFilter());
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true, // Enable automatic transformation using class-transformer
+      whitelist: true, // Strip properties that don't have decorators
+      forbidNonWhitelisted: false, // Don't throw error for non-whitelisted properties
+    }),
+  );
   // console.log(process.env.DB_PASSWORD);
 
   // Define your allowed origins dynamically or explicitly

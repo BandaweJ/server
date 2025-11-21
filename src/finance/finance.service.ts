@@ -135,9 +135,9 @@ export class FinanceService {
       // Check if a bill with the same student, fees, and enrolment already exists
       const existingBill = await this.billsRepository.findOne({
         where: {
-          student: { studentNumber: billDto.student.studentNumber },
+          student: { studentNumber: billDto.student?.studentNumber },
           fees: { id: billDto.fees.id },
-          enrol: { id: billDto.enrol.id },
+          enrol: { id: billDto.enrol?.id },
         },
       });
 

@@ -1,6 +1,7 @@
 /* eslint-disable prettier/prettier */
 // src/finance/entities/credit-invoice-allocation.entity.ts
 import {
+  Check,
   Entity,
   PrimaryGeneratedColumn,
   Column,
@@ -13,6 +14,7 @@ import { InvoiceEntity } from './invoice.entity'; // Import the InvoiceEntity
 import { numberTransformer } from 'src/common/transformers/number.transformer';
 
 @Entity('credit_invoice_allocations')
+@Check(`"amountApplied" > 0`)
 export class CreditInvoiceAllocationEntity {
   @PrimaryGeneratedColumn()
   id: number;
@@ -45,9 +47,15 @@ export class CreditInvoiceAllocationEntity {
     scale: 2,
     transformer: numberTransformer,
     nullable: false,
-    comment: 'Amount of student credit applied to this specific invoice',
+    comment: 'Amount of student credit applied to this specific invoice. Must be greater than zero (enforced by database constraint)',
   })
   amountApplied: number;
+
+  @Column({
+    nullable: true,
+    comment: 'ID of the receipt that created the credit used in this allocation (for precise reversal on void)',
+  })
+  relatedReceiptId?: number;
 
   @CreateDateColumn({ type: 'timestamp' })
   allocationDate: Date; // Timestamp for when this credit was applied

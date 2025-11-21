@@ -1,6 +1,7 @@
 /* eslint-disable prettier/prettier */
 // src/finance/entities/student-credit.entity.ts
 import {
+  Check,
   Column,
   CreateDateColumn,
   Entity,
@@ -14,8 +15,10 @@ import { StudentsEntity } from 'src/profiles/entities/students.entity';
 import { numberTransformer } from 'src/common/transformers/number.transformer'; // Assuming you have this
 import { CreditInvoiceAllocationEntity } from './credit-invoice-allocation.entity'; // ADD THIS IMPORT
 import { ReceiptCreditEntity } from './receipt-credit.entity';
+import { CreditTransactionEntity } from './credit-transaction.entity';
 
 @Entity('student_credits')
+@Check(`"amount" >= 0`)
 export class StudentCreditEntity {
   @PrimaryGeneratedColumn()
   id: number;
@@ -33,7 +36,7 @@ export class StudentCreditEntity {
     scale: 2,
     default: 0.0,
     transformer: numberTransformer,
-    comment: 'The current credit balance for the student.',
+    comment: 'The current credit balance for the student. Cannot be negative (enforced by database constraint)',
   })
   amount: number;
 
@@ -59,4 +62,11 @@ export class StudentCreditEntity {
     (receiptCredit) => receiptCredit.studentCredit,
   )
   receiptCredits: ReceiptCreditEntity[];
+
+  // NEW: One-to-many relationship with credit transactions (audit trail)
+  @OneToMany(
+    () => CreditTransactionEntity,
+    (transaction) => transaction.studentCredit,
+  )
+  transactions: CreditTransactionEntity[];
 }

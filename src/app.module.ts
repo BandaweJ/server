@@ -62,6 +62,7 @@ import { ActivityModule } from './activity/activity.module';
           // Use migrations for production deployments.
           // Set to true only for development for automatic schema creation.
           synchronize: process.env.NODE_ENV === 'development',
+          
           // synchronize: true,
 
           // Optional: Enable logging in development for debugging queries

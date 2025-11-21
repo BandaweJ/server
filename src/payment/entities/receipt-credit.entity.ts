@@ -1,6 +1,7 @@
 /* eslint-disable prettier/prettier */
 // src/payment/entities/receipt-credit.entity.ts
 import {
+  Check,
   Entity,
   PrimaryGeneratedColumn,
   Column,
@@ -13,6 +14,7 @@ import { StudentCreditEntity } from './student-credit.entity';
 import { numberTransformer } from 'src/common/transformers/number.transformer';
 
 @Entity('receipt_credits')
+@Check(`"creditAmount" > 0`)
 export class ReceiptCreditEntity {
   @PrimaryGeneratedColumn()
   id: number;
@@ -45,7 +47,7 @@ export class ReceiptCreditEntity {
     scale: 2,
     transformer: numberTransformer,
     nullable: false,
-    comment: 'Amount of credit created from this receipt overpayment',
+    comment: 'Amount of credit created from this receipt overpayment. Must be greater than zero (enforced by database constraint)',
   })
   creditAmount: number;
 

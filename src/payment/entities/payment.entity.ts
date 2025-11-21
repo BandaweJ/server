@@ -1,6 +1,7 @@
 /* eslint-disable prettier/prettier */
 // payment.entity.ts
 import {
+  Check,
   Entity,
   Column,
   ManyToOne,
@@ -16,6 +17,7 @@ import { ReceiptInvoiceAllocationEntity } from './receipt-invoice-allocation.ent
 import { ReceiptCreditEntity } from './receipt-credit.entity';
 
 @Entity('receipts')
+@Check(`"amountPaid" > 0`)
 export class ReceiptEntity {
   @PrimaryGeneratedColumn()
   id: number;
@@ -33,6 +35,7 @@ export class ReceiptEntity {
     type: 'decimal',
     precision: 10,
     scale: 2,
+    comment: 'Amount paid must be greater than zero (enforced by database constraint)',
   })
   amountPaid: number;
 

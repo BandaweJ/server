@@ -1,6 +1,5 @@
 /* eslint-disable prettier/prettier */
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
@@ -10,6 +9,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
@@ -20,29 +20,46 @@ import { StudentsEntity } from 'src/profiles/entities/students.entity';
 import { PaymentService } from './payment.service';
 import { TeachersEntity } from 'src/profiles/entities/teachers.entity';
 import { ParentsEntity } from 'src/profiles/entities/parents.entity';
-import { Response } from 'express';
-import { Invoice } from './models/invoice.model'; // Assuming this is InvoiceModel
+import { Request, Response } from 'express';
+import { CreateInvoiceDto } from './dtos/create-invoice.dto';
 import { ReceiptEntity } from './entities/payment.entity';
+import { CreditTransactionQueryDto } from './dtos/credit-transaction-query.dto';
+import { Query } from '@nestjs/common';
+import { Roles } from 'src/auth/decorators/roles.decorator';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { ROLES } from 'src/auth/models/roles.enum';
 
 @Controller('payment')
-@UseGuards(AuthGuard())
+@UseGuards(AuthGuard(), RolesGuard)
 export class PaymentController {
   constructor(private paymentService: PaymentService) {}
 
   @Patch('receipt/void/:receiptId')
+  @Roles(ROLES.auditor, ROLES.director)
   voidReceipt(
     @Param('receiptId', ParseIntPipe) receiptId: number,
     @GetUser() profile: TeachersEntity,
+    @Req() req: Request,
   ) {
-    return this.paymentService.voidReceipt(receiptId, profile.email);
+    return this.paymentService.voidReceipt(
+      receiptId,
+      profile.email,
+      req.ip || req.socket.remoteAddress,
+    );
   }
 
   @Patch('invoice/void/:invoiceId')
+  @Roles(ROLES.auditor, ROLES.director)
   voidInvoice(
     @Param('invoiceId', ParseIntPipe) invoiceId: number,
     @GetUser() profile: TeachersEntity,
+    @Req() req: Request,
   ) {
-    return this.paymentService.voidInvoice(invoiceId, profile.email);
+    return this.paymentService.voidInvoice(
+      invoiceId,
+      profile.email,
+      req.ip || req.socket.remoteAddress,
+    );
   }
 
   @Get('studentBalance/:studentNumber')
@@ -50,14 +67,49 @@ export class PaymentController {
     return this.paymentService.getStudentBalance(studentNumber);
   }
 
+  // CREDIT TRANSACTION HISTORY
+  @Get('credit-transactions/:studentNumber')
+  getCreditTransactions(
+    @Param('studentNumber') studentNumber: string,
+    @Query() query: CreditTransactionQueryDto,
+  ) {
+    return this.paymentService.getCreditTransactions(studentNumber, query);
+  }
+
+  @Get('credit-transactions/:studentNumber/summary')
+  getCreditTransactionSummary(
+    @Param('studentNumber') studentNumber: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.paymentService.getCreditTransactionSummary(
+      studentNumber,
+      startDate ? new Date(startDate) : undefined,
+      endDate ? new Date(endDate) : undefined,
+    );
+  }
+
+  @Get('credit-activity-report')
+  getCreditActivityReport(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.paymentService.getCreditActivityReport(
+      startDate ? new Date(startDate) : undefined,
+      endDate ? new Date(endDate) : undefined,
+    );
+  }
+
   // Specific by ID (literal segment + parameter)
   @Get('receipt/:receiptNumber')
   getReceiptByReceiptNumber(
-    @Param('receiptNumber') receiptNumber: string, // Keep as string if it's alphanumeric
-    // If it's always numeric, use ParseIntPipe if you want it as number directly here,
-    // but the DTO indicates string for receiptNumber, so match that here.
+    @Param('receiptNumber') receiptNumber: string,
+    @Query('includeVoided') includeVoided?: string,
   ) {
-    return this.paymentService.getReceiptByReceiptNumber(receiptNumber);
+    return this.paymentService.getReceiptByReceiptNumber(
+      receiptNumber,
+      includeVoided === 'true',
+    );
   }
 
   @Get('receipt/student/:studentNumber')
@@ -114,12 +166,29 @@ export class PaymentController {
     return this.paymentService.getAllReceipts();
   }
 
+  // AUDIT ENDPOINTS - Include voided records
+  @Get('receipt/audit/all')
+  getAllReceiptsForAudit() {
+    return this.paymentService.getAllReceiptsForAudit();
+  }
+
+  @Get('receipt/audit/student/:studentNumber')
+  getStudentReceiptsForAudit(@Param('studentNumber') studentNumber: string) {
+    return this.paymentService.getPaymentsByStudentForAudit(studentNumber);
+  }
+
   @Post('receipt')
+  @Roles(ROLES.reception, ROLES.auditor)
   createReceipt(
     @Body() createReceiptDto: CreateReceiptDto,
     @GetUser() profile: TeachersEntity,
+    @Req() req: Request,
   ) {
-    return this.paymentService.createReceipt(createReceiptDto, profile);
+    return this.paymentService.createReceipt(
+      createReceiptDto,
+      profile,
+      req.ip || req.socket.remoteAddress,
+    );
   }
 
   // INVOICES
@@ -161,8 +230,14 @@ export class PaymentController {
     @Param('studentNumber') studentNumber: string,
     @Param('num', ParseIntPipe) num: number,
     @Param('year', ParseIntPipe) year: number,
+    @Query('includeVoided') includeVoided?: string,
   ) {
-    return this.paymentService.getInvoice(studentNumber, num, year);
+    return this.paymentService.getInvoice(
+      studentNumber,
+      num,
+      year,
+      includeVoided === 'true',
+    );
   }
 
   // 'invoice' + num + year
@@ -184,9 +259,36 @@ export class PaymentController {
     return this.paymentService.getStudentInvoices(studentNumber);
   }
 
+  // AUDIT ENDPOINTS - Include voided records
+  @Get('invoice/audit/all')
+  getAllInvoicesForAudit() {
+    return this.paymentService.getAllInvoicesForAudit();
+  }
+
+  @Get('invoice/audit/student/:studentNumber')
+  getStudentInvoicesForAudit(@Param('studentNumber') studentNumber: string) {
+    return this.paymentService.getStudentInvoicesForAudit(studentNumber);
+  }
+
+  @Get('invoice/audit/term/:num/:year')
+  getTermInvoicesForAudit(
+    @Param('num', ParseIntPipe) num: number,
+    @Param('year', ParseIntPipe) year: number,
+  ) {
+    return this.paymentService.getTermInvoicesForAudit(num, year);
+  }
+
   @Post('invoice')
-  saveInvoice(@Body() invoice: Invoice) {
-    return this.paymentService.saveInvoice(invoice);
+  saveInvoice(
+    @Body() invoice: CreateInvoiceDto,
+    @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
+    @Req() req: Request,
+  ) {
+    return this.paymentService.saveInvoice(
+      invoice,
+      profile.email,
+      req.ip || req.socket.remoteAddress,
+    );
   }
 
   // STATEMENTS
@@ -240,86 +342,13 @@ export class PaymentController {
     return this.paymentService.updatePayment(receiptNumber, approved, profile);
   }
 
-  // Data Repair Endpoints
-  @Get('repair/audit')
-  auditDataIntegrity() {
-    return this.paymentService.auditDataIntegrity();
-  }
-
-  @Get('repair/verify-amount-paid')
-  verifyAmountPaidOnInvoice() {
-    return this.paymentService.verifyAmountPaidOnInvoice();
-  }
-
-  @Get('repair/report')
-  generateRepairReport() {
-    return this.paymentService.generateRepairReport();
-  }
-
-  @Post('repair/balances')
-  repairInvoiceBalances(@Body() body: { dryRun?: boolean }) {
-    return this.paymentService.repairInvoiceBalances(
-      body.dryRun !== undefined ? body.dryRun : true,
-    );
-  }
-
-  @Post('repair/voided-receipts')
-  repairVoidedReceipts(@Body() body: { dryRun?: boolean }) {
-    return this.paymentService.repairVoidedReceipts(
-      body.dryRun !== undefined ? body.dryRun : true,
-    );
-  }
-
-  @Post('repair/missing-credit-allocations')
-  repairMissingCreditAllocations(@Body() body: { dryRun?: boolean }) {
-    return this.paymentService.repairMissingCreditAllocations(
-      body.dryRun !== undefined ? body.dryRun : true,
-    );
-  }
-
-  @Post('repair/unallocated-receipt-amounts')
-  repairUnallocatedReceiptAmounts(@Body() body: { dryRun?: boolean }) {
-    return this.paymentService.repairUnallocatedReceiptAmounts(
-      body.dryRun !== undefined ? body.dryRun : true,
-    );
-  }
-
-  @Post('repair/unrecorded-credits')
-  repairUnrecordedCredits(@Body() body: { dryRun?: boolean }) {
-    return this.paymentService.repairUnrecordedCredits(
-      body.dryRun !== undefined ? body.dryRun : true,
-    );
-  }
-
-  @Post('repair/all')
-  repairAllData(@Body() body: { dryRun?: boolean }) {
-    return this.paymentService.repairAllData(
-      body.dryRun !== undefined ? body.dryRun : true,
-    );
-  }
-
-  @Post('repair/student/:studentNumber')
-  repairStudentData(
+  @Post('reconcile/:studentNumber')
+  @Roles(ROLES.reception, ROLES.auditor, ROLES.director)
+  reconcileStudentFinances(
     @Param('studentNumber') studentNumber: string,
-    @Body() body: { dryRun?: boolean },
+    @GetUser() profile: TeachersEntity,
   ) {
-    return this.paymentService.repairStudentData(
-      studentNumber,
-      body.dryRun !== undefined ? body.dryRun : true,
-    );
+    return this.paymentService.reconcileStudentFinances(studentNumber);
   }
 
-  @Post('repair/selected-students')
-  repairSelectedStudentsData(@Body() body: {
-    studentNumbers: string[];
-    dryRun?: boolean;
-  }) {
-    if (!body.studentNumbers || !Array.isArray(body.studentNumbers) || body.studentNumbers.length === 0) {
-      throw new BadRequestException('studentNumbers array is required and must not be empty');
-    }
-    return this.paymentService.repairSelectedStudentsData(
-      body.studentNumbers,
-      body.dryRun !== undefined ? body.dryRun : true,
-    );
-  }
 }
