@@ -2474,7 +2474,9 @@ export class InvoiceService {
     const calculatedBalance = netBill - totalPaid;
 
     // Update invoice fields
-    freshInvoice.amountPaidOnInvoice = totalPaid;
+    // For overpayments, amountPaidOnInvoice should be capped at netBill (what the invoice is worth)
+    // The overpayment (totalPaid - netBill) is converted to credit, not counted as payment on the invoice
+    freshInvoice.amountPaidOnInvoice = Math.min(totalPaid, netBill); // Cap at netBill for overpayments
     freshInvoice.balance = Math.max(0, calculatedBalance); // Balance cannot be negative
     
     // Update status based on the recalculated balance
@@ -2983,9 +2985,10 @@ export class InvoiceService {
       },
     );
 
-    // Step 1: Update amountPaidOnInvoice to reflect actual allocations
-    // This ensures consistency with verifyAndRecalculateInvoiceBalance
-    freshInvoice.amountPaidOnInvoice = actualAmountPaid;
+    // Step 1: Update amountPaidOnInvoice to reflect what was actually paid towards the invoice
+    // For overpayments, amountPaidOnInvoice should equal totalBill (not the overpayment amount)
+    // The overpayment (actualAmountPaid - totalBill) will be converted to credit
+    freshInvoice.amountPaidOnInvoice = netBill; // Cap at netBill (what the invoice is worth)
     freshInvoice.balance = 0; // Invoice is fully paid (overpayment becomes credit)
 
     // Step 2: Create credit for the overpayment amount
