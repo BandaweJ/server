@@ -617,6 +617,8 @@ export class EnrolmentService {
       newEnrol.num = toNum;
       newEnrol.year = toYear;
       newEnrol.student = enrol.student;
+      // Preserve the residence from the source enrolment
+      newEnrol.residence = enrol.residence;
       return newEnrol;
     });
 
