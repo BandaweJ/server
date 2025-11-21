@@ -2884,10 +2884,13 @@ export class InvoiceService {
    * Corrects invoice if amountPaidOnInvoice > totalBill (data integrity issue).
    * This can happen when an invoice is edited (totalBill reduced) after payments were made.
    * The correction:
-   * 1. Sets amountPaidOnInvoice = totalBill
-   * 2. Creates receipt allocation for totalBill amount
-   * 3. Creates credit for the overpayment amount
+   * 1. Recalculates amountPaidOnInvoice from actual allocations (not from stored value)
+   * 2. If recalculated amountPaidOnInvoice > totalBill, creates credit for the overpayment
+   * 3. Sets balance = 0 (invoice is fully paid, with overpayment converted to credit)
    * 4. Saves the corrected invoice
+   * 
+   * Note: We don't modify allocations here - they represent actual payments.
+   * The overpayment is converted to credit, which can then be applied to other invoices.
    * 
    * @returns true if invoice was corrected, false otherwise
    */
@@ -2901,9 +2904,38 @@ export class InvoiceService {
       creditCreated: number;
     }>,
   ): Promise<boolean> {
-    const amountPaid = Number(invoice.amountPaidOnInvoice || 0);
-    const totalBill = Number(invoice.totalBill || 0);
-    const overpayment = amountPaid - totalBill;
+    // Reload invoice with fresh allocations to get accurate payment data
+    const freshInvoice = await transactionalEntityManager.findOne(
+      InvoiceEntity,
+      {
+        where: { id: invoice.id },
+        relations: ['allocations', 'creditAllocations'],
+      },
+    );
+
+    if (!freshInvoice) {
+      return false;
+    }
+
+    const totalBill = Number(freshInvoice.totalBill || 0);
+    const exemptedAmount = Number(freshInvoice.exemptedAmount || 0);
+    const netBill = totalBill - exemptedAmount; // Net amount due after exemptions
+    
+    // Calculate actual amount paid from allocations (not from stored amountPaidOnInvoice)
+    const receiptAllocations = freshInvoice.allocations || [];
+    const creditAllocations = freshInvoice.creditAllocations || [];
+    const totalReceiptAllocated = receiptAllocations.reduce(
+      (sum, alloc) => sum + Number(alloc.amountApplied || 0),
+      0,
+    );
+    const totalCreditAllocated = creditAllocations.reduce(
+      (sum, alloc) => sum + Number(alloc.amountApplied || 0),
+      0,
+    );
+    const actualAmountPaid = totalReceiptAllocated + totalCreditAllocated;
+    
+    // Overpayment is when actual amount paid exceeds the net bill (after exemptions)
+    const overpayment = actualAmountPaid - netBill;
 
     if (overpayment <= 0.01) {
       return false; // No correction needed
@@ -2913,50 +2945,39 @@ export class InvoiceService {
       this.logger,
       'warn',
       'invoice.correctOverpayment',
-      'Correcting invoice with amountPaidOnInvoice > totalBill',
+      'Correcting invoice with overpayment detected',
       {
-        invoiceNumber: invoice.invoiceNumber,
-        invoiceId: invoice.id,
+        invoiceNumber: freshInvoice.invoiceNumber,
+        invoiceId: freshInvoice.id,
         studentNumber,
         totalBill,
-        amountPaid,
+        exemptedAmount,
+        netBill,
+        actualAmountPaid,
+        storedAmountPaid: Number(freshInvoice.amountPaidOnInvoice || 0),
         overpayment,
+        receiptAllocationsCount: receiptAllocations.length,
+        creditAllocationsCount: creditAllocations.length,
       },
     );
 
-    // Step 1: Correct amountPaidOnInvoice to equal totalBill
-    invoice.amountPaidOnInvoice = totalBill;
-    invoice.balance = 0; // Invoice is fully paid
+    // Step 1: Update amountPaidOnInvoice to reflect actual allocations
+    // This ensures consistency with verifyAndRecalculateInvoiceBalance
+    freshInvoice.amountPaidOnInvoice = actualAmountPaid;
+    freshInvoice.balance = 0; // Invoice is fully paid (overpayment becomes credit)
 
-    // Step 2: Ensure receipt allocation exists for totalBill amount
-    // Check if allocations already exist
-    const existingAllocations = await transactionalEntityManager.find(
-      ReceiptInvoiceAllocationEntity,
-      {
-        where: { invoice: { id: invoice.id } },
-      },
-    );
-    const totalAllocated = existingAllocations.reduce(
-      (sum, alloc) => sum + Number(alloc.amountApplied || 0),
-      0,
-    );
-
-    // If allocations don't cover totalBill, we need to create them
-    // For now, we'll create credit for the overpayment
-    // The receipt allocations should have been created when receipts were saved
-    // If they're missing, that's a separate data integrity issue
-
-    // Step 3: Create credit for the overpayment amount
+    // Step 2: Create credit for the overpayment amount
+    // This represents the excess payment that should be available as credit
     await this.creditService.createOrUpdateStudentCredit(
       studentNumber,
       overpayment,
       transactionalEntityManager,
-      `Overpayment correction from Invoice ${invoice.invoiceNumber}`,
+      `Overpayment correction from Invoice ${freshInvoice.invoiceNumber}`,
       undefined,
     );
 
-    // Step 4: Save the corrected invoice
-    await transactionalEntityManager.save(InvoiceEntity, invoice);
+    // Step 3: Save the corrected invoice
+    await transactionalEntityManager.save(InvoiceEntity, freshInvoice);
 
     logStructured(
       this.logger,
@@ -2964,10 +2985,10 @@ export class InvoiceService {
       'invoice.overpaymentCorrected',
       'Invoice overpayment corrected',
       {
-        invoiceNumber: invoice.invoiceNumber,
-        invoiceId: invoice.id,
+        invoiceNumber: freshInvoice.invoiceNumber,
+        invoiceId: freshInvoice.id,
         studentNumber,
-        correctedAmountPaid: totalBill,
+        correctedAmountPaid: actualAmountPaid,
         creditCreated: overpayment,
       },
     );
@@ -2975,7 +2996,7 @@ export class InvoiceService {
     // Track correction details
     if (correctedInvoicesList) {
       correctedInvoicesList.push({
-        invoiceNumber: invoice.invoiceNumber,
+        invoiceNumber: freshInvoice.invoiceNumber,
         overpaymentAmount: overpayment,
         creditCreated: overpayment,
       });

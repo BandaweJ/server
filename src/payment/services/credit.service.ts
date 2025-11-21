@@ -98,13 +98,50 @@ export class CreditService {
         where: { studentCredit: { id: studentCredit.id } },
       },
     );
-    const totalCreditsCreated = receiptCredits.reduce(
+    const totalReceiptCredits = receiptCredits.reduce(
       (sum, rc) => sum + Number(rc.creditAmount || 0),
       0,
     );
 
-    // Note: Invoice overpayments (amountPaidOnInvoice > totalBill) are data integrity issues
-    // They should be corrected when invoices/receipts are saved, not counted in verification
+    // Sum invoice overpayment credits (credits created from invoice overpayments)
+    // These are credits created when amountPaidOnInvoice > totalBill
+    // We calculate this by checking invoices where allocations exceed totalBill
+    const { InvoiceEntity } = await import('../entities/invoice.entity');
+    const studentInvoices = await transactionalEntityManager.find(
+      InvoiceEntity,
+      {
+        where: { student: { studentNumber }, isVoided: false },
+        relations: ['allocations', 'creditAllocations'],
+      },
+    );
+
+    let totalInvoiceOverpaymentCredits = 0;
+    for (const invoice of studentInvoices) {
+      const totalBill = Number(invoice.totalBill || 0);
+      const exemptedAmount = Number(invoice.exemptedAmount || 0);
+      const netBill = totalBill - exemptedAmount;
+
+      const receiptAllocations = invoice.allocations || [];
+      const creditAllocations = invoice.creditAllocations || [];
+      const totalReceiptAllocated = receiptAllocations.reduce(
+        (sum, alloc) => sum + Number(alloc.amountApplied || 0),
+        0,
+      );
+      const totalCreditAllocated = creditAllocations.reduce(
+        (sum, alloc) => sum + Number(alloc.amountApplied || 0),
+        0,
+      );
+      const totalPaid = totalReceiptAllocated + totalCreditAllocated;
+
+      // If total paid exceeds net bill, the excess is credit from invoice overpayment
+      if (totalPaid > netBill + 0.01) {
+        const overpayment = totalPaid - netBill;
+        totalInvoiceOverpaymentCredits += overpayment;
+      }
+    }
+
+    // Total credits created = receipt credits + invoice overpayment credits
+    const totalCreditsCreated = totalReceiptCredits + totalInvoiceOverpaymentCredits;
 
     // Sum all credit allocations (credits applied to invoices)
     // These are the only things that reduce credit balance
@@ -158,6 +195,8 @@ export class CreditService {
           studentNumber,
           expectedBalance,
           actualBalance,
+          totalReceiptCredits,
+          totalInvoiceOverpaymentCredits,
           totalCreditsCreated,
           totalCreditsApplied,
           studentCreditId: studentCredit.id,
@@ -183,10 +222,12 @@ export class CreditService {
     }
 
     this.logger.debug(
-      `Credit balance verified for ${studentNumber}: ${actualBalance} (Created: ${totalCreditsCreated}, Credit Allocations: ${totalCreditsApplied})`,
+      `Credit balance verified for ${studentNumber}: ${actualBalance} (Receipt Credits: ${totalReceiptCredits}, Invoice Overpayment Credits: ${totalInvoiceOverpaymentCredits}, Total Created: ${totalCreditsCreated}, Credit Allocations: ${totalCreditsApplied})`,
       {
         studentNumber,
         actualBalance,
+        totalReceiptCredits,
+        totalInvoiceOverpaymentCredits,
         totalCreditsCreated,
         totalCreditsApplied,
       },
