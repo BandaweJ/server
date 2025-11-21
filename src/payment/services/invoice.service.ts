@@ -2372,7 +2372,26 @@ export class InvoiceService {
     }
 
     // Step 8: Final verification - reload and verify all invoices are saved correctly
+    // This ensures status is updated for all invoices after all corrections and credit applications
     const finalInvoices = await transactionalEntityManager.find(
+      InvoiceEntity,
+      {
+        where: { student: { studentNumber }, isVoided: false },
+        relations: ['allocations', 'creditAllocations'],
+      },
+    );
+
+    // Final pass: Verify and update status for all invoices
+    // This catches any invoices that might have incorrect status after all operations
+    for (const invoice of finalInvoices) {
+      await this.verifyAndRecalculateInvoiceBalance(
+        invoice,
+        transactionalEntityManager,
+      );
+    }
+
+    // Reload one more time to get the final state after status updates
+    const verifiedInvoices = await transactionalEntityManager.find(
       InvoiceEntity,
       {
         where: { student: { studentNumber }, isVoided: false },
@@ -2392,8 +2411,8 @@ export class InvoiceService {
       'Student finance reconciliation completed',
       {
         studentNumber,
-        invoicesCount: finalInvoices.length,
-        invoicesWithBalance: finalInvoices.filter(
+        invoicesCount: verifiedInvoices.length,
+        invoicesWithBalance: verifiedInvoices.filter(
           (inv) => Number(inv.balance || 0) > 0.01,
         ).length,
         creditBalance: finalCredit ? Number(finalCredit.amount) : 0,
@@ -2403,7 +2422,7 @@ export class InvoiceService {
 
     // Update final summary in result
     if (result) {
-      result.summary.invoicesWithBalance = finalInvoices.filter(
+      result.summary.invoicesWithBalance = verifiedInvoices.filter(
         (inv) => Number(inv.balance || 0) > 0.01,
       ).length;
       result.summary.totalCreditBalance = finalCredit
@@ -2457,6 +2476,9 @@ export class InvoiceService {
     // Update invoice fields
     freshInvoice.amountPaidOnInvoice = totalPaid;
     freshInvoice.balance = Math.max(0, calculatedBalance); // Balance cannot be negative
+    
+    // Update status based on the recalculated balance
+    freshInvoice.status = this.getInvoiceStatus(freshInvoice);
 
     // Verify balance matches
     const tolerance = 0.01;
