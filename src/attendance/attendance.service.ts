@@ -26,65 +26,71 @@ export class AttendanceService {
     year: number,
     date?: string,
   ) {
-    const targetDate = date ? new Date(date) : new Date();
-    targetDate.setHours(0, 0, 0, 0);
+    try {
+      const targetDate = date ? new Date(date) : new Date();
+      targetDate.setHours(0, 0, 0, 0);
 
-    // Get enrolled students for the class and term
-    const enrolments = await this.enrolmentRepository.find({
-      where: {
-        name: className,
-        num: termNum,
-        year,
-      },
-      relations: ['student'],
-    });
-
-    if (enrolments.length === 0) {
-      throw new NotFoundException('No students found for the specified class and term');
-    }
-
-    // Get existing attendance records for the date
-    const existingAttendance = await this.attendanceRepository.find({
-      where: {
-        name: className,
-        num: termNum,
-        year,
-        date: targetDate,
-      },
-      relations: ['student'],
-    });
-
-    // Create a map of existing attendance
-    const attendanceMap = new Map();
-    existingAttendance.forEach(attendance => {
-      // Only add to map if student is loaded
-      if (attendance.student?.studentNumber) {
-        attendanceMap.set(attendance.student.studentNumber, attendance);
-      }
-    });
-
-    // Build the result with all students and their attendance status
-    // Filter out enrolments where student is not loaded
-    const result = enrolments
-      .filter(enrolment => enrolment.student != null)
-      .map(enrolment => {
-        const existingRecord = attendanceMap.get(enrolment.student.studentNumber);
-        return {
-          id: existingRecord?.id || null,
-          studentNumber: enrolment.student.studentNumber,
-          surname: enrolment.student.surname,
-          name: enrolment.student.name,
-          gender: enrolment.student.gender,
-          present: existingRecord?.present || false,
-          date: targetDate,
-          className,
-          termNum,
+      // Get enrolled students for the class and term
+      const enrolments = await this.enrolmentRepository.find({
+        where: {
+          name: className,
+          num: termNum,
           year,
-          student: enrolment.student,
-        };
+        },
+        relations: ['student'],
       });
 
-    return result;
+      if (enrolments.length === 0) {
+        throw new NotFoundException('No students found for the specified class and term');
+      }
+
+      // Get existing attendance records for the date
+      const existingAttendance = await this.attendanceRepository.find({
+        where: {
+          name: className,
+          num: termNum,
+          year,
+          date: targetDate,
+        },
+        relations: ['student'],
+      });
+
+      // Create a map of existing attendance
+      const attendanceMap = new Map();
+      existingAttendance.forEach(attendance => {
+        // Only add to map if student is loaded
+        if (attendance.student?.studentNumber) {
+          attendanceMap.set(attendance.student.studentNumber, attendance);
+        }
+      });
+
+      // Build the result with all students and their attendance status
+      // Filter out enrolments where student is not loaded
+      const result = enrolments
+        .filter(enrolment => enrolment.student != null)
+        .map(enrolment => {
+          const existingRecord = attendanceMap.get(enrolment.student.studentNumber);
+          return {
+            id: existingRecord?.id || null,
+            studentNumber: enrolment.student.studentNumber,
+            surname: enrolment.student.surname,
+            name: enrolment.student.name,
+            gender: enrolment.student.gender,
+            present: existingRecord?.present || false,
+            date: targetDate,
+            className,
+            termNum,
+            year,
+            student: enrolment.student,
+          };
+        });
+
+      return result;
+    } catch (error) {
+      console.error('Error in getClassAttendance:', error);
+      console.error('Error stack:', error?.stack);
+      throw error;
+    }
   }
 
   async markAttendance(

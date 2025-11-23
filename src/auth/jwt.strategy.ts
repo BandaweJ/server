@@ -20,9 +20,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private resourceById: ResourceByIdService,
     private configService: ConfigService,
   ) {
+    const jwtSecret = configService.get<string>('JWT_SECRET');
+    if (!jwtSecret) {
+      throw new Error('JWT_SECRET is not configured in environment variables');
+    }
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      secretOrKey: configService.get<string>('JWT_SECRET'),
+      secretOrKey: jwtSecret,
     });
   }
 
@@ -58,14 +62,26 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         case ROLES.auditor:
         case ROLES.director:
           profile = await this.resourceById.getTeacherById(id);
+          if (!profile) {
+            console.error('JWT Strategy: Teacher profile not found', { id, role });
+            throw new UnauthorizedException('Teacher profile not found');
+          }
           console.log('JWT Strategy: Teacher profile found', { profileId: profile.id, profileRole: (profile as any).role });
           break;
         case ROLES.parent:
           profile = await this.resourceById.getParentByEmail(id);
+          if (!profile) {
+            console.error('JWT Strategy: Parent profile not found', { email: id });
+            throw new UnauthorizedException('Parent profile not found');
+          }
           console.log('JWT Strategy: Parent profile found', { email: id });
           break;
         case ROLES.student:
           profile = await this.resourceById.getStudentByStudentNumber(id);
+          if (!profile) {
+            console.error('JWT Strategy: Student profile not found', { studentNumber: id });
+            throw new UnauthorizedException('Student profile not found');
+          }
           console.log('JWT Strategy: Student profile found', { studentNumber: id });
           break;
         default:
