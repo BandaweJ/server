@@ -17,7 +17,7 @@ import { StudentsEntity } from '../profiles/entities/students.entity';
 import { ParentsEntity } from '../profiles/entities/parents.entity';
 
 @Controller('attendance')
-@UseGuards(AuthGuard())
+@UseGuards(AuthGuard('jwt'))
 export class AttendanceController {
   constructor(private attendanceService: AttendanceService) {}
 
