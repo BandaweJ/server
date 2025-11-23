@@ -28,7 +28,6 @@ import { EnrolDto } from './dtos/enrol.dto';
 import { EnrolEntity } from './entities/enrol.entity';
 import { ResourceByIdService } from '../resource-by-id/resource-by-id.service';
 import { EnrolStats } from './dtos/enrol-stats.dto';
-import { MarkRegisterDto } from './dtos/mark-register.dto';
 import { AttendanceEntity } from '../attendance/entities/attendance.entity';
 import { StudentsSummary } from './models/students-summary.model';
 import { StudentsService } from 'src/profiles/students/students.service';
@@ -474,64 +473,6 @@ export class EnrolmentService {
       throw new NotImplementedException(`Enrolment not removed`, result.raw);
     }
   }
-  async markRegister(enrol: MarkRegisterDto): Promise<MarkRegisterDto> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const { student, name, num, year, present } = enrol;
-
-    const attendance = await this.attendanceRepository.findOne({
-      where: {
-        year,
-        num,
-        name,
-        date: today,
-        student: {
-          studentNumber: student.studentNumber,
-        },
-      },
-    });
-
-    if (attendance) {
-      return await this.attendanceRepository.save({
-        ...attendance,
-        date: today,
-        present,
-      });
-    } else
-      return await this.attendanceRepository.save({
-        ...enrol,
-        date: today,
-      });
-  }
-
-  async getTodayRegisterByClass(name, num, year) {
-    const classList = await this.getEnrolmentByClass(name, num, year);
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const thisDayAttendances: AttendanceEntity[] = [];
-
-    const todayAttendances = await this.attendanceRepository.find({
-      where: {
-        name,
-        num,
-        year,
-        date: today,
-      },
-      relations: ['student'],
-    });
-
-    // console.log('today att:', todayAttendances.length);
-
-    classList.map((enrol) => {
-      const attendance = new AttendanceEntity();
-
-      attendance.name = name;
-      attendance.num = num;
-      attendance.year = year;
-      attendance.date = today;
       attendance.student = enrol.student;
 
       thisDayAttendances.push(attendance);

@@ -18,7 +18,6 @@ import { ParentsEntity } from '../profiles/entities/parents.entity';
 import { StudentsEntity } from '../profiles/entities/students.entity';
 import { EnrolmentService } from './enrolment.service';
 import { EnrolDto } from './dtos/enrol.dto';
-import { MarkRegisterDto } from './dtos/mark-register.dto';
 import { CreateTermDto } from './dtos/create-term.dto';
 import { UpdateEnrolDto } from './dtos/update-enrol.dto';
 
@@ -191,17 +190,4 @@ export class EnrolmentController {
     return this.enrolmentService.unenrolStudent(id);
   }
 
-  @Post('enrol/register')
-  markRegister(@Body() enrol: MarkRegisterDto) {
-    return this.enrolmentService.markRegister(enrol);
-  }
-
-  @Get('enrol/register/:name/:num/:year')
-  getTodayRegisterByClass(
-    @Param('name') name: string,
-    @Param('num', ParseIntPipe) num: number,
-    @Param('year', ParseIntPipe) year: number,
-  ) {
-    return this.enrolmentService.getTodayRegisterByClass(name, num, year);
-  }
 }
