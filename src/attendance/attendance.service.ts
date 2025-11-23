@@ -57,26 +57,32 @@ export class AttendanceService {
     // Create a map of existing attendance
     const attendanceMap = new Map();
     existingAttendance.forEach(attendance => {
-      attendanceMap.set(attendance.student.studentNumber, attendance);
+      // Only add to map if student is loaded
+      if (attendance.student?.studentNumber) {
+        attendanceMap.set(attendance.student.studentNumber, attendance);
+      }
     });
 
     // Build the result with all students and their attendance status
-    const result = enrolments.map(enrolment => {
-      const existingRecord = attendanceMap.get(enrolment.student.studentNumber);
-      return {
-        id: existingRecord?.id || null,
-        studentNumber: enrolment.student.studentNumber,
-        surname: enrolment.student.surname,
-        name: enrolment.student.name,
-        gender: enrolment.student.gender,
-        present: existingRecord?.present || false,
-        date: targetDate,
-        className,
-        termNum,
-        year,
-        student: enrolment.student,
-      };
-    });
+    // Filter out enrolments where student is not loaded
+    const result = enrolments
+      .filter(enrolment => enrolment.student != null)
+      .map(enrolment => {
+        const existingRecord = attendanceMap.get(enrolment.student.studentNumber);
+        return {
+          id: existingRecord?.id || null,
+          studentNumber: enrolment.student.studentNumber,
+          surname: enrolment.student.surname,
+          name: enrolment.student.name,
+          gender: enrolment.student.gender,
+          present: existingRecord?.present || false,
+          date: targetDate,
+          className,
+          termNum,
+          year,
+          student: enrolment.student,
+        };
+      });
 
     return result;
   }
