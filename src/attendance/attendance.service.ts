@@ -120,12 +120,18 @@ export class AttendanceService {
         year,
         date: targetDate,
       },
+      relations: ['student'], // Load student relation
     });
 
     if (existingRecord) {
       // Update existing record
       existingRecord.present = present;
-      return await this.attendanceRepository.save(existingRecord);
+      const saved = await this.attendanceRepository.save(existingRecord);
+      // Reload with student relation to ensure it's included in response
+      return await this.attendanceRepository.findOne({
+        where: { id: saved.id },
+        relations: ['student'],
+      });
     } else {
       // Create new record
       const attendanceRecord = this.attendanceRepository.create({
@@ -137,7 +143,12 @@ export class AttendanceService {
         date: targetDate,
       });
 
-      return await this.attendanceRepository.save(attendanceRecord);
+      const saved = await this.attendanceRepository.save(attendanceRecord);
+      // Reload with student relation to ensure it's included in response
+      return await this.attendanceRepository.findOne({
+        where: { id: saved.id },
+        relations: ['student'],
+      });
     }
   }
 
