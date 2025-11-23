@@ -182,9 +182,26 @@ export class AttendanceService {
       .addOrderBy('student.surname', 'ASC')
       .getMany();
 
+    // Transform records to match AttendanceRecord interface
+    const transformedRecords = attendanceRecords
+      .filter(record => record.student != null) // Filter out records without student
+      .map(record => ({
+        id: record.id,
+        studentNumber: record.student.studentNumber,
+        surname: record.student.surname,
+        name: record.student.name, // Student's first name
+        gender: record.student.gender,
+        present: record.present,
+        date: record.date.toISOString().split('T')[0],
+        className: record.name, // Class name from attendance.name
+        termNum: record.num,
+        year: record.year,
+        student: record.student, // Keep full student object for reference
+      }));
+
     // Group by date
-    const groupedByDate = attendanceRecords.reduce((acc, record) => {
-      const dateKey = record.date.toISOString().split('T')[0];
+    const groupedByDate = transformedRecords.reduce((acc, record) => {
+      const dateKey = record.date;
       if (!acc[dateKey]) {
         acc[dateKey] = [];
       }
