@@ -237,9 +237,26 @@ export class AttendanceService {
       });
     }
 
-    return await queryBuilder
+    const attendanceRecords = await queryBuilder
       .orderBy('attendance.date', 'DESC')
       .getMany();
+
+    // Transform records to match AttendanceRecord interface
+    return attendanceRecords
+      .filter(record => record.student != null) // Filter out records without student
+      .map(record => ({
+        id: record.id,
+        studentNumber: record.student.studentNumber,
+        surname: record.student.surname,
+        name: record.student.name, // Student's first name
+        gender: record.student.gender,
+        present: record.present,
+        date: record.date.toISOString().split('T')[0],
+        className: record.name, // Class name from attendance.name
+        termNum: record.num,
+        year: record.year,
+        student: record.student, // Keep full student object for reference
+      }));
   }
 
   async getAttendanceSummary(className: string, termNum: number, year: number) {
