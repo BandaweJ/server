@@ -6,15 +6,26 @@ Node.js is running out of memory during build/startup with error:
 FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory
 ```
 
-## Solution
+The error shows it's still using the default ~258MB limit, meaning NODE_OPTIONS isn't being applied during the build phase.
 
-### Option 1: Environment Variable (Recommended for Render)
-Set this in your Render dashboard:
-1. Go to your Web Service → Environment
-2. Add new environment variable:
+## Solution: Set Environment Variable in Render Dashboard (REQUIRED)
+
+**This is the ONLY reliable way to fix this on Render:**
+
+1. Go to your Render dashboard: https://dashboard.render.com
+2. Click on your **Web Service** (the backend service)
+3. Go to the **"Environment"** tab (in the left sidebar)
+4. Click **"Add Environment Variable"**
+5. Add:
    - **Key**: `NODE_OPTIONS`
    - **Value**: `--max-old-space-size=1024`
-3. Save and redeploy
+6. Click **"Save Changes"**
+7. Render will automatically trigger a new deployment
+
+**Why this is necessary:**
+- Render runs `npm install` and `npm run build` BEFORE the Procfile
+- Environment variables set in the dashboard apply to ALL processes (build + runtime)
+- The Procfile only affects the final `start:prod` command
 
 ### Option 2: Procfile (Already Updated)
 The Procfile now includes:
