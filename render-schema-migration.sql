@@ -152,7 +152,7 @@ BEGIN
                 ON DELETE RESTRICT,
             CONSTRAINT "FK_conversations_class" 
                 FOREIGN KEY ("classId") 
-                REFERENCES "class"("id") 
+                REFERENCES "classes"("id") 
                 ON DELETE SET NULL
         );
         
