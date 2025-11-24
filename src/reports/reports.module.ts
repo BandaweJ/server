@@ -8,6 +8,9 @@ import { EnrolmentModule } from '../enrolment/enrolment.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ReportsEntity } from './entities/report.entity';
 import { TeacherCommentEntity } from 'src/marks/entities/teacher-comments.entity';
+import { SystemModule } from '../system/system.module';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { ResourceByIdModule } from '../resource-by-id/resource-by-id.module';
 
 @Module({
   imports: [
@@ -15,6 +18,9 @@ import { TeacherCommentEntity } from 'src/marks/entities/teacher-comments.entity
     AuthModule,
     MarksModule,
     EnrolmentModule,
+    SystemModule,
+    NotificationsModule,
+    ResourceByIdModule,
   ],
   providers: [ReportsService],
   controllers: [ReportsController],

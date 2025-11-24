@@ -7,6 +7,7 @@ import {
 import { EnrolmentService } from '../enrolment/enrolment.service';
 import { MarksService } from '../marks/marks.service';
 import { ReportModel } from './models/report.model';
+import { GradingSystemService } from '../system/services/grading-system.service';
 import { TeachersEntity } from '../profiles/entities/teachers.entity';
 import { StudentsEntity } from '../profiles/entities/students.entity';
 import { ParentsEntity } from '../profiles/entities/parents.entity';
@@ -22,6 +23,8 @@ import { ReportsModel } from './models/reports.model';
 import { HeadCommentDto } from './dtos/head-comment.dto';
 import * as path from 'path';
 import { ExamType } from 'src/marks/models/examtype.enum';
+import { NotificationService } from '../notifications/services/notification.service';
+import { ResourceByIdService } from '../resource-by-id/resource-by-id.service';
 // import bannerImagePath from '../assets/images/banner3.png';
 
 @Injectable()
@@ -29,10 +32,13 @@ export class ReportsService {
   constructor(
     private marksService: MarksService,
     private enrolmentService: EnrolmentService,
+    private gradingSystemService: GradingSystemService,
     @InjectRepository(ReportsEntity)
     private reportsRepository: Repository<ReportsEntity>,
     @InjectRepository(TeacherCommentEntity)
     private teacherCommentRepository: Repository<TeacherCommentEntity>,
+    private notificationService: NotificationService,
+    private resourceById: ResourceByIdService,
   ) {}
 
   async generateReports(
@@ -110,7 +116,7 @@ export class ReportsService {
 
     // create empty report for each student in class
     // fill in details like : studentNumber, name, surname, className, termNumber, termYear, examType
-    classList.map((enrol) => {
+    for (const enrol of classList) {
       const report = new ReportModel();
       report.subjectsTable = [];
       report.studentNumber = enrol.student.studentNumber;
@@ -128,7 +134,7 @@ export class ReportsService {
 
       // create a row for the Reports Table and push it to the report table
       //report table is a table if subjects and marks and comments in each report
-      studentMarks.forEach((subjectMark) => {
+      for (const subjectMark of studentMarks) {
         const subjectInfo = new SubjectInfoModel();
 
         subjectInfo.comment = subjectMark.comment;
@@ -136,7 +142,7 @@ export class ReportsService {
         subjectInfo.position = subjectMark.position;
         subjectInfo.subjectCode = subjectMark.subject.code;
         subjectInfo.subjectName = subjectMark.subject.name;
-        subjectInfo.grade = this.computeGrade(
+        subjectInfo.grade = await this.computeGrade(
           subjectMark.mark,
           report.className,
         );
@@ -145,10 +151,10 @@ export class ReportsService {
         ).average;
 
         report.subjectsTable.push(subjectInfo);
-      });
+      }
 
       reports.push(report);
-    });
+    }
 
     //assign the classSize which equals reports.length and calculate avarage mark for each report/student
     reports.map((report) => {
@@ -579,33 +585,9 @@ export class ReportsService {
   //   return reps;
   // }
 
-  private computeGrade(mark: number, clas: string): string {
-    const form = clas.charAt(0);
-
-    switch (form) {
-      case '5':
-      case '6': {
-        if (mark >= 90) return 'A*';
-        else if (mark >= 75) return 'A';
-        else if (mark >= 65) return 'B';
-        else if (mark >= 50) return 'C';
-        else if (mark >= 40) return 'D';
-        else if (mark >= 35) return 'E';
-        else return 'F';
-      }
-      case '1':
-      case '2':
-      case '3':
-      case '4': {
-        if (mark >= 90) return 'A*';
-        else if (mark >= 70) return 'A';
-        else if (mark >= 60) return 'B';
-        else if (mark >= 50) return 'C';
-        else if (mark >= 40) return 'D';
-        else if (mark >= 35) return 'E';
-        else return 'U';
-      }
-    }
+  private async computeGrade(mark: number, clas: string): Promise<string> {
+    // Use the grading system service instead of hardcoded values
+    return await this.gradingSystemService.computeGrade(mark, clas);
   }
 
   private computePoints(mark: number): number {
@@ -704,11 +686,84 @@ export class ReportsService {
       // TypeORM's save method intelligently handles inserts and updates for the provided array
       const savedReports = await this.reportsRepository.save(reportsToSave);
       // console.log(`Successfully saved/updated ${savedReports.length} reports.`);
+      
+      // 5. Send email notifications for newly created reports (not updates)
+      const newReports = savedReports.filter(
+        (saved) => !existingReportsMap.has(saved.studentNumber),
+      );
+      
+      // Send notifications asynchronously (don't block the response)
+      this.sendReportNotifications(newReports, name, num, year, examType).catch(
+        (error) => {
+          console.error('Error sending report notifications:', error);
+          // Don't throw - notifications are non-critical
+        },
+      );
+      
       return savedReports; // Return the array of saved/updated entities
     } catch (dbError) {
       console.error('Database error saving reports:', dbError);
       // Catch potential errors like unique constraint violations if not handled by the pre-fetch logic
       throw new InternalServerErrorException('Failed to save report data.');
+    }
+  }
+
+  /**
+   * Send email notifications for saved reports
+   */
+  private async sendReportNotifications(
+    reports: ReportsEntity[],
+    className: string,
+    termNum: number,
+    termYear: number,
+    examType: string,
+  ): Promise<void> {
+    for (const report of reports) {
+      try {
+        // Fetch student with parent relation loaded
+        const student = await this.resourceById.getStudentByStudentNumber(
+          report.studentNumber,
+        );
+        
+        if (!student) continue;
+
+        // Get parent email - fetch student with parent relation if not loaded
+        let parentEmail: string | undefined;
+        if (student.parent && student.parent.email) {
+          parentEmail = student.parent.email;
+        } else {
+          // Parent relation not loaded, fetch it
+          try {
+            const studentRepo = this.reportsRepository.manager.getRepository(StudentsEntity);
+            const studentWithParent = await studentRepo.findOne({
+              where: { studentNumber: student.studentNumber },
+              relations: ['parent'],
+            });
+            if (studentWithParent?.parent?.email) {
+              parentEmail = studentWithParent.parent.email;
+            }
+          } catch {
+            // Could not fetch parent
+          }
+        }
+
+        await this.notificationService.sendReportCardNotification({
+          studentName: `${student.surname} ${student.name}`,
+          studentNumber: student.studentNumber,
+          className,
+          termNumber: termNum,
+          termYear,
+          examType,
+          parentEmail,
+          studentEmail: student.email,
+        });
+      } catch (error) {
+        console.error(
+          `Failed to send notification for student ${report.studentNumber}:`,
+          error,
+        );
+        // Continue with other students
+      }
     }
   }
 

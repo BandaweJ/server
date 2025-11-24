@@ -20,11 +20,16 @@ import { EnrolmentService } from './enrolment.service';
 import { EnrolDto } from './dtos/enrol.dto';
 import { CreateTermDto } from './dtos/create-term.dto';
 import { UpdateEnrolDto } from './dtos/update-enrol.dto';
+import { Logger } from '@nestjs/common';
 
 @Controller('enrolment')
 @UseGuards(AuthGuard())
 export class EnrolmentController {
-  constructor(private enrolmentService: EnrolmentService) {}
+  private readonly logger = new Logger(EnrolmentController.name);
+
+  constructor(private enrolmentService: EnrolmentService) {
+    this.logger.log('EnrolmentController initialized');
+  }
 
   //classes
 
@@ -71,7 +76,15 @@ export class EnrolmentController {
 
   @Get('terms')
   getAllTerms() {
-    return this.enrolmentService.getAllTerms();
+    this.logger.log('GET /enrolment/terms - Request received');
+    try {
+      const result = this.enrolmentService.getAllTerms();
+      this.logger.log('GET /enrolment/terms - Service call successful');
+      return result;
+    } catch (error) {
+      this.logger.error('GET /enrolment/terms - Error in controller:', error);
+      throw error;
+    }
   }
 
   @Get('terms/:num/:year')

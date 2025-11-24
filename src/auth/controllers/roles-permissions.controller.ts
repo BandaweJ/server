@@ -18,16 +18,10 @@ import { UpdateRoleDto } from '../dtos/update-role.dto';
 import { CreatePermissionDto } from '../dtos/create-permission.dto';
 import { UpdatePermissionDto } from '../dtos/update-permission.dto';
 import { AssignRoleDto } from '../dtos/assign-role.dto';
-import { AuthGuard } from '@nestjs/passport';
-import { RolesGuard } from '../guards/roles.guard';
-import { HasRoles } from '../decorators/has-roles.decorator';
-import { ROLES } from '../models/roles.enum';
+import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 
 @Controller('system/roles-permissions')
-@UseGuards(AuthGuard(), RolesGuard)
-// TODO: Restrict to admin/director after initial setup
-// Temporarily allow admin, director, and hod for initial role setup
-@HasRoles(ROLES.admin, ROLES.director, ROLES.hod)
+@UseGuards(JwtAuthGuard)
 export class RolesPermissionsController {
   constructor(private readonly rolesPermissionsService: RolesPermissionsService) {}
 

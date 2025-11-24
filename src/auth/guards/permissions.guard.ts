@@ -29,17 +29,17 @@ export class PermissionsGuard implements CanActivate {
     const { user } = context.switchToHttp().getRequest();
 
     // Ensure user exists
-    if (!user || !user.id) {
+    if (!user) {
       throw new ForbiddenException('User not authenticated');
     }
 
-    // 3. Get the account entity to access the account ID
-    // Assuming the user object has a relationship to account or we can get account ID from user
-    // For now, we'll assume user has an accountId or we need to look it up
-    // This might need adjustment based on your actual user structure
+    // 3. Get the account ID from the user object
+    // The JWT strategy attaches accountId to the user profile (see jwt.strategy.ts line 95)
+    const accountId = (user as any).accountId;
     
-    // If user has accountId directly
-    const accountId = (user as any).accountId || user.id;
+    if (!accountId) {
+      throw new ForbiddenException('User account ID not found');
+    }
 
     // 4. Check if the user has all required permissions
     for (const permission of requiredPermissions) {

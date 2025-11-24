@@ -5,7 +5,7 @@ import { Strategy, ExtractJwt } from 'passport-jwt';
 import { JwtPayload } from './models/jwt-payload.interface';
 import { AccountsEntity } from './entities/accounts.entity';
 import { Repository } from 'typeorm';
-import { UnauthorizedException } from '@nestjs/common';
+import { UnauthorizedException, Logger, NotFoundException } from '@nestjs/common';
 import { ResourceByIdService } from '../resource-by-id/resource-by-id.service';
 import { TeachersEntity } from '../profiles/entities/teachers.entity';
 import { ParentsEntity } from '../profiles/entities/parents.entity';
@@ -14,6 +14,8 @@ import { ROLES } from './models/roles.enum';
 import { ConfigService } from '@nestjs/config';
 
 export class JwtStrategy extends PassportStrategy(Strategy) {
+  private readonly logger = new Logger(JwtStrategy.name);
+
   constructor(
     @InjectRepository(AccountsEntity)
     private accountsRepository: Repository<AccountsEntity>,
@@ -27,29 +29,44 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       secretOrKey: jwtSecret,
+      ignoreExpiration: false, // Explicitly don't ignore expiration
+    });
+    
+    this.logger.log('JWT Strategy initialized', {
+      hasSecret: !!jwtSecret,
+      secretLength: jwtSecret?.length || 0,
+      ignoreExpiration: false,
     });
   }
 
   async validate(
     payload: JwtPayload,
-  ): Promise<TeachersEntity | ParentsEntity | StudentsEntity> {
+    ): Promise<TeachersEntity | ParentsEntity | StudentsEntity> {
+    this.logger.log('JWT Strategy: Validating payload', { 
+      username: payload.username, 
+      role: payload.role, 
+      id: payload.id 
+    });
+    
+    // Log that we received the payload (means token was successfully decoded)
+    this.logger.log('JWT Strategy: Token decoded successfully, payload received');
+    
     const { username, role, id } = payload;
 
-    console.log('JWT Strategy: Validating token', { username, role, id });
-
     if (!username || !role || !id) {
-      console.error('JWT Strategy: Invalid payload - missing fields', { username, role, id });
+      this.logger.error(`JWT Strategy: Invalid payload - missing fields`, { username, role, id });
       throw new UnauthorizedException('Invalid JWT payload');
     }
 
+    this.logger.debug(`JWT Strategy: Looking up account for username: ${username}`);
     const user = await this.accountsRepository.findOne({ where: { username } });
 
     if (!user) {
-      console.error('JWT Strategy: Account not found', { username });
+      this.logger.error(`JWT Strategy: Account not found for username: ${username}`);
       throw new UnauthorizedException('You are not Authorised');
     }
-
-    console.log('JWT Strategy: Account found', { username, accountRole: user.role, accountId: user.id });
+    
+    this.logger.log(`JWT Strategy: Account found, looking up profile for role: ${role}, id: ${id}`);
 
     try {
       let profile: TeachersEntity | ParentsEntity | StudentsEntity;
@@ -61,31 +78,50 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         case ROLES.reception:
         case ROLES.auditor:
         case ROLES.director:
-          profile = await this.resourceById.getTeacherById(id);
-          if (!profile) {
-            console.error('JWT Strategy: Teacher profile not found', { id, role });
-            throw new UnauthorizedException('Teacher profile not found');
+          try {
+            profile = await this.resourceById.getTeacherById(id);
+            if (!profile) {
+              this.logger.error('JWT Strategy: Teacher profile not found', { id, role });
+              throw new UnauthorizedException('Teacher profile not found');
+            }
+          } catch (error) {
+            // getTeacherById throws NotFoundException if teacher doesn't exist
+            if (error instanceof NotFoundException) {
+              this.logger.error('JWT Strategy: Teacher profile not found in database', { 
+                id, 
+                role, 
+                username,
+                errorMessage: error.message 
+              });
+              throw new UnauthorizedException(`Teacher profile not found for ID: ${id}. Please contact administrator.`);
+            }
+            // Re-throw if it's a different error
+            this.logger.error('JWT Strategy: Unexpected error during teacher lookup', { 
+              id, 
+              role, 
+              username,
+              error: error.message,
+              errorStack: error.stack 
+            });
+            throw error;
           }
-          console.log('JWT Strategy: Teacher profile found', { profileId: profile.id, profileRole: (profile as any).role });
           break;
         case ROLES.parent:
           profile = await this.resourceById.getParentByEmail(id);
           if (!profile) {
-            console.error('JWT Strategy: Parent profile not found', { email: id });
+            this.logger.error('JWT Strategy: Parent profile not found', { email: id });
             throw new UnauthorizedException('Parent profile not found');
           }
-          console.log('JWT Strategy: Parent profile found', { email: id });
           break;
         case ROLES.student:
           profile = await this.resourceById.getStudentByStudentNumber(id);
           if (!profile) {
-            console.error('JWT Strategy: Student profile not found', { studentNumber: id });
+            this.logger.error('JWT Strategy: Student profile not found', { studentNumber: id });
             throw new UnauthorizedException('Student profile not found');
           }
-          console.log('JWT Strategy: Student profile found', { studentNumber: id });
           break;
         default:
-          console.error('JWT Strategy: Invalid role', { role });
+          this.logger.error('JWT Strategy: Invalid role', { role });
           throw new UnauthorizedException(`Invalid user role: ${role}`);
       }
       
@@ -94,17 +130,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       (profile as any).role = role;
       (profile as any).accountId = user.id;
       
-      const profileId = (profile as any).id || (profile as any).email || (profile as any).studentNumber;
-      console.log('JWT Strategy: Validation successful', { 
-        username, 
-        role, 
-        profileId,
-        accountId: user.id 
+      this.logger.log('JWT Strategy: Validation successful', {
+        username,
+        role,
+        profileId: (profile as any).id || (profile as any).studentNumber || (profile as any).email,
+        accountId: user.id,
       });
       
       return profile;
     } catch (error) {
-      console.error('JWT Strategy validation error:', error);
+      this.logger.error('JWT Strategy validation error:', error);
       throw new UnauthorizedException('Failed to validate user profile');
     }
   }

@@ -18,13 +18,17 @@ import { ParentsEntity } from 'src/profiles/entities/parents.entity';
 import { HeadCommentDto } from './dtos/head-comment.dto';
 import { ReportsModel } from './models/reports.model';
 import { ExamType } from 'src/marks/models/examtype.enum';
+import { PermissionsGuard } from 'src/auth/guards/permissions.guard';
+import { HasPermissions } from 'src/auth/decorators/has-permissions.decorator';
+import { PERMISSIONS } from 'src/auth/models/permissions.constants';
 
 @Controller('reports')
-@UseGuards(AuthGuard())
+@UseGuards(AuthGuard(), PermissionsGuard)
 export class ReportsController {
   constructor(private reportsService: ReportsService) {}
 
   @Get('/generate/:name/:num/:year/:examType')
+  @HasPermissions(PERMISSIONS.REPORTS.GENERATE)
   generateReports(
     @Param('name') name: string,
     @Param('num') num: number,
@@ -43,6 +47,7 @@ export class ReportsController {
   }
 
   @Post('/save/:name/:num/:year/:examType')
+  @HasPermissions(PERMISSIONS.REPORTS.SAVE)
   saveReports(
     @Param('name') name: string,
 
@@ -63,6 +68,7 @@ export class ReportsController {
   }
 
   @Post('/save/')
+  @HasPermissions(PERMISSIONS.REPORTS.EDIT_COMMENT)
   saveHeadComment(
     @Body() comment: HeadCommentDto,
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
@@ -105,6 +111,7 @@ export class ReportsController {
   // }
 
   @Get('/pdf/:name/:num/:year/:examType/:studentNumber/')
+  @HasPermissions(PERMISSIONS.REPORTS.DOWNLOAD)
   async getOnePDF(
     @Param('name') name: string,
     @Param('num') num: number,

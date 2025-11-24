@@ -154,7 +154,7 @@ export class AuthService {
     return await bcrypt.hash(password, salt);
   }
 
-  async signin(signinDto: SigninDto): Promise<{ accessToken: string }> {
+  async signin(signinDto: SigninDto): Promise<{ accessToken: string; permissions: string[] }> {
     const result = await this.validatePassword(signinDto);
 
     if (!result) {
@@ -163,6 +163,25 @@ export class AuthService {
 
     const payload = { ...result };
     const accessToken = await this.jwtService.sign(payload);
+
+    // Get user permissions from their role
+    let permissions: string[] = [];
+    try {
+      // Get account to find roleId
+      const account = await this.accountsRepository.findOne({
+        where: { username: signinDto.username },
+        relations: ['roleEntity', 'roleEntity.permissions'],
+      });
+
+      if (account?.roleEntity?.permissions) {
+        permissions = account.roleEntity.permissions
+          .filter((p) => p.active)
+          .map((p) => p.name);
+      }
+    } catch (error) {
+      // Don't fail the login if permission fetching fails
+      console.error('Failed to fetch user permissions:', error);
+    }
 
     // Log the login activity
     try {
@@ -177,7 +196,7 @@ export class AuthService {
       console.error('Failed to log login activity:', error);
     }
 
-    return { accessToken };
+    return { accessToken, permissions };
   }
 
   private async validatePassword(signinDto: SigninDto): Promise<JwtPayload> {

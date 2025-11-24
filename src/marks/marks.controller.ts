@@ -19,13 +19,17 @@ import { CreateMarkDto } from './dtos/create-mark.dto';
 
 import { AuthGuard } from '@nestjs/passport';
 import { CommentDto } from './dtos/comment.dto';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { HasPermissions } from '../auth/decorators/has-permissions.decorator';
+import { PERMISSIONS } from '../auth/models/permissions.constants';
 
 @Controller('marks')
-@UseGuards(AuthGuard())
+@UseGuards(AuthGuard(), PermissionsGuard)
 export class MarksController {
   constructor(private marksService: MarksService) {}
 
   @Post('/subjects')
+  @HasPermissions(PERMISSIONS.MARKS.ENTER)
   createSubject(
     @Body() createSubjectDto: CreateSubjectDto,
 
@@ -59,6 +63,7 @@ export class MarksController {
   }
 
   @Post('/marks')
+  @HasPermissions(PERMISSIONS.MARKS.ENTER)
   createMark(
     @Body() createMarkDto: CreateMarkDto,
     @GetUser() profile: StudentsEntity | ParentsEntity | TeachersEntity,

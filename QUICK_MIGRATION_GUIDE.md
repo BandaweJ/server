@@ -75,3 +75,5 @@ synchronize: process.env.NODE_ENV === 'development',
 
 **That's it!** The migration is safe and won't cause data loss.
 
+
+

@@ -243,5 +243,65 @@ export class AuditService {
       transactionalEntityManager,
     );
   }
+
+  /**
+   * Get all audit logs with optional filtering
+   */
+  async getAuditLogs(
+    filters?: {
+      action?: FinancialAuditAction;
+      entityType?: FinancialAuditEntityType;
+      entityId?: number;
+      performedBy?: string;
+      startDate?: Date;
+      endDate?: Date;
+      limit?: number;
+      offset?: number;
+    },
+  ): Promise<{ logs: FinancialAuditLogEntity[]; total: number }> {
+    const queryBuilder = this.auditLogRepository.createQueryBuilder('audit');
+
+    if (filters?.action) {
+      queryBuilder.andWhere('audit.action = :action', { action: filters.action });
+    }
+
+    if (filters?.entityType) {
+      queryBuilder.andWhere('audit.entityType = :entityType', { entityType: filters.entityType });
+    }
+
+    if (filters?.entityId) {
+      queryBuilder.andWhere('audit.entityId = :entityId', { entityId: filters.entityId });
+    }
+
+    if (filters?.performedBy) {
+      queryBuilder.andWhere('audit.performedBy = :performedBy', { performedBy: filters.performedBy });
+    }
+
+    if (filters?.startDate) {
+      queryBuilder.andWhere('audit.timestamp >= :startDate', { startDate: filters.startDate });
+    }
+
+    if (filters?.endDate) {
+      queryBuilder.andWhere('audit.timestamp <= :endDate', { endDate: filters.endDate });
+    }
+
+    // Get total count
+    const total = await queryBuilder.getCount();
+
+    // Apply pagination
+    if (filters?.limit) {
+      queryBuilder.limit(filters.limit);
+    }
+    if (filters?.offset) {
+      queryBuilder.offset(filters.offset);
+    }
+
+    // Order by timestamp descending (newest first)
+    queryBuilder.orderBy('audit.timestamp', 'DESC');
+
+    const logs = await queryBuilder.getMany();
+
+    return { logs, total };
+  }
 }
 

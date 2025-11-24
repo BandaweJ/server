@@ -46,6 +46,7 @@ import { logStructured } from '../utils/logger.util';
 import { AuditService } from './audit.service';
 import { sanitizeAmount, sanitizeOptionalAmount } from '../utils/sanitization.util';
 import { InvoiceResponseDto } from '../dtos/invoice-response.dto';
+import { NotificationService } from '../../notifications/services/notification.service';
 
 @Injectable()
 export class InvoiceService {
@@ -64,6 +65,7 @@ export class InvoiceService {
     private readonly financialValidationService: FinancialValidationService,
     private readonly creditService: CreditService,
     private readonly auditService: AuditService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async generateStatementOfAccount(
@@ -216,7 +218,8 @@ export class InvoiceService {
       },
     );
 
-    return await this.dataSource.transaction(
+    let isNewInvoice = false;
+    const finalInvoice: InvoiceEntity = await this.dataSource.transaction(
       async (transactionalEntityManager: EntityManager) => {
         try {
           interface CreditAllocationData {
@@ -395,6 +398,8 @@ export class InvoiceService {
             .andWhere('enrol.year = :year', { year: year })
             .andWhere('(invoice.isVoided = false OR invoice.isVoided IS NULL)')
             .getOne();
+          
+          isNewInvoice = !foundInvoice;
 
           if (foundInvoice) {
             invoiceToSave = foundInvoice;
@@ -801,6 +806,64 @@ export class InvoiceService {
         }
       },
     );
+
+    // Send email notification for newly created invoices (after transaction completes)
+    if (isNewInvoice && finalInvoice) {
+      this.sendInvoiceNotification(finalInvoice).catch((error) => {
+        this.logger.error('Failed to send invoice notification:', error);
+        // Don't throw - notifications are non-critical
+      });
+    }
+
+    return finalInvoice;
+  }
+
+  /**
+   * Send email notification for invoice
+   */
+  private async sendInvoiceNotification(
+    invoice: InvoiceEntity,
+  ): Promise<void> {
+    try {
+      const student = invoice.student;
+      if (!student) return;
+
+      // Get parent email - fetch student with parent relation
+      let parentEmail: string | undefined;
+      if (student.parent && student.parent.email) {
+        parentEmail = student.parent.email;
+      } else {
+        // Parent relation not loaded, fetch it
+        try {
+          const studentRepo = this.invoiceRepository.manager.getRepository(StudentsEntity);
+          const studentWithParent = await studentRepo.findOne({
+            where: { studentNumber: student.studentNumber },
+            relations: ['parent'],
+          });
+          if (studentWithParent?.parent?.email) {
+            parentEmail = studentWithParent.parent.email;
+          }
+        } catch {
+          // Could not fetch parent
+        }
+      }
+
+      await this.notificationService.sendInvoiceNotification({
+        studentName: `${student.surname} ${student.name}`,
+        studentNumber: student.studentNumber,
+        invoiceNumber: invoice.invoiceNumber,
+        invoiceDate: invoice.invoiceDate || new Date(),
+        totalAmount: Number(invoice.totalBill || 0),
+        dueDate: invoice.invoiceDueDate || undefined,
+        parentEmail,
+        studentEmail: student.email,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to send invoice notification for ${invoice.invoiceNumber}:`,
+        error,
+      );
+    }
   }
 
   async voidInvoice(

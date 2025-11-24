@@ -2,6 +2,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotImplementedException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -36,6 +37,8 @@ import { UpdateEnrolDto } from './dtos/update-enrol.dto';
 
 @Injectable()
 export class EnrolmentService {
+  private readonly logger = new Logger(EnrolmentService.name);
+
   constructor(
     @InjectRepository(ClassEntity)
     private classRepository: Repository<ClassEntity>,
@@ -152,7 +155,16 @@ export class EnrolmentService {
   }
 
   async getAllTerms(): Promise<TermsEntity[]> {
-    return await this.termRepository.find();
+    this.logger.log('getAllTerms() - Starting to fetch terms from database');
+    try {
+      const terms = await this.termRepository.find();
+      this.logger.log(`getAllTerms() - Successfully fetched ${terms.length} terms from database`);
+      return terms;
+    } catch (error) {
+      this.logger.error('getAllTerms() - Error fetching terms:', error);
+      this.logger.error('getAllTerms() - Error stack:', error.stack);
+      throw error;
+    }
   }
 
   async getCurrentTerm(): Promise<TermsEntity> {
@@ -472,26 +484,6 @@ export class EnrolmentService {
     } else {
       throw new NotImplementedException(`Enrolment not removed`, result.raw);
     }
-  }
-      attendance.student = enrol.student;
-
-      thisDayAttendances.push(attendance);
-    });
-
-    // console.log('Class list len: ', thisDayAttendances.length);
-
-    thisDayAttendances.map((att) => {
-      todayAttendances.map((todayAtt) => {
-        if (att.student.studentNumber === todayAtt.student.studentNumber) {
-          att.id = todayAtt.id;
-          att.present = todayAtt.present;
-        }
-      });
-    });
-
-    // console.log(todayAttendances);
-
-    return thisDayAttendances;
   }
 
   async addTerm(term: CreateTermDto) {

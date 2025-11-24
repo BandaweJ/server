@@ -1,4 +1,4 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -28,12 +28,42 @@ export class RolesGuard implements CanActivate {
     const { user } = request;
 
     if (!user) {
-      console.warn('RolesGuard: User not found - AuthGuard may not have run yet. Route should have @UseGuards(AuthGuard())');
-      return true;
+      // If roles are required but user is not found, this is an authentication issue
+      // AuthGuard should have run first and populated the user
+      // If AuthGuard failed (e.g., expired/invalid token), it should have already thrown an exception
+      // If we reach here, it means AuthGuard didn't run or didn't throw properly
+      // This should never happen if guards are applied correctly, but we handle it gracefully
+      
+      const authHeader = request.headers?.authorization;
+      const authHeaderPresent = !!authHeader;
+      
+      // Log for debugging
+      console.error('RolesGuard: User not found in request. This should not happen if AuthGuard ran correctly.', {
+        url: request.url,
+        method: request.method,
+        hasAuthHeader: authHeaderPresent,
+      });
+      
+      // If there's no auth header, it's definitely an auth issue
+      if (!authHeaderPresent) {
+        throw new UnauthorizedException('No authentication token provided. Please log in.');
+      }
+      
+      // If there's an auth header but no user, AuthGuard should have already rejected it
+      // This indicates AuthGuard may not have run, or there's a configuration issue
+      // Still throw UnauthorizedException as this is an authentication failure
+      throw new UnauthorizedException('Authentication failed. Please log in again.');
     }
 
     let userRole: string | undefined = (user as any).role;
     const accountId = (user as any).accountId;
+
+    console.log('RolesGuard: User found', {
+      userId: (user as any).id,
+      userRole,
+      accountId,
+      userObjectKeys: Object.keys(user),
+    });
 
     if (!userRole && accountId) {
       try {

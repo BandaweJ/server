@@ -54,6 +54,7 @@ import { InvoiceStatus } from 'src/finance/models/invoice-status.enum';
 import { logStructured } from '../utils/logger.util';
 import { AuditService } from './audit.service';
 import { sanitizeAmount } from '../utils/sanitization.util';
+import { NotificationService } from '../../notifications/services/notification.service';
 
 @Injectable()
 export class ReceiptService {
@@ -67,6 +68,7 @@ export class ReceiptService {
     private readonly resourceById: ResourceByIdService,
     private readonly enrolmentService: EnrolmentService,
     private readonly financialValidationService: FinancialValidationService,
+    private readonly notificationService: NotificationService,
     private readonly creditService: CreditService,
     private readonly invoiceService: InvoiceService,
     private readonly dataSource: DataSource,
@@ -465,7 +467,7 @@ export class ReceiptService {
       voidedBy: null,
     });
 
-    return await this.dataSource.transaction(
+    const finalReceipt = await this.dataSource.transaction(
       async (transactionalEntityManager) => {
         this.financialValidationService.validateReceiptBeforeSave(newReceipt);
 
@@ -598,6 +600,62 @@ export class ReceiptService {
         return finalReceipt;
       },
     );
+
+    // Send email notification after receipt is created (after transaction completes)
+    this.sendPaymentNotification(finalReceipt).catch((error) => {
+      this.logger.error('Failed to send payment notification:', error);
+      // Don't throw - notifications are non-critical
+    });
+
+    return finalReceipt;
+  }
+
+  /**
+   * Send email notification for payment receipt
+   */
+  private async sendPaymentNotification(
+    receipt: ReceiptEntity,
+  ): Promise<void> {
+    try {
+      const student = receipt.student;
+      if (!student) return;
+
+      // Get parent email - fetch student with parent relation if not loaded
+      let parentEmail: string | undefined;
+      if (student.parent && student.parent.email) {
+        parentEmail = student.parent.email;
+      } else {
+        // Parent relation not loaded, fetch it
+        try {
+          const studentRepo = this.receiptRepository.manager.getRepository(StudentsEntity);
+          const studentWithParent = await studentRepo.findOne({
+            where: { studentNumber: student.studentNumber },
+            relations: ['parent'],
+          });
+          if (studentWithParent?.parent?.email) {
+            parentEmail = studentWithParent.parent.email;
+          }
+        } catch {
+          // Could not fetch parent
+        }
+      }
+
+      await this.notificationService.sendPaymentNotification({
+        studentName: `${student.surname} ${student.name}`,
+        studentNumber: student.studentNumber,
+        receiptNumber: receipt.receiptNumber,
+        paymentDate: receipt.paymentDate || new Date(),
+        amount: Number(receipt.amountPaid || 0),
+        paymentMethod: receipt.paymentMethod || 'Unknown',
+        parentEmail,
+        studentEmail: student.email,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to send payment notification for ${receipt.receiptNumber}:`,
+        error,
+      );
+    }
   }
 
   async getStudentBalance(

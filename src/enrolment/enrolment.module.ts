@@ -1,5 +1,5 @@
 /* eslint-disable prettier/prettier */
-import { forwardRef, Module } from '@nestjs/common';
+import { forwardRef, Module, OnModuleInit, Logger } from '@nestjs/common';
 import { EnrolmentController } from './enrolment.controller';
 import { EnrolmentService } from './enrolment.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -31,4 +31,10 @@ import { FinanceService } from 'src/finance/finance.service';
   providers: [EnrolmentService],
   exports: [EnrolmentService],
 })
-export class EnrolmentModule {}
+export class EnrolmentModule implements OnModuleInit {
+  private readonly logger = new Logger(EnrolmentModule.name);
+
+  onModuleInit() {
+    this.logger.log('EnrolmentModule initialized successfully');
+  }
+}

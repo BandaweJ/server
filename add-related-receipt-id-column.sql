@@ -41,3 +41,5 @@ WHERE table_name = 'credit_invoice_allocations'
 
 -- Migration completed successfully!
 
+
+

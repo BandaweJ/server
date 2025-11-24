@@ -25,6 +25,8 @@ import { AccountsEntity } from 'src/auth/entities/accounts.entity';
 import { TeachersEntity } from 'src/profiles/entities/teachers.entity';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { AuditService } from './services/audit.service';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { forwardRef } from '@nestjs/common';
 
 @Module({
   controllers: [PaymentController],
@@ -37,7 +39,7 @@ import { AuditService } from './services/audit.service';
     AuditService,
     RolesGuard,
   ],
-  exports: [PaymentService, CreditService, InvoiceService, ReceiptService],
+  exports: [PaymentService, CreditService, InvoiceService, ReceiptService, AuditService],
   imports: [
     AuthModule,
     ProfilesModule,
@@ -56,6 +58,7 @@ import { AuditService } from './services/audit.service';
       TeachersEntity,
     ]),
     ResourceByIdModule,
+    forwardRef(() => NotificationsModule),
   ],
 })
 export class PaymentModule {}

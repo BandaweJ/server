@@ -15,13 +15,17 @@ import { GetUser } from '../auth/decorators/get-user.decorator';
 import { TeachersEntity } from '../profiles/entities/teachers.entity';
 import { StudentsEntity } from '../profiles/entities/students.entity';
 import { ParentsEntity } from '../profiles/entities/parents.entity';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { HasPermissions } from '../auth/decorators/has-permissions.decorator';
+import { PERMISSIONS } from '../auth/models/permissions.constants';
 
 @Controller('attendance')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class AttendanceController {
   constructor(private attendanceService: AttendanceService) {}
 
   @Get('class/:className/:termNum/:year')
+  @HasPermissions(PERMISSIONS.ATTENDANCE.VIEW)
   getClassAttendance(
     @Param('className') className: string,
     @Param('termNum', ParseIntPipe) termNum: number,
@@ -37,6 +41,7 @@ export class AttendanceController {
   }
 
   @Post('mark')
+  @HasPermissions(PERMISSIONS.ATTENDANCE.MARK)
   markAttendance(
     @Body() markAttendanceDto: MarkAttendanceDto,
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
@@ -45,6 +50,7 @@ export class AttendanceController {
   }
 
   @Get('reports/:className/:termNum/:year')
+  @HasPermissions(PERMISSIONS.ATTENDANCE.VIEW_REPORTS)
   getAttendanceReports(
     @Param('className') className: string,
     @Param('termNum', ParseIntPipe) termNum: number,

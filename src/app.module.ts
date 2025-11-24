@@ -18,6 +18,12 @@ import { AttendanceModule } from './attendance/attendance.module';
 import { APP_GUARD } from '@nestjs/core';
 import { RolesGuard } from './auth/guards/roles.guard';
 import { ActivityModule } from './activity/activity.module';
+import { SystemModule } from './system/system.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { MessagingModule } from './messaging/messaging.module';
+import { ContinuousAssessmentModule } from './continuous-assessment/continuous-assessment.module';
+import { Logger, OnModuleInit, MiddlewareConsumer, NestModule } from '@nestjs/common';
+import { LoggingMiddleware } from './common/middleware/logging.middleware';
 
 @Module({
   imports: [
@@ -89,6 +95,10 @@ import { ActivityModule } from './activity/activity.module';
     ExemptionsModule,
     AttendanceModule,
     ActivityModule,
+    SystemModule,
+    NotificationsModule,
+    MessagingModule,
+    ContinuousAssessmentModule,
   ],
   controllers: [AppController],
   providers: [
@@ -99,4 +109,18 @@ import { ActivityModule } from './activity/activity.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements OnModuleInit, NestModule {
+  private readonly logger = new Logger(AppModule.name);
+
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(LoggingMiddleware)
+      .forRoutes('*'); // Apply to all routes
+    this.logger.log('LoggingMiddleware configured for all routes');
+  }
+
+  onModuleInit() {
+    this.logger.log('AppModule initialized - All modules loaded');
+    this.logger.log('Server should be ready to accept requests');
+  }
+}

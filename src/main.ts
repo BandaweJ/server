@@ -5,10 +5,20 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { Logger } from '@nestjs/common';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  app.useGlobalFilters(new AllExceptionsFilter());
+  const logger = new Logger('Bootstrap');
+  logger.log('Starting application bootstrap...');
+  
+  try {
+    logger.log('Creating NestFactory...');
+    const app = await NestFactory.create(AppModule);
+    logger.log('NestFactory created successfully');
+    
+    logger.log('Setting up global filters...');
+    app.useGlobalFilters(new AllExceptionsFilter());
+    logger.log('Global filters configured');
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true, // Enable automatic transformation using class-transformer
@@ -41,9 +51,22 @@ async function bootstrap() {
     .addTag('Reports API')
     .build();
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
+    logger.log('Setting up Swagger...');
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api', app, document);
+    logger.log('Swagger configured');
 
-  await app.listen(process.env.PORT || 3000);
+    const port = process.env.PORT || 3000;
+    logger.log(`Starting server on port ${port}...`);
+    await app.listen(port);
+    logger.log(`✅ Server successfully started on port ${port}`);
+    logger.log(`📡 Server is ready to accept requests`);
+    logger.log(`🔗 API available at http://localhost:${port}`);
+    logger.log(`📚 Swagger docs available at http://localhost:${port}/api`);
+  } catch (error) {
+    logger.error('❌ Failed to start server:', error);
+    logger.error('Error stack:', error.stack);
+    process.exit(1);
+  }
 }
 bootstrap();

@@ -28,14 +28,17 @@ import { Query } from '@nestjs/common';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { ROLES } from 'src/auth/models/roles.enum';
+import { PermissionsGuard } from 'src/auth/guards/permissions.guard';
+import { HasPermissions } from 'src/auth/decorators/has-permissions.decorator';
+import { PERMISSIONS } from 'src/auth/models/permissions.constants';
 
 @Controller('payment')
-@UseGuards(AuthGuard(), RolesGuard)
+@UseGuards(AuthGuard(), PermissionsGuard)
 export class PaymentController {
   constructor(private paymentService: PaymentService) {}
 
   @Patch('receipt/void/:receiptId')
-  @Roles(ROLES.auditor, ROLES.director)
+  @HasPermissions(PERMISSIONS.FINANCE.VOID_RECEIPT)
   voidReceipt(
     @Param('receiptId', ParseIntPipe) receiptId: number,
     @GetUser() profile: TeachersEntity,
@@ -49,7 +52,7 @@ export class PaymentController {
   }
 
   @Patch('invoice/void/:invoiceId')
-  @Roles(ROLES.auditor, ROLES.director)
+  @HasPermissions(PERMISSIONS.FINANCE.VOID_INVOICE)
   voidInvoice(
     @Param('invoiceId', ParseIntPipe) invoiceId: number,
     @GetUser() profile: TeachersEntity,

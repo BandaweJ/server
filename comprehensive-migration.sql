@@ -156,3 +156,5 @@ WHERE table_name = 'financial_audit_log';
 
 -- Migration completed successfully!
 
+
+

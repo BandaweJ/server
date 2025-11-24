@@ -5,6 +5,7 @@ import { AttendanceService } from './attendance.service';
 import { AttendanceEntity } from './entities/attendance.entity';
 import { StudentsEntity } from '../profiles/entities/students.entity';
 import { EnrolEntity } from '../enrolment/entities/enrol.entity';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { EnrolEntity } from '../enrolment/entities/enrol.entity';
       StudentsEntity,
       EnrolEntity,
     ]),
+    AuthModule,
   ],
   controllers: [AttendanceController],
   providers: [AttendanceService],
