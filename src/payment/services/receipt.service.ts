@@ -458,6 +458,7 @@ export class ReceiptService {
       amountPaid: createReceiptDto.amountPaid,
       description: createReceiptDto.description,
       paymentMethod: createReceiptDto.paymentMethod,
+      paymentDate: new Date(), // Set payment date explicitly for validation
       student: student,
       receiptNumber: await this.generateReceiptNumber(),
       servedBy: profile.email,
