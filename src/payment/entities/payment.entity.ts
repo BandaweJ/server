@@ -39,7 +39,7 @@ export class ReceiptEntity {
   })
   amountPaid: number;
 
-  @Column()
+  @Column({ nullable: true })
   description: string;
 
   @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })

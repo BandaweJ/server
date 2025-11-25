@@ -456,7 +456,7 @@ export class ReceiptService {
 
     const newReceipt = this.receiptRepository.create({
       amountPaid: createReceiptDto.amountPaid,
-      description: createReceiptDto.description,
+      description: createReceiptDto.description || `Payment of ${createReceiptDto.amountPaid} via ${createReceiptDto.paymentMethod}`,
       paymentMethod: createReceiptDto.paymentMethod,
       paymentDate: new Date(), // Set payment date explicitly for validation
       student: student,
