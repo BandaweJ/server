@@ -13,4 +13,9 @@ export enum FeesNames {
   foodFee = 'foodFee',
   transportFee = 'transportFee',
   exemption = 'exemption',
+  // Miscellaneous charges
+  groomingFee = 'groomingFee',
+  brokenFurnitureFee = 'brokenFurnitureFee',
+  lostBooksFee = 'lostBooksFee',
+  miscellaneousCharge = 'miscellaneousCharge',
 }

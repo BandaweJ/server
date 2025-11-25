@@ -19,7 +19,7 @@ if (!process.env.DATABASE_URL && process.env.NODE_ENV !== 'production') {
 
 const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
 
-export const AppDataSource = new DataSource({
+const AppDataSource = new DataSource({
   type: 'postgres',
   url: process.env.DATABASE_URL,
   host: hasDatabaseUrl ? undefined : process.env.DB_HOST,
