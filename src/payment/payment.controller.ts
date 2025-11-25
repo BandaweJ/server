@@ -33,7 +33,7 @@ import { HasPermissions } from 'src/auth/decorators/has-permissions.decorator';
 import { PERMISSIONS } from 'src/auth/models/permissions.constants';
 
 @Controller('payment')
-@UseGuards(AuthGuard(), PermissionsGuard)
+@UseGuards(AuthGuard(), RolesGuard)
 export class PaymentController {
   constructor(private paymentService: PaymentService) {}
 

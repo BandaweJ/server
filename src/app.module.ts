@@ -103,10 +103,7 @@ import { LoggingMiddleware } from './common/middleware/logging.middleware';
   controllers: [AppController],
   providers: [
     AppService,
-    {
-      provide: APP_GUARD,
-      useClass: RolesGuard, // RolesGuard is provided in AuthModule and can access AccountsEntity
-    },
+    // Removed global RolesGuard - it should be applied at controller level after AuthGuard
   ],
 })
 export class AppModule implements OnModuleInit, NestModule {
