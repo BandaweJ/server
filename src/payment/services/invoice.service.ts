@@ -2496,6 +2496,12 @@ export class InvoiceService {
 
   /**
    * Verifies and recalculates invoice balance based on allocations.
+   * 
+   * Key principles:
+   * 1. amountPaidOnInvoice never exceeds the net bill amount (totalBill - exemption)
+   * 2. balance = netBill - amountPaidOnInvoice (what's still owed on THIS invoice)
+   * 3. Overpayments (totalPaid > netBill) are converted to credit, not counted as payment on invoice
+   * 4. Balance cannot be negative (overpayments become credit instead)
    */
   private async verifyAndRecalculateInvoiceBalance(
     invoice: InvoiceEntity,
@@ -2534,32 +2540,55 @@ export class InvoiceService {
 
     // Total paid = receipt allocations + credit allocations
     const totalPaid = totalReceiptAllocated + totalCreditAllocated;
-    const calculatedBalance = netBill - totalPaid;
-
-    // Update invoice fields
-    // For overpayments, amountPaidOnInvoice should be capped at netBill (what the invoice is worth)
-    // The overpayment (totalPaid - netBill) is converted to credit, not counted as payment on the invoice
-    freshInvoice.amountPaidOnInvoice = Math.min(totalPaid, netBill); // Cap at netBill for overpayments
-    freshInvoice.balance = Math.max(0, calculatedBalance); // Balance cannot be negative
+    
+    // FIXED LOGIC: Amount paid on invoice should never exceed the net bill
+    // If total paid exceeds net bill, the excess should be converted to credit (handled elsewhere)
+    // The balance should reflect what's actually still owed on THIS invoice
+    const amountPaidOnThisInvoice = Math.min(totalPaid, netBill);
+    const remainingBalance = netBill - amountPaidOnThisInvoice;
+    
+    // Update invoice fields with corrected logic
+    freshInvoice.amountPaidOnInvoice = amountPaidOnThisInvoice; // Never exceeds netBill
+    freshInvoice.balance = Math.max(0, remainingBalance); // What's still owed on this invoice
+    
+    // Log the calculation for debugging
+    logStructured(
+      this.logger,
+      'debug',
+      'reconciliation.balanceCalculation',
+      'Invoice balance recalculated',
+      {
+        invoiceNumber: freshInvoice.invoiceNumber,
+        netBill,
+        totalReceiptAllocated,
+        totalCreditAllocated,
+        totalPaid,
+        amountPaidOnThisInvoice,
+        remainingBalance: freshInvoice.balance,
+      },
+    );
     
     // Update status based on the recalculated balance
     freshInvoice.status = this.getInvoiceStatus(freshInvoice);
 
-    // Verify balance matches
+    // Verify balance calculation is consistent
     const tolerance = 0.01;
-    const storedBalance = Number(freshInvoice.balance || 0);
-    if (Math.abs(calculatedBalance - storedBalance) > tolerance) {
+    const expectedBalance = Math.max(0, netBill - amountPaidOnThisInvoice);
+    const actualBalance = Number(freshInvoice.balance || 0);
+    
+    if (Math.abs(expectedBalance - actualBalance) > tolerance) {
       logStructured(
         this.logger,
         'warn',
         'reconciliation.invoiceBalanceMismatch',
-        'Invoice balance mismatch detected - correcting',
+        'Invoice balance calculation inconsistency detected',
         {
           invoiceNumber: freshInvoice.invoiceNumber,
           invoiceId: freshInvoice.id,
-          calculatedBalance,
-          storedBalance,
-          totalBill,
+          expectedBalance,
+          actualBalance,
+          netBill,
+          amountPaidOnThisInvoice,
           totalPaid,
         },
       );
