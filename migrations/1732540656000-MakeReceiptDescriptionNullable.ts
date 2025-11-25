@@ -16,3 +16,4 @@ export class MakeReceiptDescriptionNullable1732540656000 implements MigrationInt
         await queryRunner.query(`ALTER TABLE "receipts" ALTER COLUMN "description" SET NOT NULL`);
     }
 }
+

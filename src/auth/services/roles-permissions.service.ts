@@ -416,6 +416,119 @@ export class RolesPermissionsService {
     const permissions = await this.getUserPermissions(accountId);
     return permissions.includes(permissionName);
   }
+
+  /**
+   * Seed default permissions for system roles
+   * This assigns appropriate permissions to admin, teacher, hod, etc.
+   */
+  async seedDefaultRolePermissions(): Promise<void> {
+    this.logger.log('Starting default role permissions seeding...');
+
+    // Define default permissions for each role
+    const rolePermissions = {
+      [ROLES.admin]: [
+        // Admin gets all permissions
+        ...Object.values(PERMISSIONS.MARKS),
+        ...Object.values(PERMISSIONS.FINANCE),
+        ...Object.values(PERMISSIONS.REPORTS),
+        ...Object.values(PERMISSIONS.ATTENDANCE),
+        ...Object.values(PERMISSIONS.ENROLMENT),
+        ...Object.values(PERMISSIONS.USERS),
+        ...Object.values(PERMISSIONS.SYSTEM),
+      ],
+      [ROLES.director]: [
+        // Director gets most permissions except system management
+        ...Object.values(PERMISSIONS.MARKS),
+        ...Object.values(PERMISSIONS.FINANCE),
+        ...Object.values(PERMISSIONS.REPORTS),
+        ...Object.values(PERMISSIONS.ATTENDANCE),
+        ...Object.values(PERMISSIONS.ENROLMENT),
+        PERMISSIONS.SYSTEM.VIEW_SETTINGS,
+        PERMISSIONS.SYSTEM.VIEW_AUDIT,
+      ],
+      [ROLES.hod]: [
+        // HOD gets marks, reports, and attendance permissions
+        ...Object.values(PERMISSIONS.MARKS),
+        ...Object.values(PERMISSIONS.REPORTS),
+        ...Object.values(PERMISSIONS.ATTENDANCE),
+        PERMISSIONS.ENROLMENT.VIEW,
+        PERMISSIONS.FINANCE.VIEW,
+      ],
+      [ROLES.teacher]: [
+        // Teachers get marks entry, view, and basic reporting
+        PERMISSIONS.MARKS.VIEW,
+        PERMISSIONS.MARKS.ENTER,
+        PERMISSIONS.MARKS.EDIT,
+        PERMISSIONS.REPORTS.VIEW,
+        PERMISSIONS.REPORTS.GENERATE,
+        PERMISSIONS.ATTENDANCE.VIEW,
+        PERMISSIONS.ATTENDANCE.MARK,
+        PERMISSIONS.ENROLMENT.VIEW,
+      ],
+      [ROLES.reception]: [
+        // Reception gets enrolment and basic finance permissions
+        ...Object.values(PERMISSIONS.ENROLMENT),
+        PERMISSIONS.FINANCE.VIEW,
+        PERMISSIONS.FINANCE.CREATE,
+        PERMISSIONS.USERS.VIEW,
+        PERMISSIONS.USERS.CREATE,
+      ],
+      [ROLES.auditor]: [
+        // Auditor gets read-only access to finance and reports
+        PERMISSIONS.FINANCE.VIEW,
+        PERMISSIONS.FINANCE.VIEW_REPORTS,
+        PERMISSIONS.REPORTS.VIEW,
+        PERMISSIONS.SYSTEM.VIEW_AUDIT,
+      ],
+    };
+
+    // Assign permissions to roles
+    for (const [roleName, permissionNames] of Object.entries(rolePermissions)) {
+      try {
+        // Find the role
+        const role = await this.roleRepository.findOne({
+          where: { name: roleName },
+          relations: ['permissions'],
+        });
+
+        if (!role) {
+          this.logger.warn(`Role "${roleName}" not found, skipping permission assignment`);
+          continue;
+        }
+
+        // Get all permissions that should be assigned to this role
+        const permissions = await this.permissionRepository.find({
+          where: permissionNames.map(name => ({ name })),
+        });
+
+        if (permissions.length === 0) {
+          this.logger.warn(`No permissions found for role "${roleName}"`);
+          continue;
+        }
+
+        // Get existing permission IDs for this role
+        const existingPermissionIds = new Set(role.permissions.map(p => p.id));
+
+        // Filter out permissions that are already assigned
+        const newPermissions = permissions.filter(p => !existingPermissionIds.has(p.id));
+
+        if (newPermissions.length > 0) {
+          // Add new permissions to the role
+          role.permissions = [...role.permissions, ...newPermissions];
+          await this.roleRepository.save(role);
+          
+          this.logger.log(`Assigned ${newPermissions.length} new permissions to role "${roleName}"`);
+        } else {
+          this.logger.log(`Role "${roleName}" already has all required permissions`);
+        }
+
+      } catch (error) {
+        this.logger.error(`Failed to assign permissions to role "${roleName}":`, error);
+      }
+    }
+
+    this.logger.log('Default role permissions seeding completed');
+  }
 }
 
 

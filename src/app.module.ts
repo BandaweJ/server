@@ -22,6 +22,7 @@ import { SystemModule } from './system/system.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { MessagingModule } from './messaging/messaging.module';
 import { ContinuousAssessmentModule } from './continuous-assessment/continuous-assessment.module';
+import { AIModule } from './ai/ai.module';
 import { Logger, OnModuleInit, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { LoggingMiddleware } from './common/middleware/logging.middleware';
 
@@ -99,6 +100,7 @@ import { LoggingMiddleware } from './common/middleware/logging.middleware';
     NotificationsModule,
     MessagingModule,
     ContinuousAssessmentModule,
+    AIModule,
   ],
   controllers: [AppController],
   providers: [

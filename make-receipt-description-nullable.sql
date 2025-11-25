@@ -28,3 +28,4 @@ AND column_name = 'description';
 -- UPDATE receipts SET description = NULL WHERE description = '' OR description IS NULL;
 
 COMMIT;
+

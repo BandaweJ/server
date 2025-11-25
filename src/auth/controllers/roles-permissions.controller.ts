@@ -106,5 +106,6 @@ export class RolesPermissionsController {
     const hasPermission = await this.rolesPermissionsService.hasPermission(accountId, permissionName);
     return { hasPermission };
   }
+
 }
 
