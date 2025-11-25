@@ -2498,10 +2498,11 @@ export class InvoiceService {
    * Verifies and recalculates invoice balance based on allocations.
    * 
    * Key principles:
-   * 1. amountPaidOnInvoice never exceeds the net bill amount (totalBill - exemption)
-   * 2. balance = netBill - amountPaidOnInvoice (what's still owed on THIS invoice)
-   * 3. Overpayments (totalPaid > netBill) are converted to credit, not counted as payment on invoice
-   * 4. Balance cannot be negative (overpayments become credit instead)
+   * 1. totalBill already has exemptions applied (it's the net amount student owes)
+   * 2. amountPaidOnInvoice never exceeds the totalBill amount
+   * 3. balance = totalBill - amountPaidOnInvoice (what's still owed on THIS invoice)
+   * 4. Overpayments (totalPaid > totalBill) are converted to credit, not counted as payment on invoice
+   * 5. Balance cannot be negative (overpayments become credit instead)
    */
   private async verifyAndRecalculateInvoiceBalance(
     invoice: InvoiceEntity,
@@ -2522,7 +2523,9 @@ export class InvoiceService {
 
     const totalBill = Number(freshInvoice.totalBill || 0);
     const exemptedAmount = Number(freshInvoice.exemptedAmount || 0);
-    const netBill = totalBill - exemptedAmount;
+    // FIXED: totalBill already has exemption applied during invoice creation
+    // Don't subtract exemption again - totalBill is already the net amount
+    const netBill = totalBill;
 
     // Sum all receipt allocations
     const receiptAllocations = freshInvoice.allocations || [];
@@ -2559,7 +2562,9 @@ export class InvoiceService {
       'Invoice balance recalculated',
       {
         invoiceNumber: freshInvoice.invoiceNumber,
-        netBill,
+        totalBill, // Already net of exemptions
+        exemptedAmount, // For reference
+        netBill, // Same as totalBill (exemption already applied)
         totalReceiptAllocated,
         totalCreditAllocated,
         totalPaid,
