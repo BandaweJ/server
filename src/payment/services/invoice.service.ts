@@ -2554,7 +2554,7 @@ export class InvoiceService {
     // Log the calculation for debugging
     logStructured(
       this.logger,
-      'debug',
+      'log',
       'reconciliation.balanceCalculation',
       'Invoice balance recalculated',
       {
