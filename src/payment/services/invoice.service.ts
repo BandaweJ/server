@@ -103,15 +103,18 @@ export class InvoiceService {
     const enrol = await this.enrolmentService.getCurrentEnrollment(
       studentNumber,
     );
-    const balanceBfwd = await this.financeService.findStudentBalance(
-      studentNumber,
-    );
+
+    // LEGACY NOTE:
+    // Originally, invoices also pulled in a BalancesEntity (balanceBfwd) here.
+    // That behaviour was only needed to migrate historical balances that
+    // existed before the system was in use. New invoices should be computed
+    // purely from bills / receipts / credits, so we intentionally do NOT
+    // attach balanceBfwd for newly generated invoices.
 
     const invoice = new InvoiceEntity();
     invoice.student = student;
     invoice.enrol = enrol;
     invoice.bills = bills;
-    invoice.balanceBfwd = balanceBfwd;
     invoice.exemption = studentExemption || null;
     invoice.exemptedAmount = this._calculateExemptionAmount(invoice);
     invoice.amountPaidOnInvoice = payments.reduce(
@@ -135,10 +138,6 @@ export class InvoiceService {
     num: number,
     year: number,
   ): Promise<InvoiceEntity> {
-    const balanceBfwd = await this.financeService.findStudentBalance(
-      studentNumber,
-    );
-
     const student = await this.resourceById.getStudentByStudentNumber(
       studentNumber,
     );
@@ -170,7 +169,10 @@ export class InvoiceService {
     newInv.status = InvoiceStatus.Pending;
     newInv.exemptedAmount = 0;
     newInv.isVoided = false;
-    newInv.balanceBfwd = balanceBfwd;
+
+    // For legacy reasons, invoices used to carry a balanceBfwd link here.
+    // Going forward, new invoices should ignore BalancesEntity completely.
+    // Any historical opening balances are already captured on legacy invoices.
 
     return newInv;
   }
@@ -463,11 +465,6 @@ export class InvoiceService {
             invoiceToSave.amountPaidOnInvoice = 0;
             invoiceToSave.isVoided = false; // Explicitly set to false for new invoices
 
-            if (invoice.balanceBfwd && Number(invoice.balanceBfwd.amount) > 0) {
-              invoiceToSave.balanceBfwd = invoice.balanceBfwd;
-              invoiceToSave.totalBill += Number(invoice.balanceBfwd.amount);
-            }
-
             await this.applyStudentCreditToInvoice(
               invoiceToSave,
               student.studentNumber,
@@ -699,17 +696,6 @@ export class InvoiceService {
                 },
               );
             }
-          }
-
-          if (
-            !foundInvoice &&
-            invoice.balanceBfwd &&
-            Number(invoice.balanceBfwd.amount) > 0
-          ) {
-            await this.financeService.deleteBalance(
-              invoice.balanceBfwd,
-              transactionalEntityManager,
-            );
           }
 
           // Use the final invoice (after balance update) for logging and return

@@ -16,6 +16,7 @@ import { TeachersEntity } from 'src/profiles/entities/teachers.entity';
 import { StudentsEntity } from 'src/profiles/entities/students.entity';
 import { ParentsEntity } from 'src/profiles/entities/parents.entity';
 import { HeadCommentDto } from './dtos/head-comment.dto';
+import { TeacherCommentDto } from './dtos/teacher-comment.dto';
 import { ReportsModel } from './models/reports.model';
 import { ExamType } from 'src/marks/models/examtype.enum';
 import { PermissionsGuard } from 'src/auth/guards/permissions.guard';
@@ -74,6 +75,15 @@ export class ReportsController {
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
     return this.reportsService.saveHeadComment(comment, profile);
+  }
+
+  @Post('/save-teacher-comment')
+  @HasPermissions(PERMISSIONS.REPORTS.EDIT_COMMENT)
+  saveTeacherComment(
+    @Body() comment: TeacherCommentDto,
+    @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
+  ) {
+    return this.reportsService.saveTeacherComment(comment, profile);
   }
 
   @Get('/view/:name/:num/:year/:examType')

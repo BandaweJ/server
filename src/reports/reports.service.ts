@@ -21,6 +21,7 @@ import * as PDFDocument from 'pdfkit';
 import * as fs from 'fs';
 import { ReportsModel } from './models/reports.model';
 import { HeadCommentDto } from './dtos/head-comment.dto';
+import { TeacherCommentDto } from './dtos/teacher-comment.dto';
 import * as path from 'path';
 import { ExamType } from 'src/marks/models/examtype.enum';
 import { NotificationService } from '../notifications/services/notification.service';
@@ -48,16 +49,18 @@ export class ReportsService {
     examType: string,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ): Promise<ReportsModel[]> {
-    const reports: ReportModel[] = [];
-
-    // get class list
+    // 1) Fetch enrolment for the class
     const classList = await this.enrolmentService.getEnrolmentByClass(
       name,
       num,
       year,
     );
 
-    //get all marks for the class for all subjects and current examtype
+    if (!classList || classList.length === 0) {
+      return [];
+    }
+
+    // 2) Fetch marks for the class
     const marks = await this.marksService.getMarksbyClass(
       num,
       year,
@@ -66,113 +69,26 @@ export class ReportsService {
       profile,
     );
 
-    //create a set of subjects to avoid duplicates
-    const subjectsSet = new Set<SubjectSetItem>();
-
-    //populate subjectset with subjects done in class
-    //used set so no duplicates
-    marks.forEach((mark) => {
-      //loop through all marks and add each subject to set
-      subjectsSet.add(new SubjectSetItem(mark.subject.code));
-    });
-
-    // calculate subject average and assign to each subject
-    subjectsSet.forEach((subject) => {
-      const subjectmarks = marks.filter(
-        //get marks for a particular subject onle
-        (mark) => mark.subject.code === subject.code,
-      );
-
-      //clculate the average mark for the subject
-      const subjectAverage =
-        subjectmarks.reduce((sum, current) => sum + current.mark, 0) /
-        subjectmarks.length;
-
-      // --- START OF CORRECTED RANKING LOGIC ---
-      // 1. Sort marks in descending order
-      subjectmarks.sort((a, b) => b.mark - a.mark);
-
-      // 2. Implement manual ranking to handle ties correctly
-      let currentRank = 1;
-      let lastMark = -1;
-
-      subjectmarks.forEach((mark, index) => {
-        // If the current mark is less than the previous mark,
-        // it's a new rank. Otherwise, it's a tie.
-        if (mark.mark < lastMark) {
-          currentRank = index + 1;
-        }
-
-        // Assign the calculated position string
-        mark.position = currentRank + '/' + subjectmarks.length;
-
-        // Update lastMark for the next iteration
-        lastMark = mark.mark;
-      });
-      // --- END OF CORRECTED RANKING LOGIC ---
-
-      subject.average = subjectAverage;
-    });
-
-    // create empty report for each student in class
-    // fill in details like : studentNumber, name, surname, className, termNumber, termYear, examType
-    for (const enrol of classList) {
-      const report = new ReportModel();
-      report.subjectsTable = [];
-      report.studentNumber = enrol.student.studentNumber;
-      report.surname = enrol.student.surname;
-      report.name = enrol.student.name;
-      report.className = enrol.name;
-      report.termNumber = enrol.num;
-      report.termYear = enrol.year;
-      report.examType = examType;
-
-      //get student's marks
-      const studentMarks = marks.filter(
-        (mark) => mark.student.studentNumber === enrol.student.studentNumber,
-      );
-
-      // create a row for the Reports Table and push it to the report table
-      //report table is a table if subjects and marks and comments in each report
-      for (const subjectMark of studentMarks) {
-        const subjectInfo = new SubjectInfoModel();
-
-        subjectInfo.comment = subjectMark.comment;
-        subjectInfo.mark = subjectMark.mark;
-        subjectInfo.position = subjectMark.position;
-        subjectInfo.subjectCode = subjectMark.subject.code;
-        subjectInfo.subjectName = subjectMark.subject.name;
-        subjectInfo.grade = await this.computeGrade(
-          subjectMark.mark,
-          report.className,
-        );
-        subjectInfo.averageMark = Array.from(subjectsSet).find(
-          (subject) => subject.code === subjectInfo.subjectCode,
-        ).average;
-
-        report.subjectsTable.push(subjectInfo);
-      }
-
-      reports.push(report);
+    if (!marks || marks.length === 0) {
+      return [];
     }
 
-    //assign the classSize which equals reports.length and calculate avarage mark for each report/student
-    reports.map((report) => {
-      report.classSize = reports.length;
-      report.percentageAverge =
-        report.subjectsTable.reduce((sum, current) => sum + current.mark, 0) /
-        report.subjectsTable.length;
-    });
+    // 3) Build subject statistics (average + rankings)
+    const subjectsMap = this.buildSubjectStatisticsAndRankings(marks);
 
-    //sort reports based on avarage mark to assign positions
-    reports.sort((a, b) => b.percentageAverge - a.percentageAverge);
-
-    //add 1 to each report position to offset array start position
-    reports.forEach(
-      (report) => (report.classPosition = reports.indexOf(report) + 1),
+    // 4) Build per‑student reports
+    const reports = await this.buildReportsForClass(
+      classList,
+      marks,
+      subjectsMap,
+      examType,
     );
 
-    //get Teachers' comments for the class, term and examType
+    // 5) Compute class‑level stats and positions
+    this.computeClassSizeAndAverages(reports);
+    this.assignClassPositions(reports);
+
+    // 6) Attach teacher comments
     const comments = await this.teacherCommentRepository.find({
       where: {
         name,
@@ -182,80 +98,21 @@ export class ReportsService {
       },
       relations: ['student', 'teacher'],
     });
+    this.applyTeacherComments(reports, comments);
 
-    //assign class Teacher's comments to each report
-    reports.map((report) => {
-      comments.map((comment) => {
-        if (comment.student.studentNumber === report.studentNumber) {
-          report.classTrComment = comment.comment;
-        }
-      });
-    });
+    // 7) Calculate subjects passed
+    this.computeSubjectsPassed(reports);
 
-    //calculate subjects passed
-    reports.map((report) => {
-      report.subjectsPassed = 0;
-      report.subjectsTable.map((subj) => {
-        if (subj.mark >= 50) {
-          report.subjectsPassed += 1;
-        }
-      });
-    });
+    // 8) Wrap in ReportsModel[]
+    const reps: ReportsModel[] = this.wrapReports(
+      reports,
+      name,
+      num,
+      year,
+      examType,
+    );
 
-    //create an array of reportsModel objects to encapsulate each report with much accessed data
-    //so that it becomes easy to access that data without accessing the actual report
-    // const reps: ReportsModel[] = [];
-
-    // reports.map((report) => {
-    //   const rep: ReportsModel = new ReportsModel();
-
-    //   rep.name = name;
-    //   rep.num = num;
-    //   rep.report = report;
-    //   rep.studentNumber = report.studentNumber;
-    //   rep.year = year;
-    //   rep.examType = examType;
-
-    //   reps.push(rep);
-    // });
-
-    // // check if reports already saved and assign id and head's comment
-    // const savedReports = await this.viewReports(
-    //   name,
-    //   num,
-    //   year,
-    //   examType,
-    //   profile,
-    // );
-
-    // // return savedReports;
-    // savedReports.map((rep) => {
-    //   reps.map((rp) => {
-    //     if (rep.studentNumber === rp.studentNumber) {
-    //       if (rep.report.headComment) {
-    //         rp.report.headComment = rep.report.headComment;
-    //         rp.id = rep.id;
-    //       }
-    //     }
-    //   });
-    // });
-
-    const reps: ReportsModel[] = [];
-
-    reports.map((report) => {
-      const rep: ReportsModel = new ReportsModel();
-
-      rep.name = name;
-      rep.num = num;
-      rep.report = report;
-      rep.studentNumber = report.studentNumber;
-      rep.year = year;
-      rep.examType = examType;
-
-      reps.push(rep);
-    });
-
-    // check if reports already saved and assign id and head's comment
+    // 9) Merge in existing saved report metadata (headComment, id)
     const savedReports = await this.viewReports(
       name,
       num,
@@ -263,41 +120,15 @@ export class ReportsService {
       examType,
       profile,
     );
+    this.mergeSavedReportsMetadata(reps, savedReports);
 
-    savedReports.forEach((savedRepEntity) => {
-      reps.forEach((generatedRep) => {
-        if (savedRepEntity.studentNumber === generatedRep.studentNumber) {
-          // Access the headComment from the inner 'report' property
-          if (savedRepEntity.report?.headComment) {
-            generatedRep.report.headComment = savedRepEntity.report.headComment;
-            generatedRep.id = savedRepEntity.id;
-          }
-          // else if (savedRepEntity?.report?.report.headComment) {
-          //   generatedRep.report.headComment =
-          //     savedRepEntity.report.report.headComment;
-          //   generatedRep.id = savedRepEntity.id;
-          // }
-        }
-      });
-    });
+    // 10) A‑Level points
+    this.computeALevelPoints(reps);
 
-    //assign point for A level students
-    reps.map((rep) => {
-      if (rep.name.charAt(0) === '5' || rep.name.charAt(0) === '6') {
-        let pnts = 0;
-        rep.report.subjectsTable.forEach((subj) => {
-          pnts += this.computePoints(subj.mark);
-        });
-        rep.report.points = pnts;
-      }
-    });
+    // 11) Normalise subject ordering
+    this.sortSubjectsForFrontend(reps);
 
-    //sort the reports table so that the list of subjects on the report is the same for the fronent
-    reps.map((rep) => {
-      rep.report.subjectsTable.sort((a, b) => +b.subjectCode - +a.subjectCode);
-    });
-
-    //calculate the number of A*,A,B,C,D s for the MarksSheet
+    // 12) Calculate symbols and filter students without marks (existing behaviour)
     reps.map((rep) => {
       rep.report.symbols = Array(5).fill(0);
       rep.report.subjectsTable.forEach((subj) => {
@@ -315,10 +146,283 @@ export class ReportsService {
       });
     });
 
-    // Filter out students without marks and recalculate positions
     const filteredReps = this.filterStudentsWithMarks(reps);
-
     return filteredReps;
+  }
+
+  /**
+   * Build subject statistics (average + ranking) per subject.
+   * Preserves existing behaviour while avoiding Set<SubjectSetItem> pitfalls
+   * and repeated filter work.
+   */
+  private buildSubjectStatisticsAndRankings(
+    marks: any[],
+  ): Map<string, SubjectSetItem> {
+    const subjectsMap = new Map<string, SubjectSetItem>();
+
+    // Ensure one SubjectSetItem per subject code
+    marks.forEach((mark) => {
+      const code = mark.subject.code;
+      if (!subjectsMap.has(code)) {
+        subjectsMap.set(code, new SubjectSetItem(code));
+      }
+    });
+
+    // For each subject, compute average and ranking
+    subjectsMap.forEach((subject) => {
+      const subjectMarks = marks.filter(
+        (mark) => mark.subject.code === subject.code,
+      );
+
+      if (!subjectMarks.length) {
+        subject.average = 0;
+        return;
+      }
+
+      const subjectAverage =
+        subjectMarks.reduce((sum, current) => sum + current.mark, 0) /
+        subjectMarks.length;
+
+      // Existing corrected ranking logic, preserved
+      subjectMarks.sort((a, b) => b.mark - a.mark);
+
+      let currentRank = 1;
+      let lastMark = -1;
+
+      subjectMarks.forEach((mark, index) => {
+        if (mark.mark < lastMark) {
+          currentRank = index + 1;
+        }
+
+        mark.position = currentRank + '/' + subjectMarks.length;
+        lastMark = mark.mark;
+      });
+
+      subject.average = subjectAverage;
+    });
+
+    return subjectsMap;
+  }
+
+  /**
+   * Build per‑student reports for a class.
+   */
+  private async buildReportsForClass(
+    classList: any[],
+    marks: any[],
+    subjectsMap: Map<string, SubjectSetItem>,
+    examType: string,
+  ): Promise<ReportModel[]> {
+    const reports: ReportModel[] = [];
+
+    for (const enrol of classList) {
+      const report = new ReportModel();
+      report.subjectsTable = [];
+      report.studentNumber = enrol.student.studentNumber;
+      report.surname = enrol.student.surname;
+      report.name = enrol.student.name;
+      report.className = enrol.name;
+      report.termNumber = enrol.num;
+      report.termYear = enrol.year;
+      report.examType = examType;
+
+      const studentMarks = marks.filter(
+        (mark) => mark.student.studentNumber === enrol.student.studentNumber,
+      );
+
+      for (const subjectMark of studentMarks) {
+        const subjectInfo = new SubjectInfoModel();
+
+        subjectInfo.comment = subjectMark.comment;
+        subjectInfo.mark = subjectMark.mark;
+        subjectInfo.position = subjectMark.position;
+        subjectInfo.subjectCode = subjectMark.subject.code;
+        subjectInfo.subjectName = subjectMark.subject.name;
+        subjectInfo.grade = await this.computeGrade(
+          subjectMark.mark,
+          report.className,
+        );
+
+        const subjectStats = subjectsMap.get(subjectInfo.subjectCode);
+        subjectInfo.averageMark = subjectStats?.average ?? 0;
+
+        report.subjectsTable.push(subjectInfo);
+      }
+
+      reports.push(report);
+    }
+
+    return reports;
+  }
+
+  /**
+   * Assign class size and percentage averages, guarding against empty tables.
+   */
+  private computeClassSizeAndAverages(reports: ReportModel[]): void {
+    const classSize = reports.length;
+
+    reports.forEach((report) => {
+      report.classSize = classSize;
+
+      if (!report.subjectsTable || report.subjectsTable.length === 0) {
+        report.percentageAverge = 0;
+        return;
+      }
+
+      const total = report.subjectsTable.reduce(
+        (sum, current) => sum + current.mark,
+        0,
+      );
+      report.percentageAverge = total / report.subjectsTable.length;
+    });
+  }
+
+  /**
+   * Assign class positions based on percentage average.
+   * This keeps the same semantics but avoids O(n^2) indexOf usage.
+   */
+  private assignClassPositions(reports: ReportModel[]): void {
+    reports.sort((a, b) => b.percentageAverge - a.percentageAverge);
+    reports.forEach((report, index) => {
+      report.classPosition = index + 1;
+    });
+  }
+
+  /**
+   * Attach teacher comments using a map keyed by student number.
+   * NOTE: this now acts as a LEGACY FALLBACK only.
+   * For new reports, the primary source of the teacher/class comment
+   * is the ReportsEntity.report.classTrComment field.
+   */
+  private applyTeacherComments(
+    reports: ReportModel[],
+    comments: TeacherCommentEntity[],
+  ): void {
+    if (!comments || comments.length === 0) {
+      return;
+    }
+
+    const commentByStudent = new Map<string, string>();
+    comments.forEach((c) => {
+      if (c.student?.studentNumber) {
+        commentByStudent.set(c.student.studentNumber, c.comment);
+      }
+    });
+
+    reports.forEach((report) => {
+      // If the report already has a class teacher comment from the saved report JSON,
+      // do NOT override it with legacy data.
+      if (report.classTrComment) {
+        return;
+      }
+      const legacyComment = commentByStudent.get(report.studentNumber);
+      if (legacyComment) {
+        report.classTrComment = legacyComment;
+      }
+    });
+  }
+
+  /**
+   * Calculates the number of subjects passed per student.
+   */
+  private computeSubjectsPassed(reports: ReportModel[]): void {
+    reports.forEach((report) => {
+      report.subjectsPassed = 0;
+      report.subjectsTable.forEach((subj) => {
+        if (subj.mark >= 50) {
+          report.subjectsPassed += 1;
+        }
+      });
+    });
+  }
+
+  /**
+   * Wrap ReportModel objects into ReportsModel transport objects.
+   */
+  private wrapReports(
+    reports: ReportModel[],
+    name: string,
+    num: number,
+    year: number,
+    examType: string,
+  ): ReportsModel[] {
+    const reps: ReportsModel[] = [];
+
+    reports.forEach((report) => {
+      const rep: ReportsModel = new ReportsModel();
+
+      rep.name = name;
+      rep.num = num;
+      rep.report = report;
+      rep.studentNumber = report.studentNumber;
+      rep.year = year;
+      rep.examType = examType;
+
+      reps.push(rep);
+    });
+
+    return reps;
+  }
+
+  /**
+   * Merge saved report metadata (headComment, id) into generated reports.
+   */
+  private mergeSavedReportsMetadata(
+    generatedReports: ReportsModel[],
+    savedReports: ReportsEntity[],
+  ): void {
+    if (!savedReports || savedReports.length === 0) {
+      return;
+    }
+
+    const savedByStudent = new Map<string, ReportsEntity>();
+    savedReports.forEach((saved) => {
+      if (saved.studentNumber) {
+        savedByStudent.set(saved.studentNumber, saved);
+      }
+    });
+
+    generatedReports.forEach((generated) => {
+      const saved = savedByStudent.get(generated.studentNumber);
+      if (!saved?.report) {
+        return;
+      }
+
+      // Head's comment (existing behaviour)
+      if (saved.report.headComment) {
+        generated.report.headComment = saved.report.headComment;
+        generated.id = saved.id;
+      }
+
+      // NEW: class/form teacher comment primarily comes from the saved report JSON
+      if (saved.report.classTrComment) {
+        generated.report.classTrComment = saved.report.classTrComment;
+      }
+    });
+  }
+
+  /**
+   * Assign A‑Level points for relevant classes (same rules as before).
+   */
+  private computeALevelPoints(reps: ReportsModel[]): void {
+    reps.forEach((rep) => {
+      if (rep.name.charAt(0) === '5' || rep.name.charAt(0) === '6') {
+        let pnts = 0;
+        rep.report.subjectsTable.forEach((subj) => {
+          pnts += this.computePoints(subj.mark);
+        });
+        rep.report.points = pnts;
+      }
+    });
+  }
+
+  /**
+   * Ensure subjects on each report are sorted consistently for the frontend.
+   */
+  private sortSubjectsForFrontend(reps: ReportsModel[]): void {
+    reps.forEach((rep) => {
+      rep.report.subjectsTable.sort((a, b) => +b.subjectCode - +a.subjectCode);
+    });
   }
 
   // async generateReports(
@@ -788,6 +892,23 @@ export class ReportsService {
     comment.report.report.headComment = comment.comment;
 
     //save the report
+    return await this.reportsRepository.save({
+      ...comment.report,
+    });
+  }
+
+  /**
+   * Save the class / form teacher's comment directly on the report JSON.
+   * This is the new, preferred way of storing teacher comments.
+   */
+  async saveTeacherComment(
+    comment: TeacherCommentDto,
+    profile: StudentsEntity | TeachersEntity | ParentsEntity,
+  ): Promise<ReportsEntity> {
+    // assign the teacher's comment to the report JSON
+    comment.report.report.classTrComment = comment.comment;
+
+    // persist via ReportsEntity
     return await this.reportsRepository.save({
       ...comment.report,
     });
