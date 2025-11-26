@@ -453,8 +453,10 @@ export class InvoiceService {
             invoiceToSave.student = student;
             invoiceToSave.enrol = enrol;
             invoiceToSave.bills = bills;
-            invoiceToSave.invoiceNumber =
-              invoice.invoiceNumber || (await this.generateInvoiceNumber());
+          // NEW INVOICE: always generate a fresh invoice number on the server
+          // to avoid duplicate key violations on the unique invoiceNumber constraint.
+          // We deliberately ignore any invoiceNumber coming from the client for new invoices.
+          invoiceToSave.invoiceNumber = await this.generateInvoiceNumber();
             invoiceToSave.invoiceDate = invoice.invoiceDate
               ? new Date(invoice.invoiceDate)
               : new Date();
