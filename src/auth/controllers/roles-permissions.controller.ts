@@ -107,5 +107,13 @@ export class RolesPermissionsController {
     return { hasPermission };
   }
 
+  // Seed default role permissions (admin only endpoint)
+  @Post('seed-role-permissions')
+  @HttpCode(HttpStatus.OK)
+  async seedRolePermissions() {
+    await this.rolesPermissionsService.seedDefaultRolePermissions();
+    return { message: 'Role permissions seeded successfully' };
+  }
+
 }
 

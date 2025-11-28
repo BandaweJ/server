@@ -402,13 +402,46 @@ export class RolesPermissionsService {
       relations: ['roleEntity', 'roleEntity.permissions'],
     });
 
-    if (!account || !account.roleEntity || !account.roleEntity.permissions) {
+    if (!account) {
+      this.logger.warn(`Account ${accountId} not found`);
       return [];
     }
 
-    return account.roleEntity.permissions
-      .filter((p) => p.active)
-      .map((p) => p.name);
+    // If roleEntity is loaded and has permissions, use it
+    if (account.roleEntity && account.roleEntity.permissions) {
+      return account.roleEntity.permissions
+        .filter((p) => p.active)
+        .map((p) => p.name);
+    }
+
+    // Fallback: If roleEntity is not loaded but account has a role string,
+    // look up the role by name and get its permissions
+    if (account.role && !account.roleEntity) {
+      this.logger.warn(`Account ${accountId} has role "${account.role}" but no roleId. Looking up role by name...`);
+      
+      const role = await this.roleRepository.findOne({
+        where: { name: account.role },
+        relations: ['permissions'],
+      });
+
+      if (role && role.permissions) {
+        // Optionally update the account to set roleId for future lookups
+        if (!account.roleId) {
+          account.roleId = role.id;
+          account.roleEntity = role;
+          await this.accountsRepository.save(account).catch(err => {
+            this.logger.warn(`Failed to update account ${accountId} with roleId:`, err);
+          });
+        }
+
+        return role.permissions
+          .filter((p) => p.active)
+          .map((p) => p.name);
+      }
+    }
+
+    this.logger.warn(`Account ${accountId} has no role entity or permissions`);
+    return [];
   }
 
   // Check if user has permission
