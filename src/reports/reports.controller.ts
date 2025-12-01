@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Res,
   UseGuards,
 } from '@nestjs/common';
@@ -101,6 +102,28 @@ export class ReportsController {
   @Get('/view/:studentNumber')
   getStudentReports(@Param('studentNumber') studentNumber: string) {
     return this.reportsService.getStudentReports(studentNumber);
+  }
+
+  @Get('/search')
+  @HasPermissions(PERMISSIONS.REPORTS.VIEW)
+  searchReports(
+    @Query('studentNumber') studentNumber?: string,
+    @Query('name') name?: string,
+    @Query('num') num?: string,
+    @Query('year') year?: string,
+    @Query('examType') examType?: string,
+    @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
+  ) {
+    return this.reportsService.searchReports(
+      {
+        studentNumber,
+        name,
+        num: num ? parseInt(num, 10) : undefined,
+        year: year ? parseInt(year, 10) : undefined,
+        examType,
+      },
+      profile,
+    );
   }
 
   // @Get('view')

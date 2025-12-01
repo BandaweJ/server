@@ -3,6 +3,8 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  Logger,
+  BadRequestException,
 } from '@nestjs/common';
 import { EnrolmentService } from '../enrolment/enrolment.service';
 import { MarksService } from '../marks/marks.service';
@@ -30,6 +32,8 @@ import { ResourceByIdService } from '../resource-by-id/resource-by-id.service';
 
 @Injectable()
 export class ReportsService {
+  private readonly logger = new Logger(ReportsService.name);
+
   constructor(
     private marksService: MarksService,
     private enrolmentService: EnrolmentService,
@@ -888,30 +892,157 @@ export class ReportsService {
     comment: HeadCommentDto,
     profile: StudentsEntity | TeachersEntity | ParentsEntity,
   ): Promise<ReportsEntity> {
-    //assign the comment to the report
-    comment.report.report.headComment = comment.comment;
-
-    //save the report
-    return await this.reportsRepository.save({
-      ...comment.report,
+    this.logger.debug('saveHeadComment called', {
+      hasComment: !!comment.comment,
+      hasReport: !!comment.report,
+      reportId: comment.report?.id,
+      reportKeys: comment.report ? Object.keys(comment.report) : [],
     });
+
+    // Validate that report exists and has an ID (must be saved first)
+    if (!comment.report) {
+      this.logger.error('Report data is missing from request', { comment });
+      throw new BadRequestException('Report data is missing from request');
+    }
+
+    if (!comment.report.id) {
+      this.logger.warn('Attempt to save comment on unsaved report', {
+        studentNumber: comment.report.studentNumber,
+        name: comment.report.name,
+        num: comment.report.num,
+        year: comment.report.year,
+      });
+      throw new BadRequestException(
+        'Cannot save comment: Report must be saved to database first. Please save the report before adding comments.'
+      );
+    }
+
+    // Find the existing report in the database
+    const existingReport = await this.reportsRepository.findOne({
+      where: { id: comment.report.id },
+    });
+
+    if (!existingReport) {
+      throw new NotFoundException(
+        `Report with ID ${comment.report.id} not found. Please save the report first.`
+      );
+    }
+
+    // Update the head comment in the report JSON
+    existingReport.report = {
+      ...existingReport.report,
+      headComment: comment.comment,
+    };
+
+    // Save the updated report
+    return await this.reportsRepository.save(existingReport);
   }
 
   /**
    * Save the class / form teacher's comment directly on the report JSON.
    * This is the new, preferred way of storing teacher comments.
+   * 
+   * IMPORTANT: The report must be saved to the database first (have an ID).
+   * Comments cannot be saved on unsaved reports.
    */
   async saveTeacherComment(
     comment: TeacherCommentDto,
     profile: StudentsEntity | TeachersEntity | ParentsEntity,
   ): Promise<ReportsEntity> {
-    // assign the teacher's comment to the report JSON
-    comment.report.report.classTrComment = comment.comment;
-
-    // persist via ReportsEntity
-    return await this.reportsRepository.save({
-      ...comment.report,
+    this.logger.debug('saveTeacherComment called', {
+      hasComment: !!comment.comment,
+      hasReport: !!comment.report,
+      hasReportReport: !!(comment.report?.report),
+      reportId: comment.report?.id,
     });
+
+    // Validate that report and report.report exist
+    if (!comment.report) {
+      this.logger.error('Report data is missing from request', { comment });
+      throw new BadRequestException('Report data is missing from request');
+    }
+
+    if (!comment.report.report) {
+      this.logger.error('Report JSON data is missing from request', { 
+        report: comment.report,
+        reportKeys: Object.keys(comment.report || {}),
+      });
+      throw new BadRequestException('Report JSON data is missing from request');
+    }
+
+    // CRITICAL: Report must have an ID (must be saved first)
+    if (!comment.report.id) {
+      this.logger.warn('Attempt to save comment on unsaved report', {
+        studentNumber: comment.report.studentNumber,
+        name: comment.report.name,
+        num: comment.report.num,
+        year: comment.report.year,
+      });
+      throw new BadRequestException(
+        'Cannot save comment: Report must be saved to database first. Please save the report before adding comments.'
+      );
+    }
+
+    // Find the existing report in the database
+    const existingReport = await this.reportsRepository.findOne({
+      where: { id: comment.report.id },
+    });
+
+    if (!existingReport) {
+      throw new NotFoundException(
+        `Report with ID ${comment.report.id} not found. Please save the report first.`
+      );
+    }
+
+    // Update the teacher comment in the report JSON
+    existingReport.report = {
+      ...existingReport.report,
+      classTrComment: comment.comment,
+    };
+
+    // Save the updated report
+    return await this.reportsRepository.save(existingReport);
+  }
+
+  /**
+   * Search reports with optional filters
+   * Supports filtering by studentNumber, name (class), num (term), year, and examType
+   */
+  async searchReports(
+    filters: {
+      studentNumber?: string;
+      name?: string;
+      num?: number;
+      year?: number;
+      examType?: string;
+    },
+    profile: TeachersEntity | StudentsEntity | ParentsEntity,
+  ): Promise<ReportsEntity[]> {
+    const where: any = {};
+
+    if (filters.studentNumber) {
+      where.studentNumber = filters.studentNumber;
+    }
+    if (filters.name) {
+      where.name = filters.name;
+    }
+    if (filters.num !== undefined) {
+      where.num = filters.num;
+    }
+    if (filters.year !== undefined) {
+      where.year = filters.year;
+    }
+    if (filters.examType) {
+      where.examType = filters.examType;
+    }
+
+    const reports = await this.reportsRepository.find({
+      where,
+      order: { year: 'DESC', num: 'DESC', studentNumber: 'ASC' },
+      take: 100, // Limit results to prevent performance issues
+    });
+
+    return reports.map((rep) => this.normalizeReportStructure(rep));
   }
 
   async viewReports(
@@ -1471,7 +1602,11 @@ export class ReportsService {
       reportEntity.report = reportEntity.report.report; //.report;
     }
     // If it's already in the single nested structure, 'reportEntity.report' remains as is.
-    return reportEntity;
+    // Ensure id is preserved (it might be missing if report was just generated)
+    return {
+      ...reportEntity,
+      id: reportEntity.id, // Explicitly preserve id
+    };
   }
 
   /**

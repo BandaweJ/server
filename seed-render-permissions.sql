@@ -271,3 +271,5 @@ ORDER BY r.name, p.name;
 
 -- Final success message
 SELECT '✅ PERMISSIONS SEEDING COMPLETED SUCCESSFULLY! ✅' as result;
+
+

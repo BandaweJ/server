@@ -48,3 +48,5 @@ JOIN permissions p ON p.id = rp."permissionId"
 WHERE r.name IN ('teacher', 'admin', 'director', 'hod')
   AND p.resource = 'marks'
 ORDER BY r.name, p.name;
+
+

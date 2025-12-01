@@ -505,12 +505,15 @@ export class RolesPermissionsService {
         PERMISSIONS.FINANCE.CREATE,
         PERMISSIONS.USERS.VIEW,
         PERMISSIONS.USERS.CREATE,
+        PERMISSIONS.REPORTS.VIEW,
+        PERMISSIONS.REPORTS.DOWNLOAD, // Reception can download saved reports
       ],
       [ROLES.auditor]: [
         // Auditor gets read-only access to finance and reports
         PERMISSIONS.FINANCE.VIEW,
         PERMISSIONS.FINANCE.VIEW_REPORTS,
         PERMISSIONS.REPORTS.VIEW,
+        PERMISSIONS.REPORTS.DOWNLOAD, // Auditor can download saved reports
         PERMISSIONS.SYSTEM.VIEW_AUDIT,
       ],
     };

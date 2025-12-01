@@ -33,3 +33,4 @@ WHERE r.name IN ('admin', 'teacher', 'hod', 'director')
 GROUP BY r.name
 ORDER BY r.name;
 
+

@@ -40,3 +40,4 @@ FROM accounts a
 LEFT JOIN roles r ON a."roleId" = r.id
 WHERE a.role IS NOT NULL;
 
+

@@ -72,3 +72,5 @@ UPDATE receipts SET description = 'Payment receipt' WHERE description IS NULL;
 ALTER TABLE receipts ALTER COLUMN description SET NOT NULL;
 ```
 
+
+

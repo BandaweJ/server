@@ -17,3 +17,5 @@ export class MakeReceiptDescriptionNullable1732540656000 implements MigrationInt
     }
 }
 
+
+

@@ -18,7 +18,6 @@ import { TeachersEntity } from '../profiles/entities/teachers.entity';
 import { CreateMarkDto } from './dtos/create-mark.dto';
 
 import { AuthGuard } from '@nestjs/passport';
-import { CommentDto } from './dtos/comment.dto';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { HasPermissions } from '../auth/decorators/has-permissions.decorator';
 import { PERMISSIONS } from '../auth/models/permissions.constants';
@@ -155,31 +154,6 @@ export class MarksController {
     return this.marksService.getPerfomanceData(num, year, name, examType);
   }
 
-  @Post('/comments')
-  createComment(
-    @Body() commentDto: CommentDto,
-    @GetUser() profile: TeachersEntity,
-  ) {
-    // console.log(commentDto);
-    return this.marksService.createComment(commentDto, profile);
-  }
-
-  @Get('/comments/:name/:num/:year/:examType')
-  fetchClassComments(
-    @Param('name') name: string,
-    @Param('num') num: number,
-    @Param('year') year: number,
-    @Param('examType') examType: string,
-    @GetUser() profile: TeachersEntity,
-  ) {
-    return this.marksService.fetchClassComments(
-      name,
-      num,
-      year,
-      examType,
-      profile,
-    );
-  }
 
   @Get('/progress/:num/:year/:clas/:examType')
   fetchMarksProgress(
