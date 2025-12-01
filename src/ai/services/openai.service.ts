@@ -53,7 +53,7 @@ export class OpenAIService {
         messages: [
           {
             role: 'system',
-            content: 'You are an experienced teacher writing constructive, encouraging comments for student report cards. Keep comments professional, specific, and appropriate for the academic level.',
+            content: 'You are an experienced teacher writing brief, encouraging, and motivating comments for student report cards. Keep comments positive, uplifting, and inspiring while being honest. Focus on motivation and encouragement.',
           },
           {
             role: 'user',
@@ -96,23 +96,24 @@ export class OpenAIService {
     const level = request.studentLevel ? ` for ${request.studentLevel} students` : '';
     
     return `
-Generate exactly 5 brief, constructive teacher comments for a student who scored ${request.mark}${request.maxMark ? `/${request.maxMark}` : ''} (${percentage.toFixed(1)}%)${subject}${level}.
+Generate exactly 5 brief, encouraging, and motivating teacher comments for a student who scored ${request.mark}${request.maxMark ? `/${request.maxMark}` : ''} (${percentage.toFixed(1)}%)${subject}${level}.
 
 Performance Level: ${performanceLevel}
 
 Requirements:
-- Each comment should be 3-8 words maximum
-- Comments should be encouraging yet honest
-- Vary the tone and focus (effort, improvement areas, strengths, next steps)
-- Use appropriate academic language
+- Each comment must be exactly 5 words maximum
+- Comments must be encouraging, motivating, and positive
+- Focus on building confidence and inspiring improvement
+- Use uplifting and supportive language
+- Even for lower marks, frame feedback positively and constructively
 - Format as a numbered list (1. 2. 3. 4. 5.)
 
-Examples of good comments:
+Examples of good comments (5 words max):
 - "Excellent work, keep it up"
-- "Shows good understanding, practice more"
-- "Needs improvement in key concepts"
-- "Great effort, aim higher next time"
-- "Solid foundation, build on strengths"
+- "You're making great progress, continue"
+- "Keep pushing forward, you've got this"
+- "Great effort, aim even higher"
+- "You can do better, believe in yourself"
     `.trim();
   }
 
@@ -134,7 +135,15 @@ Examples of good comments:
         // Remove numbering (1. 2. etc.) and clean up
         return line.replace(/^\d+\.\s*/, '').trim();
       })
-      .filter(line => line.length > 0 && line.length <= 100); // Filter reasonable length comments
+      .filter(line => {
+        // Filter out empty lines and validate word count (should be 5 words max as per prompt)
+        if (line.length === 0 || line.length > 100) {
+          return false;
+        }
+        // Count words - if more than 5, filter it out (AI should follow instructions)
+        const wordCount = line.split(/\s+/).filter(word => word.length > 0).length;
+        return wordCount <= 5;
+      });
 
     // Return up to 5 comments
     return lines.slice(0, 5);
@@ -147,42 +156,42 @@ Examples of good comments:
     if (percentage >= 80) {
       return [
         'Excellent work, keep it up',
-        'Outstanding performance shown',
-        'Superb effort and results',
-        'Exceptional understanding demonstrated',
+        'Outstanding performance, stay motivated',
+        'Superb effort, continue excelling',
+        'Exceptional understanding, keep going',
         'Continue this excellent standard'
       ];
     } else if (percentage >= 70) {
       return [
         'Good work, well done',
-        'Shows solid understanding',
-        'Pleasing effort and results',
-        'Good grasp of concepts',
+        'Shows solid understanding, continue',
+        'Great effort, keep improving',
+        'Good progress, stay focused',
         'Keep up the good work'
       ];
     } else if (percentage >= 60) {
       return [
-        'Satisfactory performance shown',
-        'Fair attempt, keep improving',
-        'Shows basic understanding',
-        'Room for improvement exists',
-        'Continue working steadily'
+        'Good progress, keep pushing',
+        'You can do even better',
+        'Keep working, you\'re improving',
+        'Stay positive, continue learning',
+        'Believe in yourself, keep going'
       ];
     } else if (percentage >= 50) {
       return [
-        'Needs more focused effort',
-        'Requires additional practice',
-        'Basic concepts need strengthening',
-        'Work harder to improve',
-        'Seek help when needed'
+        'Keep trying, you\'ll improve',
+        'Stay focused, practice more',
+        'You can do better, believe',
+        'Keep working hard, stay positive',
+        'Don\'t give up, keep going'
       ];
     } else {
       return [
-        'Significant improvement needed',
-        'Requires intensive support',
-        'Must work much harder',
-        'Seek immediate assistance',
-        'Focus on basic concepts'
+        'You can improve, stay positive',
+        'Keep trying, don\'t give up',
+        'Believe in yourself, keep working',
+        'Stay motivated, you\'ll get there',
+        'Keep pushing forward, stay strong'
       ];
     }
   }
