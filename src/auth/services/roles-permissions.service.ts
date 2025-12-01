@@ -494,6 +494,7 @@ export class RolesPermissionsService {
         PERMISSIONS.MARKS.EDIT,
         PERMISSIONS.REPORTS.VIEW,
         PERMISSIONS.REPORTS.GENERATE,
+        PERMISSIONS.REPORTS.EDIT_COMMENT, // Teachers can edit comments on reports
         PERMISSIONS.ATTENDANCE.VIEW,
         PERMISSIONS.ATTENDANCE.MARK,
         PERMISSIONS.ENROLMENT.VIEW,
@@ -507,6 +508,7 @@ export class RolesPermissionsService {
         PERMISSIONS.USERS.CREATE,
         PERMISSIONS.REPORTS.VIEW,
         PERMISSIONS.REPORTS.DOWNLOAD, // Reception can download saved reports
+        PERMISSIONS.REPORTS.EDIT_COMMENT, // Reception can edit comments on reports
       ],
       [ROLES.auditor]: [
         // Auditor gets read-only access to finance and reports
@@ -514,6 +516,7 @@ export class RolesPermissionsService {
         PERMISSIONS.FINANCE.VIEW_REPORTS,
         PERMISSIONS.REPORTS.VIEW,
         PERMISSIONS.REPORTS.DOWNLOAD, // Auditor can download saved reports
+        PERMISSIONS.REPORTS.EDIT_COMMENT, // Auditor can edit comments on reports
         PERMISSIONS.SYSTEM.VIEW_AUDIT,
       ],
     };
