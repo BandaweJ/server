@@ -107,12 +107,12 @@ export class ReportsController {
   @Get('/search')
   @HasPermissions(PERMISSIONS.REPORTS.VIEW)
   searchReports(
+    @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
     @Query('studentNumber') studentNumber?: string,
     @Query('name') name?: string,
     @Query('num') num?: string,
     @Query('year') year?: string,
     @Query('examType') examType?: string,
-    @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
     return this.reportsService.searchReports(
       {
