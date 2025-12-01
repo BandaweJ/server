@@ -53,7 +53,7 @@ export class OpenAIService {
         messages: [
           {
             role: 'system',
-            content: 'You are an experienced teacher writing brief, encouraging, and motivating comments for student report cards. Keep comments positive, uplifting, and inspiring while being honest. Focus on motivation and encouragement.',
+            content: 'You are an experienced teacher writing brief, subject-specific, and encouraging comments for student report cards. Comments should be tailored to the subject, honest about performance, and provide specific guidance for improvement. Keep comments positive and motivating while being realistic about the student\'s current level.',
           },
           {
             role: 'user',
@@ -92,28 +92,41 @@ export class OpenAIService {
   }
 
   private buildPrompt(request: CommentGenerationRequest, percentage: number, performanceLevel: string): string {
-    const subject = request.subject ? ` in ${request.subject}` : '';
+    const subjectName = request.subject || 'the subject';
+    const subjectContext = request.subject ? ` in ${request.subject}` : '';
     const level = request.studentLevel ? ` for ${request.studentLevel} students` : '';
     
+    // Determine guidance based on percentage
+    let guidanceInstructions = '';
+    if (percentage < 50) {
+      guidanceInstructions = `For marks below 50%: Encourage the student to work hard, read more, focus on ${subjectName}, ask teachers for help, and consult with peers. Be supportive but emphasize the need for improvement and effort.`;
+    } else if (percentage >= 50 && percentage < 60) {
+      guidanceInstructions = `For marks between 50-60%: Encourage the student to push for more improvement. Acknowledge their current effort but motivate them to aim higher and work harder to reach better results in ${subjectName}.`;
+    } else {
+      guidanceInstructions = `For marks above 60%: Commend the student for their good work in ${subjectName} and encourage them to continue maintaining or improving their performance. Recognize their achievement while motivating them to keep up the good work.`;
+    }
+
     return `
-Generate exactly 5 brief, encouraging, and motivating teacher comments for a student who scored ${request.mark}${request.maxMark ? `/${request.maxMark}` : ''} (${percentage.toFixed(1)}%)${subject}${level}.
+Generate exactly 5 brief, subject-specific, and encouraging teacher comments for a student who scored ${request.mark}${request.maxMark ? `/${request.maxMark}` : ''} (${percentage.toFixed(1)}%)${subjectContext}${level}.
 
 Performance Level: ${performanceLevel}
+${guidanceInstructions}
 
 Requirements:
 - Each comment must be exactly 5 words maximum
-- Comments must be encouraging, motivating, and positive
-- Focus on building confidence and inspiring improvement
-- Use uplifting and supportive language
-- Even for lower marks, frame feedback positively and constructively
+- Comments must be subject-specific (mention or reference "${subjectName}" where appropriate)
+- Comments should be encouraging and motivating
+- Provide specific, actionable guidance appropriate for the performance level
+- Use clear, direct language that students can understand
 - Format as a numbered list (1. 2. 3. 4. 5.)
 
 Examples of good comments (5 words max):
-- "Excellent work, keep it up"
-- "You're making great progress, continue"
-- "Keep pushing forward, you've got this"
-- "Great effort, aim even higher"
-- "You can do better, believe in yourself"
+- For low marks: "Read more ${subjectName}, ask questions"
+- For low marks: "Focus on ${subjectName} basics, seek help"
+- For 50-60: "Good progress ${subjectName}, push for more"
+- For 50-60: "Keep working hard ${subjectName}, aim higher"
+- For 60+: "Excellent ${subjectName} work, keep it up"
+- For 60+: "Great effort ${subjectName}, continue improving"
     `.trim();
   }
 
@@ -150,48 +163,33 @@ Examples of good comments (5 words max):
   }
 
   // Fallback method for when OpenAI is unavailable
-  getFallbackComments(mark: number, maxMark: number = 100): string[] {
+  getFallbackComments(mark: number, maxMark: number = 100, subject?: string): string[] {
     const percentage = (mark / maxMark) * 100;
+    const subjectRef = subject ? ` in ${subject}` : '';
     
-    if (percentage >= 80) {
+    if (percentage >= 60) {
       return [
-        'Excellent work, keep it up',
-        'Outstanding performance, stay motivated',
-        'Superb effort, continue excelling',
-        'Exceptional understanding, keep going',
-        'Continue this excellent standard'
-      ];
-    } else if (percentage >= 70) {
-      return [
-        'Good work, well done',
-        'Shows solid understanding, continue',
-        'Great effort, keep improving',
-        'Good progress, stay focused',
-        'Keep up the good work'
-      ];
-    } else if (percentage >= 60) {
-      return [
-        'Good progress, keep pushing',
-        'You can do even better',
-        'Keep working, you\'re improving',
-        'Stay positive, continue learning',
-        'Believe in yourself, keep going'
+        `Excellent work${subjectRef}, keep it up`,
+        `Great effort${subjectRef}, continue improving`,
+        `Good progress${subjectRef}, maintain standard`,
+        `Well done${subjectRef}, keep going`,
+        `Outstanding work${subjectRef}, stay focused`
       ];
     } else if (percentage >= 50) {
       return [
-        'Keep trying, you\'ll improve',
-        'Stay focused, practice more',
-        'You can do better, believe',
-        'Keep working hard, stay positive',
-        'Don\'t give up, keep going'
+        `Good progress${subjectRef}, push for more`,
+        `Keep working hard${subjectRef}, aim higher`,
+        `You can improve${subjectRef}, keep trying`,
+        `Stay focused${subjectRef}, work harder`,
+        `Good effort${subjectRef}, push yourself`
       ];
     } else {
       return [
-        'You can improve, stay positive',
-        'Keep trying, don\'t give up',
-        'Believe in yourself, keep working',
-        'Stay motivated, you\'ll get there',
-        'Keep pushing forward, stay strong'
+        `Read more${subjectRef}, ask questions`,
+        `Focus on basics${subjectRef}, seek help`,
+        `Work harder${subjectRef}, consult teachers`,
+        `Study more${subjectRef}, ask for help`,
+        `Practice more${subjectRef}, stay focused`
       ];
     }
   }

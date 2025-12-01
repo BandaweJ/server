@@ -39,7 +39,8 @@ export class AIController {
       if (!result.success) {
         const fallbackComments = this.openaiService.getFallbackComments(
           request.mark, 
-          request.maxMark || 100
+          request.maxMark || 100,
+          request.subject
         );
         
         return {
@@ -54,7 +55,8 @@ export class AIController {
       // Final fallback
       const fallbackComments = this.openaiService.getFallbackComments(
         request.mark, 
-        request.maxMark || 100
+        request.maxMark || 100,
+        request.subject
       );
       
       return {
