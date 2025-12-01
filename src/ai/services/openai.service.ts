@@ -149,7 +149,7 @@ export class OpenAIService {
     } else if (percentage >= 50 && percentage < 60) {
       guidanceInstructions = `For marks between 50-60%: Encourage the student to push for more improvement. Acknowledge their current effort but motivate them to aim higher and work harder to reach better results in ${subjectName}.`;
     } else {
-      guidanceInstructions = `For marks above 60%: Commend the student for their good work in ${subjectName} and encourage them to continue maintaining or improving their performance. Recognize their achievement while motivating them to keep up the good work.`;
+      guidanceInstructions = `For marks 60% and above: Commend the student for their good work. Use phrases like "Well done", "Keep it up", "Excellent work", "Great effort" to recognize their achievement. Encourage them to continue maintaining or improving their performance. Make the comments celebratory and positive while still motivating them to keep up the good work.`;
     }
 
     return `
@@ -172,8 +172,10 @@ Examples of good subject-specific comments (5 words max) - note they don't menti
 - For Mathematics (low marks): "Practice solving equations, seek help"
 - For English (50-60): "Read more books, push yourself"
 - For English (50-60): "Improve your writing, aim higher"
-- For Science (60+): "Excellent lab work, keep it up"
-- For Science (60+): "Great scientific thinking, continue improving"
+- For Science (60+): "Well done, keep it up"
+- For Science (60+): "Excellent work, continue improving"
+- For Mathematics (60+): "Great effort, well done"
+- For English (60+): "Outstanding work, keep going"
     `.trim();
   }
 
@@ -227,7 +229,7 @@ Examples of good subject-specific comments (5 words max) - note they don't menti
     } else if (percentage >= 50 && percentage < 60) {
       guidanceInstructions = `For marks between 50-60%: Encourage the student to push for more improvement. Acknowledge their current effort but motivate them to aim higher and work harder to reach better results in ${subjectName}.`;
     } else {
-      guidanceInstructions = `For marks above 60%: Commend the student for their good work in ${subjectName} and encourage them to continue maintaining or improving their performance. Recognize their achievement while motivating them to keep up the good work.`;
+      guidanceInstructions = `For marks 60% and above: Commend the student for their good work. Use phrases like "Well done", "Keep it up", "Excellent work", "Great effort" to recognize their achievement. Encourage them to continue maintaining or improving their performance. Make the comments celebratory and positive while still motivating them to keep up the good work.`;
     }
 
     return `
@@ -253,8 +255,10 @@ Examples of good subject-specific comments (5 words max) - note they don't menti
 - For Mathematics (low marks): "Practice solving equations, seek help"
 - For English (50-60): "Read more books, push yourself"
 - For English (50-60): "Improve your writing, aim higher"
-- For Science (60+): "Excellent lab work, keep it up"
-- For Science (60+): "Great scientific thinking, continue improving"
+- For Science (60+): "Well done, keep it up"
+- For Science (60+): "Excellent work, continue improving"
+- For Mathematics (60+): "Great effort, well done"
+- For English (60+): "Outstanding work, keep going"
     `.trim();
   }
 
@@ -265,11 +269,11 @@ Examples of good subject-specific comments (5 words max) - note they don't menti
     
     if (percentage >= 60) {
       return [
-        `Excellent work${subjectRef}, keep it up`,
-        `Great effort${subjectRef}, continue improving`,
-        `Good progress${subjectRef}, maintain standard`,
-        `Well done${subjectRef}, keep going`,
-        `Outstanding work${subjectRef}, stay focused`
+        `Well done, keep it up`,
+        `Excellent work, continue improving`,
+        `Great effort, well done`,
+        `Outstanding work, keep going`,
+        `Well done, maintain standard`
       ];
     } else if (percentage >= 50) {
       return [
