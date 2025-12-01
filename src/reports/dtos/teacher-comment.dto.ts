@@ -1,6 +1,5 @@
 /* eslint-disable prettier/prettier */
-import { IsString, IsNotEmpty, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsString, IsNotEmpty, IsObject } from 'class-validator';
 import { ReportsModel } from '../models/reports.model';
 
 export class TeacherCommentDto {
@@ -9,8 +8,9 @@ export class TeacherCommentDto {
   comment: string;
 
   // Full report wrapper so we can persist using ReportsEntity
-  @ValidateNested()
-  @Type(() => Object) // Use Object since ReportsModel is a class, not a DTO
+  // Note: We use @IsObject() instead of @ValidateNested() because ReportsModel
+  // is not a DTO with validation decorators. Detailed validation is done in the service.
+  @IsObject()
   @IsNotEmpty()
   report: ReportsModel;
 }

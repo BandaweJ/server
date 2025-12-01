@@ -899,51 +899,102 @@ export class ReportsService {
       reportKeys: comment.report ? Object.keys(comment.report) : [],
     });
 
-    // Validate that report exists and has an ID (must be saved first)
+    // Validate that report data exists
     if (!comment.report) {
       this.logger.error('Report data is missing from request', { comment });
       throw new BadRequestException('Report data is missing from request');
     }
 
-    if (!comment.report.id) {
-      this.logger.warn('Attempt to save comment on unsaved report', {
-        studentNumber: comment.report.studentNumber,
-        name: comment.report.name,
-        num: comment.report.num,
-        year: comment.report.year,
+    if (!comment.report.report) {
+      this.logger.error('Report JSON data is missing from request', {
+        report: comment.report,
+        reportKeys: Object.keys(comment.report || {}),
       });
+      throw new BadRequestException('Report JSON data is missing from request');
+    }
+
+    // Validate required fields for report identification
+    const { name, num, year, studentNumber, examType } = comment.report;
+    if (!name || !num || !year || !studentNumber) {
       throw new BadRequestException(
-        'Cannot save comment: Report must be saved to database first. Please save the report before adding comments.'
+        'Missing required fields: name, num, year, and studentNumber are required to identify the report.'
       );
     }
 
-    // Find the existing report in the database
-    const existingReport = await this.reportsRepository.findOne({
-      where: { id: comment.report.id },
-    });
+    let existingReport: ReportsEntity | null = null;
 
+    // Try to find existing report: first by ID if provided, then by unique combination
+    if (comment.report.id) {
+      existingReport = await this.reportsRepository.findOne({
+        where: { id: comment.report.id },
+      });
+    }
+
+    // If not found by ID (or no ID provided), try to find by unique combination
     if (!existingReport) {
-      throw new NotFoundException(
-        `Report with ID ${comment.report.id} not found. Please save the report first.`
-      );
+      const whereClause: any = {
+        name,
+        num,
+        year,
+        studentNumber,
+      };
+      if (examType) {
+        whereClause.examType = examType;
+      }
+
+      existingReport = await this.reportsRepository.findOne({
+        where: whereClause,
+      });
     }
 
-    // Update the head comment in the report JSON
-    existingReport.report = {
-      ...existingReport.report,
-      headComment: comment.comment,
-    };
+    if (existingReport) {
+      // --- UPDATE EXISTING REPORT ---
+      this.logger.debug('Updating existing report with head comment', {
+        reportId: existingReport.id,
+        studentNumber: existingReport.studentNumber,
+      });
 
-    // Save the updated report
-    return await this.reportsRepository.save(existingReport);
+      // Merge the incoming report data with existing report, updating only the head comment
+      existingReport.report = {
+        ...existingReport.report,
+        ...comment.report.report, // Merge any other updates from frontend
+        headComment: comment.comment, // Update the head comment
+      };
+
+      return await this.reportsRepository.save(existingReport);
+    } else {
+      // --- CREATE NEW REPORT ---
+      this.logger.debug('Creating new report with head comment', {
+        studentNumber,
+        name,
+        num,
+        year,
+        examType,
+      });
+
+      // Create new report with the comment
+      const newReport = this.reportsRepository.create({
+        name,
+        num,
+        year,
+        studentNumber,
+        examType: examType || null,
+        report: {
+          ...comment.report.report, // Use the full report data from frontend
+          headComment: comment.comment, // Set the head comment
+        },
+      });
+
+      return await this.reportsRepository.save(newReport);
+    }
   }
 
   /**
    * Save the class / form teacher's comment directly on the report JSON.
    * This is the new, preferred way of storing teacher comments.
    * 
-   * IMPORTANT: The report must be saved to the database first (have an ID).
-   * Comments cannot be saved on unsaved reports.
+   * If the report exists (by ID or by unique combination), it will be updated.
+   * If the report doesn't exist, a new report will be created with the comment.
    */
   async saveTeacherComment(
     comment: TeacherCommentDto,
@@ -963,45 +1014,87 @@ export class ReportsService {
     }
 
     if (!comment.report.report) {
-      this.logger.error('Report JSON data is missing from request', { 
+      this.logger.error('Report JSON data is missing from request', {
         report: comment.report,
         reportKeys: Object.keys(comment.report || {}),
       });
       throw new BadRequestException('Report JSON data is missing from request');
     }
 
-    // CRITICAL: Report must have an ID (must be saved first)
-    if (!comment.report.id) {
-      this.logger.warn('Attempt to save comment on unsaved report', {
-        studentNumber: comment.report.studentNumber,
-        name: comment.report.name,
-        num: comment.report.num,
-        year: comment.report.year,
-      });
+    // Validate required fields for report identification
+    const { name, num, year, studentNumber, examType } = comment.report;
+    if (!name || !num || !year || !studentNumber) {
       throw new BadRequestException(
-        'Cannot save comment: Report must be saved to database first. Please save the report before adding comments.'
+        'Missing required fields: name, num, year, and studentNumber are required to identify the report.'
       );
     }
 
-    // Find the existing report in the database
-    const existingReport = await this.reportsRepository.findOne({
-      where: { id: comment.report.id },
-    });
+    let existingReport: ReportsEntity | null = null;
 
+    // Try to find existing report: first by ID if provided, then by unique combination
+    if (comment.report.id) {
+      existingReport = await this.reportsRepository.findOne({
+        where: { id: comment.report.id },
+      });
+    }
+
+    // If not found by ID (or no ID provided), try to find by unique combination
     if (!existingReport) {
-      throw new NotFoundException(
-        `Report with ID ${comment.report.id} not found. Please save the report first.`
-      );
+      const whereClause: any = {
+        name,
+        num,
+        year,
+        studentNumber,
+      };
+      if (examType) {
+        whereClause.examType = examType;
+      }
+
+      existingReport = await this.reportsRepository.findOne({
+        where: whereClause,
+      });
     }
 
-    // Update the teacher comment in the report JSON
-    existingReport.report = {
-      ...existingReport.report,
-      classTrComment: comment.comment,
-    };
+    if (existingReport) {
+      // --- UPDATE EXISTING REPORT ---
+      this.logger.debug('Updating existing report with teacher comment', {
+        reportId: existingReport.id,
+        studentNumber: existingReport.studentNumber,
+      });
 
-    // Save the updated report
-    return await this.reportsRepository.save(existingReport);
+      // Merge the incoming report data with existing report, updating only the teacher comment
+      existingReport.report = {
+        ...existingReport.report,
+        ...comment.report.report, // Merge any other updates from frontend
+        classTrComment: comment.comment, // Update the teacher comment
+      };
+
+      return await this.reportsRepository.save(existingReport);
+    } else {
+      // --- CREATE NEW REPORT ---
+      this.logger.debug('Creating new report with teacher comment', {
+        studentNumber,
+        name,
+        num,
+        year,
+        examType,
+      });
+
+      // Create new report with the comment
+      const newReport = this.reportsRepository.create({
+        name,
+        num,
+        year,
+        studentNumber,
+        examType: examType || null,
+        report: {
+          ...comment.report.report, // Use the full report data from frontend
+          classTrComment: comment.comment, // Set the teacher comment
+        },
+      });
+
+      return await this.reportsRepository.save(newReport);
+    }
   }
 
   /**
