@@ -881,7 +881,21 @@ export class ReportsService {
         studentNumber,
       },
     });
-    const normalizedReports = reports.map((rep) =>
+    
+    // Filter out reports for Term 3, 2025, End of Term (not yet released to students)
+    const filteredReports = reports.filter((report) => {
+      // Check if this is Term 3, 2025, End of Term
+      // ExamType.endofterm = 'End Of Term' (with capital O)
+      const isTerm3_2025_EndOfTerm = 
+        report.num === 3 && 
+        report.year === 2025 && 
+        (report.examType === 'End Of Term' || report.examType === 'End of Term');
+      
+      // Exclude this report from student access
+      return !isTerm3_2025_EndOfTerm;
+    });
+    
+    const normalizedReports = filteredReports.map((rep) =>
       this.normalizeReportStructure(rep),
     );
 
