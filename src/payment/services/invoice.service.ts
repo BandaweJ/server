@@ -1973,27 +1973,52 @@ export class InvoiceService {
     studentExemption: ExemptionEntity | null,
   ): number {
     let totalGrossBill = 0;
+    let groomingFeeTotal = 0;
+    let exemptableFeesTotal = 0;
     let totalExemptionAmount = 0;
 
+    // Separate grooming fees from other fees
+    // Grooming fees are never exempted and apply to all students
     for (const bill of bills) {
       // Ensure proper numeric conversion - handle both string and number types
       const amount = bill.fees.amount;
       const numericAmount = typeof amount === 'string' 
         ? parseFloat(amount) || 0 
         : Number(amount) || 0;
+      
       totalGrossBill += numericAmount;
+      
+      // Separate grooming fees - they are not subject to exemptions
+      if (bill.fees.name === FeesNames.groomingFee) {
+        groomingFeeTotal += numericAmount;
+      } else {
+        exemptableFeesTotal += numericAmount;
+      }
     }
 
+    // Calculate exemptions only on non-grooming fees
     if (studentExemption && studentExemption.isActive) {
       if (studentExemption.type === ExemptionType.FIXED_AMOUNT) {
-        totalExemptionAmount = studentExemption.fixedAmount || 0;
+        // Fixed amount exemption applies to exemptable fees only
+        // Cap it at the exemptable fees total to avoid negative amounts
+        totalExemptionAmount = Math.min(
+          studentExemption.fixedAmount || 0,
+          exemptableFeesTotal
+        );
       } else if (studentExemption.type === ExemptionType.PERCENTAGE) {
+        // Percentage exemption applies only to exemptable fees
         totalExemptionAmount =
-          (totalGrossBill * (studentExemption.percentageAmount || 0)) / 100;
+          (exemptableFeesTotal * (studentExemption.percentageAmount || 0)) / 100;
       } else if (studentExemption.type === ExemptionType.STAFF_SIBLING) {
         let foodFeeTotal = 0;
         let otherFeesTotal = 0;
+        // Calculate food fee and other fees (excluding grooming fees)
         for (const bill of bills) {
+          // Skip grooming fees in exemption calculation
+          if (bill.fees.name === FeesNames.groomingFee) {
+            continue;
+          }
+          
           // Ensure proper numeric conversion - handle both string and number types
           const amount = bill.fees.amount;
           const numericAmount = typeof amount === 'string' 
@@ -2009,7 +2034,9 @@ export class InvoiceService {
       }
     }
 
-    return Math.max(0, totalGrossBill - totalExemptionAmount);
+    // Net bill = (exemptable fees - exemption) + grooming fees (always full amount)
+    const netExemptableFees = Math.max(0, exemptableFeesTotal - totalExemptionAmount);
+    return netExemptableFees + groomingFeeTotal;
   }
 
   private updateInvoiceBalance(
@@ -3390,6 +3417,20 @@ export class InvoiceService {
     return bills.reduce((sum, bill) => sum + (+bill.fees?.amount || 0), 0);
   }
 
+  /**
+   * Get gross bill amount excluding grooming fees
+   * Grooming fees are never exempted
+   */
+  private _getGrossBillAmountExcludingGrooming(bills: BillsEntity[]): number {
+    return bills.reduce((sum, bill) => {
+      // Exclude grooming fees from exemption calculations
+      if (bill.fees?.name === FeesNames.groomingFee) {
+        return sum;
+      }
+      return sum + (+bill.fees?.amount || 0);
+    }, 0);
+  }
+
   private _calculateExemptionAmount(invoiceData: InvoiceEntity): number {
     if (!invoiceData.exemption || !invoiceData.exemption.type) {
       return 0;
@@ -3399,13 +3440,21 @@ export class InvoiceService {
     let calculatedAmount = 0;
 
     switch (exemption.type) {
-      case ExemptionType.FIXED_AMOUNT:
-        calculatedAmount = Number(exemption.fixedAmount || 0);
+      case ExemptionType.FIXED_AMOUNT: {
+        // Fixed amount exemption applies to exemptable fees only
+        // Cap it at the exemptable fees total to avoid negative amounts
+        const exemptableFeesTotal = this._getGrossBillAmountExcludingGrooming(invoiceData.bills);
+        calculatedAmount = Math.min(
+          Number(exemption.fixedAmount || 0),
+          exemptableFeesTotal
+        );
         break;
+      }
       case ExemptionType.PERCENTAGE: {
-        const grossBillAmount = this._getGrossBillAmount(invoiceData.bills);
+        // Percentage exemption applies only to exemptable fees (excluding grooming)
+        const exemptableFeesTotal = this._getGrossBillAmountExcludingGrooming(invoiceData.bills);
         calculatedAmount =
-          (grossBillAmount * Number(exemption.percentageAmount || 0)) / 100;
+          (exemptableFeesTotal * Number(exemption.percentageAmount || 0)) / 100;
         break;
       }
       case ExemptionType.STAFF_SIBLING: {
@@ -3413,6 +3462,11 @@ export class InvoiceService {
         let totalOtherFees = 0;
 
         invoiceData.bills.forEach((bill) => {
+          // Skip grooming fees in exemption calculation
+          if (bill.fees?.name === FeesNames.groomingFee) {
+            return;
+          }
+          
           if (bill.fees) {
             if (bill.fees.name === FeesNames.foodFee) {
               totalFoodFee += +bill.fees.amount;
