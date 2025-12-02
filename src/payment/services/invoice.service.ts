@@ -592,7 +592,8 @@ export class InvoiceService {
           const saved = await transactionalEntityManager.save(invoiceToSave);
           
           // Reconcile finances AFTER saving invoice
-          // This ensures all balances are correct, applies credit if needed, and fixes any issues
+          // This ensures all balances are correct, but does NOT auto-apply credit during invoice updates
+          // Credit should only be applied explicitly by the user or during manual reconciliation
           logStructured(
             this.logger,
             'log',
@@ -603,6 +604,8 @@ export class InvoiceService {
           await this.reconcileStudentFinances(
             student.studentNumber,
             transactionalEntityManager,
+            undefined,
+            { skipAutoCreditApplication: true }, // Don't auto-apply credit during invoice updates
           );
           
           // Reload the invoice after reconciliation to get fresh data
@@ -2299,6 +2302,9 @@ export class InvoiceService {
         };
       };
     },
+    options?: {
+      skipAutoCreditApplication?: boolean; // If true, skip automatic credit application (e.g., during invoice updates)
+    },
   ): Promise<void> {
     logStructured(
       this.logger,
@@ -2427,33 +2433,35 @@ export class InvoiceService {
     );
 
     // Step 5: Apply credit to oldest invoice with balance if both exist
-    const studentCredit = await this.creditService.getStudentCredit(
-      studentNumber,
-      transactionalEntityManager,
-    );
-
-    if (studentCredit && Number(studentCredit.amount) > 0.01) {
-      // Reload invoices one more time to get latest balances after recalculations
-      const latestInvoices = await transactionalEntityManager.find(
-        InvoiceEntity,
-        {
-          where: { student: { studentNumber }, isVoided: false },
-          relations: [
-            'allocations',
-            'creditAllocations',
-            'bills',
-            'bills.fees',
-          ],
-          order: { invoiceDate: 'ASC' }, // Oldest first
-        },
+    // Skip this step if skipAutoCreditApplication is true (e.g., during invoice updates)
+    if (!options?.skipAutoCreditApplication) {
+      const studentCredit = await this.creditService.getStudentCredit(
+        studentNumber,
+        transactionalEntityManager,
       );
 
-      // Find oldest invoice with balance
-      const invoiceWithBalance = latestInvoices.find(
-        (inv) => Number(inv.balance || 0) > 0.01,
-      );
+      if (studentCredit && Number(studentCredit.amount) > 0.01) {
+        // Reload invoices one more time to get latest balances after recalculations
+        const latestInvoices = await transactionalEntityManager.find(
+          InvoiceEntity,
+          {
+            where: { student: { studentNumber }, isVoided: false },
+            relations: [
+              'allocations',
+              'creditAllocations',
+              'bills',
+              'bills.fees',
+            ],
+            order: { invoiceDate: 'ASC' }, // Oldest first
+          },
+        );
 
-      if (invoiceWithBalance) {
+        // Find oldest invoice with balance
+        const invoiceWithBalance = latestInvoices.find(
+          (inv) => Number(inv.balance || 0) > 0.01,
+        );
+
+        if (invoiceWithBalance) {
         logStructured(
           this.logger,
           'log',
@@ -2556,6 +2564,7 @@ export class InvoiceService {
             transactionalEntityManager,
           );
         }
+      }
       }
     }
 
