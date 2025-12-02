@@ -369,8 +369,16 @@ export class InvoiceService {
               },
             },
           );
+          // Ensure proper numeric conversion - handle both string and number types
           const existingInvoicesTotal = existingInvoices.reduce(
-            (sum, inv) => sum + Number(inv.totalBill || 0),
+            (sum, inv) => {
+              const totalBill = inv.totalBill;
+              // Convert to number, handling both string and number types
+              const numericValue = typeof totalBill === 'string' 
+                ? parseFloat(totalBill) || 0 
+                : Number(totalBill) || 0;
+              return sum + numericValue;
+            },
             0,
           );
 
@@ -1895,7 +1903,12 @@ export class InvoiceService {
     let totalExemptionAmount = 0;
 
     for (const bill of bills) {
-      totalGrossBill += Number(bill.fees.amount);
+      // Ensure proper numeric conversion - handle both string and number types
+      const amount = bill.fees.amount;
+      const numericAmount = typeof amount === 'string' 
+        ? parseFloat(amount) || 0 
+        : Number(amount) || 0;
+      totalGrossBill += numericAmount;
     }
 
     if (studentExemption && studentExemption.isActive) {
@@ -1908,10 +1921,15 @@ export class InvoiceService {
         let foodFeeTotal = 0;
         let otherFeesTotal = 0;
         for (const bill of bills) {
+          // Ensure proper numeric conversion - handle both string and number types
+          const amount = bill.fees.amount;
+          const numericAmount = typeof amount === 'string' 
+            ? parseFloat(amount) || 0 
+            : Number(amount) || 0;
           if (bill.fees.name === FeesNames.foodFee) {
-            foodFeeTotal += Number(bill.fees.amount);
+            foodFeeTotal += numericAmount;
           } else {
-            otherFeesTotal += Number(bill.fees.amount);
+            otherFeesTotal += numericAmount;
           }
         }
         totalExemptionAmount = otherFeesTotal + foodFeeTotal * 0.5;

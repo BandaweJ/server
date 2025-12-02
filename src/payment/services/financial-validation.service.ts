@@ -345,22 +345,29 @@ export class FinancialValidationService {
     existingInvoicesTotal: number = 0,
     maxInvoiceAmountPerTerm: number = 500000,
   ): void {
-    const totalForTerm = existingInvoicesTotal + totalBill;
+    // Ensure all values are properly converted to numbers to prevent string concatenation
+    const numericTotalBill = typeof totalBill === 'string' 
+      ? parseFloat(totalBill) || 0 
+      : Number(totalBill) || 0;
+    const numericExistingTotal = typeof existingInvoicesTotal === 'string' 
+      ? parseFloat(existingInvoicesTotal) || 0 
+      : Number(existingInvoicesTotal) || 0;
+    const totalForTerm = numericExistingTotal + numericTotalBill;
 
     if (totalForTerm > maxInvoiceAmountPerTerm) {
       this.throwInvoiceValidation(
-        `Total invoice amount for term ${termNum}/${year} would exceed maximum allowed amount of ${maxInvoiceAmountPerTerm}. Current term total: ${existingInvoicesTotal}, New invoice: ${totalBill}, New total: ${totalForTerm}`,
+        `Total invoice amount for term ${termNum}/${year} would exceed maximum allowed amount of ${maxInvoiceAmountPerTerm}. Current term total: ${numericExistingTotal}, New invoice: ${numericTotalBill}, New total: ${totalForTerm}`,
         undefined,
         { termNum, year, totalForTerm, maxInvoiceAmountPerTerm },
       );
     }
 
     // Also validate individual invoice amount
-    if (totalBill > maxInvoiceAmountPerTerm) {
+    if (numericTotalBill > maxInvoiceAmountPerTerm) {
       this.throwInvoiceValidation(
-        `Invoice amount (${totalBill}) cannot exceed maximum allowed amount per invoice of ${maxInvoiceAmountPerTerm}`,
+        `Invoice amount (${numericTotalBill}) cannot exceed maximum allowed amount per invoice of ${maxInvoiceAmountPerTerm}`,
         undefined,
-        { termNum, year, totalBill, maxInvoiceAmountPerTerm },
+        { termNum, year, totalBill: numericTotalBill, maxInvoiceAmountPerTerm },
       );
     }
   }
