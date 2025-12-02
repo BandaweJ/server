@@ -2265,19 +2265,18 @@ export class InvoiceService {
 
   /**
    * Unified reconciliation method that:
-   * 1. Corrects invoice overpayments (amountPaidOnInvoice > totalBill)
-   * 2. Verifies credit balance
-   * 3. Applies credit to oldest invoice with balance if both exist
-   * 4. Verifies all invoice balances and receipt allocations
+   * 1. Unlinks enrols from voided invoices
+   * 2. Full reallocation of receipts to invoices (deletes all allocations, reallocates from scratch)
+   * 3. Corrects invoice overpayments (amountPaidOnInvoice > totalBill)
+   * 4. Verifies and recalculates all invoice balances
+   * 5. Verifies credit balance
+   * 6. Applies credit to oldest invoice with balance if both exist
+   * 7. Creates receipt allocations from credit allocations (for traceability)
+   * 8. Verifies receipt allocations match invoice payments
+   * 9. Final verification of all invoices
    * 
-   * Note: A full reallocation reconciliation would:
-   * - Delete all receipt allocations (keep credit allocations)
-   * - Sort receipts by payment date (oldest first)
-   * - Sort invoices by invoice date (oldest first)
-   * - For each receipt, allocate to invoices that exist by that date (invoiceDate <= receipt.paymentDate)
-   * - If receipt payment date is before any invoice exists (no invoices with invoiceDate <= receipt.paymentDate),
-   *   create credit for the remaining receipt amount
-   * - This handles the case where payment was made before invoice was created
+   * Note: Full reallocation (Step 2) runs FIRST to ensure a clean slate before other steps.
+   * This prevents conflicts where earlier steps would be undone by reallocation.
    * 
    * Should be called before saving receipts and after saving invoices.
    * All verification steps are mandatory.
@@ -2394,9 +2393,33 @@ export class InvoiceService {
       result.summary.voidedInvoicesUnlinked = unlinkedCount;
     }
 
-    // Step 2: Correct invoice overpayments
+    // Step 2: Full reallocation of receipts to invoices based on dates
+    // This MUST run FIRST to ensure a clean slate before other reconciliation steps
+    // It fixes incorrect allocations caused by bugs (e.g., double-counting)
+    // It reallocates from scratch based on payment dates and invoice dates
+    await this.reallocateReceiptsToInvoices(
+      studentNumber,
+      transactionalEntityManager,
+    );
+
+    // Step 3: Correct invoice overpayments (after reallocation)
+    // This handles any overpayments that may have been created during reallocation
     let correctedCount = 0;
-    for (const invoice of invoices) {
+    const invoicesAfterReallocation = await transactionalEntityManager.find(
+      InvoiceEntity,
+      {
+        where: { student: { studentNumber }, isVoided: false },
+        relations: [
+          'allocations',
+          'creditAllocations',
+          'bills',
+          'bills.fees',
+        ],
+        order: { invoiceDate: 'ASC' },
+      },
+    );
+
+    for (const invoice of invoicesAfterReallocation) {
       const wasCorrected = await this.correctInvoiceOverpayment(
         invoice,
         studentNumber,
@@ -2427,7 +2450,7 @@ export class InvoiceService {
       },
     );
 
-    // Step 3: Verify and recalculate all invoice balances
+    // Step 4: Verify and recalculate all invoice balances
     for (const invoice of correctedInvoices) {
       await this.verifyAndRecalculateInvoiceBalance(
         invoice,
@@ -2435,13 +2458,13 @@ export class InvoiceService {
       );
     }
 
-    // Step 4: Verify credit balance
+    // Step 5: Verify credit balance
     await this.creditService.verifyStudentCreditBalance(
       studentNumber,
       transactionalEntityManager,
     );
 
-    // Step 5: Apply credit to oldest invoice with balance if both exist
+    // Step 6: Apply credit to oldest invoice with balance if both exist
     // Skip this step if skipAutoCreditApplication is true (e.g., during invoice updates)
     if (!options?.skipAutoCreditApplication) {
       const studentCredit = await this.creditService.getStudentCredit(
@@ -2577,22 +2600,16 @@ export class InvoiceService {
       }
     }
 
-    // Step 5.5: Full reallocation of receipts to invoices based on dates
-    // This fixes incorrect allocations caused by bugs (e.g., double-counting)
-    // It reallocates from scratch based on payment dates and invoice dates
-    await this.reallocateReceiptsToInvoices(
-      studentNumber,
-      transactionalEntityManager,
-    );
-
-    // Step 6: Retroactively create receipt allocations from credit allocations
+    // Step 7: Retroactively create receipt allocations from credit allocations
     // This ensures traceability when receipts were converted to credits and then applied to invoices
+    // Note: After reallocation, this may not find many allocations since reallocation creates
+    // receipt allocations directly. This step is mainly for legacy data or edge cases.
     await this.createReceiptAllocationsFromCredits(
       studentNumber,
       transactionalEntityManager,
     );
 
-    // Step 7: Verify receipt allocations match invoice payments
+    // Step 8: Verify receipt allocations match invoice payments
     for (const receipt of receipts) {
       await this.verifyReceiptAllocations(
         receipt,
@@ -2600,7 +2617,7 @@ export class InvoiceService {
       );
     }
 
-    // Step 8: Final verification - reload and verify all invoices are saved correctly
+    // Step 9: Final verification - reload and verify all invoices are saved correctly
     // This ensures status is updated for all invoices after all corrections and credit applications
     const finalInvoices = await transactionalEntityManager.find(
       InvoiceEntity,
