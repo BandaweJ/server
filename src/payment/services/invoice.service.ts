@@ -2270,6 +2270,15 @@ export class InvoiceService {
    * 3. Applies credit to oldest invoice with balance if both exist
    * 4. Verifies all invoice balances and receipt allocations
    * 
+   * Note: A full reallocation reconciliation would:
+   * - Delete all receipt allocations (keep credit allocations)
+   * - Sort receipts by payment date (oldest first)
+   * - Sort invoices by invoice date (oldest first)
+   * - For each receipt, allocate to invoices that exist by that date (invoiceDate <= receipt.paymentDate)
+   * - If receipt payment date is before any invoice exists (no invoices with invoiceDate <= receipt.paymentDate),
+   *   create credit for the remaining receipt amount
+   * - This handles the case where payment was made before invoice was created
+   * 
    * Should be called before saving receipts and after saving invoices.
    * All verification steps are mandatory.
    * 
@@ -2567,6 +2576,14 @@ export class InvoiceService {
       }
       }
     }
+
+    // Step 5.5: Full reallocation of receipts to invoices based on dates
+    // This fixes incorrect allocations caused by bugs (e.g., double-counting)
+    // It reallocates from scratch based on payment dates and invoice dates
+    await this.reallocateReceiptsToInvoices(
+      studentNumber,
+      transactionalEntityManager,
+    );
 
     // Step 6: Retroactively create receipt allocations from credit allocations
     // This ensures traceability when receipts were converted to credits and then applied to invoices
@@ -2960,6 +2977,292 @@ export class InvoiceService {
           }
         }
       }
+    }
+  }
+
+  /**
+   * Full reallocation of receipts to invoices based on dates.
+   * This fixes incorrect allocations caused by bugs (e.g., double-counting).
+   * 
+   * Process:
+   * 1. Delete all receipt allocations for the student (keep credit allocations)
+   * 2. Sort receipts by payment date (oldest first)
+   * 3. Sort invoices by invoice date (oldest first)
+   * 4. For each receipt, allocate to invoices that exist by that date (invoiceDate <= receipt.paymentDate)
+   * 5. If receipt payment date is before any invoice exists, create credit for remaining amount
+   * 
+   * This ensures proper chronological allocation and handles the case where payment
+   * was made before invoice was created.
+   */
+  private async reallocateReceiptsToInvoices(
+    studentNumber: string,
+    transactionalEntityManager: EntityManager,
+  ): Promise<void> {
+    logStructured(
+      this.logger,
+      'log',
+      'reconciliation.reallocate.start',
+      'Starting full reallocation of receipts to invoices',
+      { studentNumber },
+    );
+
+    // Step 1: Delete all receipt allocations for this student
+    // Keep credit allocations as they represent actual credit applications
+    const existingReceiptAllocations = await transactionalEntityManager.find(
+      ReceiptInvoiceAllocationEntity,
+      {
+        where: {
+          receipt: { student: { studentNumber } },
+        },
+        relations: ['receipt', 'invoice'],
+      },
+    );
+
+    if (existingReceiptAllocations.length > 0) {
+      logStructured(
+        this.logger,
+        'log',
+        'reconciliation.reallocate.deleteAllocations',
+        'Deleting existing receipt allocations for reallocation',
+        {
+          studentNumber,
+          allocationsCount: existingReceiptAllocations.length,
+        },
+      );
+
+      // First, reset invoice amounts that were affected by these allocations
+      const affectedInvoiceIds = new Set(
+        existingReceiptAllocations
+          .map((alloc) => alloc.invoice?.id)
+          .filter((id): id is number => id !== undefined),
+      );
+
+      for (const invoiceId of affectedInvoiceIds) {
+        const invoice = await transactionalEntityManager.findOne(
+          InvoiceEntity,
+          {
+            where: { id: invoiceId },
+            relations: ['allocations', 'creditAllocations'],
+          },
+        );
+
+        if (invoice) {
+          // Recalculate amountPaidOnInvoice from credit allocations only
+          const creditAllocations = invoice.creditAllocations || [];
+          const totalCreditAllocated = creditAllocations.reduce(
+            (sum, alloc) => sum + Number(alloc.amountApplied || 0),
+            0,
+          );
+
+          invoice.amountPaidOnInvoice = totalCreditAllocated;
+          invoice.balance = Math.max(
+            0,
+            Number(invoice.totalBill || 0) - totalCreditAllocated,
+          );
+          invoice.status = this.getInvoiceStatus(invoice);
+
+          await transactionalEntityManager.save(invoice);
+        }
+      }
+
+      // Delete all receipt allocations
+      await transactionalEntityManager.remove(
+        ReceiptInvoiceAllocationEntity,
+        existingReceiptAllocations,
+      );
+    }
+
+    // Step 2: Load and sort receipts by payment date (oldest first)
+    const receipts = await transactionalEntityManager.find(ReceiptEntity, {
+      where: { student: { studentNumber }, isVoided: false },
+      order: { paymentDate: 'ASC' },
+    });
+
+    if (receipts.length === 0) {
+      logStructured(
+        this.logger,
+        'log',
+        'reconciliation.reallocate.noReceipts',
+        'No receipts to reallocate',
+        { studentNumber },
+      );
+      return;
+    }
+
+    // Step 3: Reload and sort invoices by invoice date (oldest first)
+    // Reload after deleting allocations to get fresh data
+    const invoices = await transactionalEntityManager.find(InvoiceEntity, {
+      where: { student: { studentNumber }, isVoided: false },
+      relations: ['creditAllocations'],
+      order: { invoiceDate: 'ASC' },
+    });
+
+    // Step 4: For each receipt, allocate to invoices that exist by that date
+    const newAllocations: ReceiptInvoiceAllocationEntity[] = [];
+    let totalCreditCreated = 0;
+
+    for (const receipt of receipts) {
+      const receiptDate = receipt.paymentDate || new Date();
+      const receiptAmount = Number(receipt.amountPaid || 0);
+
+      if (receiptAmount <= 0.01) {
+        continue; // Skip zero or negative receipts
+      }
+
+      let remainingAmount = receiptAmount;
+
+      // Find invoices that exist by the receipt's payment date
+      // (invoiceDate <= receipt.paymentDate)
+      const invoicesByDate = invoices.filter((invoice) => {
+        const invoiceDate = invoice.invoiceDate || new Date();
+        return invoiceDate <= receiptDate;
+      });
+
+      // Sort invoices by invoice date (oldest first) for allocation order
+      invoicesByDate.sort((a, b) => {
+        const dateA = a.invoiceDate || new Date();
+        const dateB = b.invoiceDate || new Date();
+        return dateA.getTime() - dateB.getTime();
+      });
+
+      // Allocate receipt to invoices in order until receipt is fully allocated
+      for (const invoice of invoicesByDate) {
+        if (remainingAmount <= 0.01) {
+          break; // Receipt fully allocated
+        }
+
+        // Reload invoice to get fresh data (may have been updated by previous allocations)
+        const freshInvoice = await transactionalEntityManager.findOne(
+          InvoiceEntity,
+          {
+            where: { id: invoice.id },
+            relations: ['allocations', 'creditAllocations'],
+          },
+        );
+
+        if (!freshInvoice) {
+          continue; // Invoice not found, skip
+        }
+
+        // Calculate current invoice balance
+        // Sum receipt allocations (may have been added in this reallocation)
+        const receiptAllocations = freshInvoice.allocations || [];
+        const totalReceiptAllocated = receiptAllocations.reduce(
+          (sum, alloc) => sum + Number(alloc.amountApplied || 0),
+          0,
+        );
+
+        // Sum credit allocations
+        const creditAllocations = freshInvoice.creditAllocations || [];
+        const totalCreditAllocated = creditAllocations.reduce(
+          (sum, alloc) => sum + Number(alloc.amountApplied || 0),
+          0,
+        );
+
+        const totalPaid = totalReceiptAllocated + totalCreditAllocated;
+        const invoiceBalance = Math.max(
+          0,
+          Number(freshInvoice.totalBill || 0) - totalPaid,
+        );
+
+        if (invoiceBalance <= 0.01) {
+          continue; // Invoice already fully paid
+        }
+
+        // Allocate as much as possible to this invoice
+        const amountToAllocate = Math.min(remainingAmount, invoiceBalance);
+
+        if (amountToAllocate > 0.01) {
+          const allocation = transactionalEntityManager.create(
+            ReceiptInvoiceAllocationEntity,
+            {
+              receipt: { id: receipt.id } as ReceiptEntity,
+              invoice: { id: freshInvoice.id } as InvoiceEntity,
+              amountApplied: amountToAllocate,
+              allocationDate: receiptDate,
+            },
+          );
+
+          newAllocations.push(allocation);
+          remainingAmount -= amountToAllocate;
+
+          // Update invoice amounts
+          freshInvoice.amountPaidOnInvoice = totalPaid + amountToAllocate;
+          freshInvoice.balance = invoiceBalance - amountToAllocate;
+          freshInvoice.status = this.getInvoiceStatus(freshInvoice);
+
+          await transactionalEntityManager.save(freshInvoice);
+        }
+      }
+
+      // Step 5: If receipt payment date is before any invoice exists, create credit
+      // OR if there's remaining amount after allocating to all available invoices
+      if (remainingAmount > 0.01) {
+        // Check if payment was made before any invoice exists
+        const hasInvoicesBeforeReceipt = invoices.some((invoice) => {
+          const invoiceDate = invoice.invoiceDate || new Date();
+          return invoiceDate <= receiptDate;
+        });
+
+        if (!hasInvoicesBeforeReceipt || remainingAmount > 0.01) {
+          // Create credit for remaining amount
+          // This handles:
+          // 1. Payment made before any invoice exists
+          // 2. Payment exceeds all available invoice balances
+          logStructured(
+            this.logger,
+            'log',
+            'reconciliation.reallocate.createCredit',
+            'Creating credit for remaining receipt amount',
+            {
+              studentNumber,
+              receiptNumber: receipt.receiptNumber,
+              receiptId: receipt.id,
+              remainingAmount,
+              hasInvoicesBeforeReceipt,
+            },
+          );
+
+          await this.creditService.createOrUpdateStudentCredit(
+            studentNumber,
+            remainingAmount,
+            transactionalEntityManager,
+            `Credit from receipt ${receipt.receiptNumber} (payment before invoice or excess payment)`,
+            receipt.id,
+          );
+
+          totalCreditCreated += remainingAmount;
+        }
+      }
+    }
+
+    // Save all new allocations
+    if (newAllocations.length > 0) {
+      await transactionalEntityManager.save(
+        ReceiptInvoiceAllocationEntity,
+        newAllocations,
+      );
+
+      logStructured(
+        this.logger,
+        'log',
+        'reconciliation.reallocate.complete',
+        'Full reallocation completed',
+        {
+          studentNumber,
+          receiptsProcessed: receipts.length,
+          allocationsCreated: newAllocations.length,
+          creditCreated: totalCreditCreated,
+        },
+      );
+    } else {
+      logStructured(
+        this.logger,
+        'log',
+        'reconciliation.reallocate.noAllocations',
+        'No new allocations created during reallocation',
+        { studentNumber },
+      );
     }
   }
 
