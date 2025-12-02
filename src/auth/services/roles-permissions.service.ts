@@ -519,6 +519,11 @@ export class RolesPermissionsService {
         PERMISSIONS.REPORTS.EDIT_COMMENT, // Auditor can edit comments on reports
         PERMISSIONS.SYSTEM.VIEW_AUDIT,
       ],
+      [ROLES.student]: [
+        // Students can view and download their own reports
+        PERMISSIONS.REPORTS.VIEW,
+        PERMISSIONS.REPORTS.DOWNLOAD, // Students can download their own reports
+      ],
     };
 
     // Assign permissions to roles

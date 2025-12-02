@@ -1181,6 +1181,15 @@ export class ReportsService {
     studentNumber,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
+    // Validate that students can only download their own reports
+    if (profile instanceof StudentsEntity) {
+      if (profile.studentNumber !== studentNumber) {
+        throw new BadRequestException(
+          'Students can only download their own reports',
+        );
+      }
+    }
+
     const report = await this.reportsRepository.findOne({
       where: {
         name,
