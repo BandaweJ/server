@@ -144,6 +144,7 @@ export class ReportsController {
   // }
 
   @Get('/pdf/:name/:num/:year/:examType/:studentNumber/')
+  @HasPermissions(PERMISSIONS.REPORTS.DOWNLOAD)
   async getOnePDF(
     @Param('name') name: string,
     @Param('num') num: number,
