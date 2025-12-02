@@ -3375,9 +3375,9 @@ export class InvoiceService {
         },
       );
 
-      // Filter invoices with balances
+      // Filter invoices with balances and ensure they have IDs
       const invoicesNeedingCredit = invoicesWithBalances.filter(
-        (inv) => Number(inv.balance || 0) > 0.01,
+        (inv) => inv.id && Number(inv.balance || 0) > 0.01,
       );
 
       // Track remaining credit (will be updated as we apply it)
@@ -3396,6 +3396,22 @@ export class InvoiceService {
         const amountToApply = Math.min(remainingCredit, invoiceBalance);
 
         if (amountToApply > 0.01) {
+          // Ensure invoice has an ID before creating credit allocation
+          if (!invoice.id) {
+            logStructured(
+              this.logger,
+              'warn',
+              'reconciliation.reallocate.skipCreditAllocation.noInvoiceId',
+              'Skipping credit allocation - invoice has no ID',
+              {
+                studentNumber,
+                invoiceNumber: invoice.invoiceNumber,
+                amountToApply,
+              },
+            );
+            continue; // Skip this invoice if it has no ID
+          }
+
           // Create credit allocation
           const creditAllocation = transactionalEntityManager.create(
             CreditInvoiceAllocationEntity,
