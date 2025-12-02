@@ -238,16 +238,23 @@ export class AuthService {
           return { username, role: usr.role, id };
         }
         case ROLES.student: {
-          // For students, account.id should be the student number (set during signup)
-          // Use student relation if available, otherwise use account ID
-          const studentNumber = user.student?.studentNumber || id;
+          // For students, account.id IS the student number (set during signup from DTO)
+          // During signup: account.id = id (where id is the student number from DTO)
+          // So we can use account.id directly as the student number
           try {
-            const usr = await this.resourceById.getStudentByStudentNumber(studentNumber);
-            return { username, role: usr.role, id: studentNumber };
+            const usr = await this.resourceById.getStudentByStudentNumber(id);
+            return { username, role: usr.role, id };
           } catch (error) {
-            // If student not found, it means the account is invalid or student was deleted
+            // If student not found, log for debugging
+            console.error('Student signin - student lookup failed:', {
+              accountId: id,
+              username,
+              error: error instanceof Error ? error.message : String(error),
+              studentRelationExists: !!user.student,
+              studentNumberFromRelation: user.student?.studentNumber,
+            });
             throw new UnauthorizedException(
-              `Student profile not found for account. Please contact an administrator.`
+              `Student profile not found. Please contact an administrator.`
             );
           }
         }
