@@ -238,11 +238,18 @@ export class AuthService {
           return { username, role: usr.role, id };
         }
         case ROLES.student: {
-          // For students, use the student number from the linked student entity
-          // Fallback to account ID if student relation is not loaded (legacy accounts)
+          // For students, account.id should be the student number (set during signup)
+          // Use student relation if available, otherwise use account ID
           const studentNumber = user.student?.studentNumber || id;
-          const usr = await this.resourceById.getStudentByStudentNumber(studentNumber);
-          return { username, role: usr.role, id: studentNumber };
+          try {
+            const usr = await this.resourceById.getStudentByStudentNumber(studentNumber);
+            return { username, role: usr.role, id: studentNumber };
+          } catch (error) {
+            // If student not found, it means the account is invalid or student was deleted
+            throw new UnauthorizedException(
+              `Student profile not found for account. Please contact an administrator.`
+            );
+          }
         }
       }
     } else {
