@@ -105,19 +105,48 @@ export class AuthService {
       }
 
       case ROLES.student: {
+        // Verify student exists before creating account
+        // id from DTO should be the student number
         const st = await this.resourceById.getStudentByStudentNumber(id);
-
+        
+        // account.id is already set to id (student number) on line 80
+        // Verify they match
+        if (account.id !== id) {
+          throw new BadRequestException('Account ID mismatch during student signup');
+        }
+        
+        // Verify student number matches
+        if (st.studentNumber !== id) {
+          throw new BadRequestException('Student number mismatch during signup');
+        }
+        
         try {
           account.student = st;
           const user = await this.accountsRepository.save({
             ...account,
           });
 
+          // Verify the account was saved correctly with correct ID
+          if (!user || !user.id || user.id !== id) {
+            console.error('Student signup - account save verification failed:', {
+              expectedId: id,
+              actualId: user?.id,
+              studentNumber: st.studentNumber,
+            });
+            throw new NotImplementedException('Failed to create account - account ID mismatch');
+          }
+
           return { response: true };
         } catch (err) {
           if (err.code === 'ER_DUP_ENTRY') {
             throw new BadRequestException('Username Already taken');
           } else {
+            console.error('Student signup error:', {
+              studentNumber: id,
+              username,
+              error: err instanceof Error ? err.message : String(err),
+              errorCode: (err as any)?.code,
+            });
             throw new NotImplementedException('Failed to create account');
           }
         }
