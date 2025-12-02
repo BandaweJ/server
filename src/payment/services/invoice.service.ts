@@ -360,27 +360,86 @@ export class InvoiceService {
             studentExemption,
           );
 
+          // Check if this is an update (invoice already exists) or a new invoice
+          // We need to know this BEFORE calculating existing invoices total to exclude the invoice being updated
+          let foundInvoice: InvoiceEntity | null = null;
+          if (invoice.id) {
+            // If invoice has an ID, try to find it by ID
+            foundInvoice = await transactionalEntityManager.findOne(
+              InvoiceEntity,
+              {
+                where: { id: invoice.id },
+                relations: ['student', 'enrol'],
+              },
+            );
+          }
+          
+          // If not found by ID, try to find by invoiceNumber
+          if (!foundInvoice && invoice.invoiceNumber) {
+            foundInvoice = await transactionalEntityManager.findOne(
+              InvoiceEntity,
+              {
+                where: { invoiceNumber: invoice.invoiceNumber },
+                relations: ['student', 'enrol'],
+              },
+            );
+          }
+
+          // Find existing invoices for THIS SPECIFIC STUDENT and enrolment
+          // Only count invoices for the same student, not all students in the term
+          // IMPORTANT: Exclude the invoice being updated to avoid double-counting
           const existingInvoices = await transactionalEntityManager.find(
             InvoiceEntity,
             {
               where: {
+                student: { studentNumber },
                 enrol: { num: termNum, year: year },
                 isVoided: false,
               },
             },
           );
+          
+          // Filter out the invoice being updated (if it exists) to avoid double-counting
+          const invoicesToCount = foundInvoice
+            ? existingInvoices.filter((inv) => inv.id !== foundInvoice!.id)
+            : existingInvoices;
+          
           // Ensure proper numeric conversion - handle both string and number types
-          const existingInvoicesTotal = existingInvoices.reduce(
+          // TypeORM may return decimal values as strings, so we need explicit conversion
+          const existingInvoicesTotal = invoicesToCount.reduce(
             (sum, inv) => {
               const totalBill = inv.totalBill;
               // Convert to number, handling both string and number types
-              const numericValue = typeof totalBill === 'string' 
-                ? parseFloat(totalBill) || 0 
-                : Number(totalBill) || 0;
-              return sum + numericValue;
+              // Use parseFloat for strings to handle decimal values properly, and ensure it's a number
+              let numericValue: number;
+              if (typeof totalBill === 'string') {
+                // Remove any non-numeric characters except decimal point and minus sign
+                const cleaned = String(totalBill).replace(/[^0-9.-]/g, '');
+                numericValue = parseFloat(cleaned) || 0;
+              } else {
+                numericValue = Number(totalBill) || 0;
+              }
+              
+              // Debug logging to catch string concatenation issues
+              if (isNaN(numericValue) || !isFinite(numericValue)) {
+                this.logger.error(`Invalid totalBill value for invoice ${inv.invoiceNumber}: ${totalBill} (type: ${typeof totalBill}, raw: ${JSON.stringify(totalBill)})`);
+                return sum; // Skip invalid values
+              }
+              
+              // Ensure we're doing numeric addition, not string concatenation
+              const newSum = Number(sum) + numericValue;
+              if (isNaN(newSum) || !isFinite(newSum)) {
+                this.logger.error(`Invalid sum calculation: sum=${sum}, numericValue=${numericValue}, result=${newSum}`);
+                return sum; // Return previous sum if calculation fails
+              }
+              
+              return newSum;
             },
             0,
           );
+
+          // Debug logging to verify calculation
+          this.logger.debug(`Invoice validation - Term: ${termNum}/${year}, Is update: ${!!foundInvoice}, Existing invoices count: ${invoicesToCount.length}, Existing total: ${existingInvoicesTotal}, New/Updated invoice: ${calculatedNetTotalBill}, Combined: ${existingInvoicesTotal + calculatedNetTotalBill}`);
 
           this.financialValidationService.validateMaximumInvoiceAmountPerTerm(
             calculatedNetTotalBill,
@@ -390,24 +449,38 @@ export class InvoiceService {
           );
 
           let invoiceToSave: InvoiceEntity;
-          // Load invoice WITHOUT bills to avoid TypeORM relation resolution issues
-          // We'll load bills separately if needed
-          // IMPORTANT: Only find non-voided invoices - voided invoices should not be updated
-          const foundInvoice = await transactionalEntityManager
-            .createQueryBuilder(InvoiceEntity, 'invoice')
-            .leftJoinAndSelect('invoice.student', 'student')
-            .leftJoinAndSelect('invoice.enrol', 'enrol')
-            .leftJoinAndSelect('invoice.balanceBfwd', 'balanceBfwd')
-            .leftJoinAndSelect('invoice.bills', 'bills')
-            .leftJoinAndSelect('bills.fees', 'fees')
-            .leftJoinAndSelect('invoice.exemption', 'exemption')
-            .where('student.studentNumber = :studentNumber', {
-              studentNumber: student.studentNumber,
-            })
-            .andWhere('enrol.num = :num', { num: termNum })
-            .andWhere('enrol.year = :year', { year: year })
-            .andWhere('(invoice.isVoided = false OR invoice.isVoided IS NULL)')
-            .getOne();
+          
+          // If we didn't find the invoice earlier, try the more comprehensive query
+          // (This handles cases where invoice.id wasn't provided but invoiceNumber was)
+          if (!foundInvoice) {
+            foundInvoice = await transactionalEntityManager
+              .createQueryBuilder(InvoiceEntity, 'invoice')
+              .leftJoinAndSelect('invoice.student', 'student')
+              .leftJoinAndSelect('invoice.enrol', 'enrol')
+              .leftJoinAndSelect('invoice.balanceBfwd', 'balanceBfwd')
+              .leftJoinAndSelect('invoice.bills', 'bills')
+              .leftJoinAndSelect('bills.fees', 'fees')
+              .leftJoinAndSelect('invoice.exemption', 'exemption')
+              .where('student.studentNumber = :studentNumber', {
+                studentNumber: student.studentNumber,
+              })
+              .andWhere('enrol.num = :num', { num: termNum })
+              .andWhere('enrol.year = :year', { year: year })
+              .andWhere('(invoice.isVoided = false OR invoice.isVoided IS NULL)')
+              .getOne();
+          } else {
+            // If we found it earlier, we need to load the full relations
+            foundInvoice = await transactionalEntityManager
+              .createQueryBuilder(InvoiceEntity, 'invoice')
+              .leftJoinAndSelect('invoice.student', 'student')
+              .leftJoinAndSelect('invoice.enrol', 'enrol')
+              .leftJoinAndSelect('invoice.balanceBfwd', 'balanceBfwd')
+              .leftJoinAndSelect('invoice.bills', 'bills')
+              .leftJoinAndSelect('bills.fees', 'fees')
+              .leftJoinAndSelect('invoice.exemption', 'exemption')
+              .where('invoice.id = :id', { id: foundInvoice.id })
+              .getOne();
+          }
           
           isNewInvoice = !foundInvoice;
 
