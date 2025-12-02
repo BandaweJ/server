@@ -513,21 +513,24 @@ export class InvoiceService {
               invoiceToSave.totalBill += balanceBfwdAmount;
             }
 
-            const creditAllocationsForExisting: CreditInvoiceAllocationEntity[] =
-              [];
-            const creditApplied = await this.applyStudentCreditToInvoice(
-              invoiceToSave,
-              student.studentNumber,
-              transactionalEntityManager,
-              creditAllocationsForExisting,
+            // When updating an existing invoice, preserve existing credit allocations
+            // Don't automatically apply new credit - only update the invoice amounts
+            // Credit should only be applied explicitly by the user or during reconciliation
+            const existingCreditAllocations = await transactionalEntityManager.find(
+              CreditInvoiceAllocationEntity,
+              {
+                where: { invoice: { id: invoiceToSave.id } },
+                relations: ['studentCredit'],
+              },
             );
 
-            if (creditAllocationsForExisting.length > 0) {
-              for (const allocation of creditAllocationsForExisting) {
-                await transactionalEntityManager.save(allocation);
-              }
-              totalPaymentsOnInvoice += creditApplied;
-            }
+            const existingCreditTotal = existingCreditAllocations.reduce(
+              (sum, alloc) => sum + Number(alloc.amountApplied || 0),
+              0,
+            );
+
+            // Include existing credit allocations in the total payments
+            totalPaymentsOnInvoice += existingCreditTotal;
 
             invoiceToSave.amountPaidOnInvoice = totalPaymentsOnInvoice;
             this.updateInvoiceBalance(invoiceToSave, false);
