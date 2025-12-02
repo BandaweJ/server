@@ -501,10 +501,6 @@ export class InvoiceService {
               ? new Date(invoice.invoiceDueDate)
               : new Date();
 
-            let totalPaymentsOnInvoice = Number(
-              invoiceToSave.amountPaidOnInvoice || 0,
-            );
-
             const balanceBfwdAmount = invoiceToSave.balanceBfwd
               ? Number(invoiceToSave.balanceBfwd.amount)
               : 0;
@@ -513,9 +509,19 @@ export class InvoiceService {
               invoiceToSave.totalBill += balanceBfwdAmount;
             }
 
-            // When updating an existing invoice, preserve existing credit allocations
-            // Don't automatically apply new credit - only update the invoice amounts
+            // When updating an existing invoice, recalculate amountPaidOnInvoice from allocations
+            // This prevents double-counting credits that might already be in the stored value
             // Credit should only be applied explicitly by the user or during reconciliation
+            
+            // Load receipt allocations
+            const existingReceiptAllocations = await transactionalEntityManager.find(
+              ReceiptInvoiceAllocationEntity,
+              {
+                where: { invoice: { id: invoiceToSave.id } },
+              },
+            );
+
+            // Load credit allocations
             const existingCreditAllocations = await transactionalEntityManager.find(
               CreditInvoiceAllocationEntity,
               {
@@ -524,15 +530,21 @@ export class InvoiceService {
               },
             );
 
-            const existingCreditTotal = existingCreditAllocations.reduce(
+            // Sum receipt allocations
+            const receiptAllocationsTotal = existingReceiptAllocations.reduce(
               (sum, alloc) => sum + Number(alloc.amountApplied || 0),
               0,
             );
 
-            // Include existing credit allocations in the total payments
-            totalPaymentsOnInvoice += existingCreditTotal;
+            // Sum credit allocations
+            const creditAllocationsTotal = existingCreditAllocations.reduce(
+              (sum, alloc) => sum + Number(alloc.amountApplied || 0),
+              0,
+            );
 
-            invoiceToSave.amountPaidOnInvoice = totalPaymentsOnInvoice;
+            // Recalculate amountPaidOnInvoice from allocations (not from stored value)
+            // This ensures we don't double-count credits
+            invoiceToSave.amountPaidOnInvoice = receiptAllocationsTotal + creditAllocationsTotal;
             this.updateInvoiceBalance(invoiceToSave, false);
             this.verifyInvoiceBalance(invoiceToSave);
             invoiceToSave.exemption = studentExemption || null;
