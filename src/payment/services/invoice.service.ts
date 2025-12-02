@@ -280,6 +280,7 @@ export class InvoiceService {
           // Reconcile student finances BEFORE saving invoice
           // This fixes any existing data integrity issues (overpayments, balance mismatches, etc.)
           // so that the new invoice can be saved correctly
+          // Skip full reallocation (expensive) - only needed for manual reconciliation
           logStructured(
             this.logger,
             'log',
@@ -290,6 +291,8 @@ export class InvoiceService {
           await this.reconcileStudentFinances(
             student.studentNumber,
             transactionalEntityManager,
+            undefined,
+            { skipFullReallocation: true }, // Skip expensive reallocation during invoice saves
           );
 
           const studentExemption = student.exemption;
@@ -605,7 +608,10 @@ export class InvoiceService {
             student.studentNumber,
             transactionalEntityManager,
             undefined,
-            { skipAutoCreditApplication: true }, // Don't auto-apply credit during invoice updates
+            {
+              skipAutoCreditApplication: true, // Don't auto-apply credit during invoice updates
+              skipFullReallocation: true, // Skip expensive reallocation during invoice saves
+            },
           );
           
           // Reload the invoice after reconciliation to get fresh data
@@ -1072,11 +1078,14 @@ export class InvoiceService {
 
         // Reconcile student finances after voiding to ensure all balances are correct
         // This verifies credit balances, applies credit to other invoices if needed, etc.
+        // Skip full reallocation (expensive) - only needed for manual reconciliation
         const studentNumber = invoiceToVoid.student?.studentNumber;
         if (studentNumber) {
           await this.reconcileStudentFinances(
             studentNumber,
             transactionalEntityManager,
+            undefined,
+            { skipFullReallocation: true }, // Skip expensive reallocation during invoice void
           );
         }
 
@@ -2312,6 +2321,7 @@ export class InvoiceService {
     },
     options?: {
       skipAutoCreditApplication?: boolean; // If true, skip automatic credit application (e.g., during invoice updates)
+      skipFullReallocation?: boolean; // If true, skip full reallocation (expensive operation, only needed for manual reconciliation)
     },
   ): Promise<void> {
     logStructured(
@@ -2397,10 +2407,21 @@ export class InvoiceService {
     // This MUST run FIRST to ensure a clean slate before other reconciliation steps
     // It fixes incorrect allocations caused by bugs (e.g., double-counting)
     // It reallocates from scratch based on payment dates and invoice dates
-    await this.reallocateReceiptsToInvoices(
-      studentNumber,
-      transactionalEntityManager,
-    );
+    // NOTE: This is an expensive operation - only run during manual reconciliation
+    if (!options?.skipFullReallocation) {
+      await this.reallocateReceiptsToInvoices(
+        studentNumber,
+        transactionalEntityManager,
+      );
+    } else {
+      logStructured(
+        this.logger,
+        'log',
+        'reconciliation.skipFullReallocation',
+        'Skipping full reallocation (only runs during manual reconciliation)',
+        { studentNumber },
+      );
+    }
 
     // Step 3: Correct invoice overpayments (after reallocation)
     // This handles any overpayments that may have been created during reallocation

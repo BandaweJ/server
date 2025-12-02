@@ -473,10 +473,13 @@ export class ReceiptService {
         this.financialValidationService.validateReceiptBeforeSave(newReceipt);
 
         // Reconcile finances BEFORE saving receipt (apply credit to invoices if needed)
+        // Skip full reallocation (expensive) - only needed for manual reconciliation
         try {
           await this.invoiceService.reconcileStudentFinances(
             studentNumber,
             transactionalEntityManager,
+            undefined,
+            { skipFullReallocation: true }, // Skip expensive reallocation during receipt saves
           );
         } catch (reconciliationError) {
           logStructured(
@@ -547,10 +550,13 @@ export class ReceiptService {
 
         // Reconcile finances AFTER saving receipt and allocations
         // This ensures all balances are correct and any new credit is applied
+        // Skip full reallocation (expensive) - only needed for manual reconciliation
         try {
           await this.invoiceService.reconcileStudentFinances(
             studentNumber,
             transactionalEntityManager,
+            undefined,
+            { skipFullReallocation: true }, // Skip expensive reallocation during receipt saves
           );
         } catch (reconciliationError) {
           // Don't fail the main operation if reconciliation fails, but log it
