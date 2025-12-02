@@ -7,6 +7,7 @@ import {
   CreditLimitExceededException,
   MinimumPaymentAmountException,
 } from '../exceptions/payment.exceptions';
+import { FeesNames } from 'src/finance/models/fees-names.enum';
 
 /**
  * Service for comprehensive validation of financial entities (invoices, receipts)
@@ -179,12 +180,33 @@ export class FinancialValidationService {
         );
       }
 
-      // Exempted amount should not exceed total bill
-      if (exemptedAmount > totalBill) {
+      // Calculate exemptable fees total (excluding grooming fees)
+      // Grooming fees are never exempted, so exempted amount should only be compared
+      // against exemptable fees, not the total bill which includes grooming fees
+      let exemptableFeesTotal = 0;
+      if (invoice.bills && invoice.bills.length > 0) {
+        for (const bill of invoice.bills) {
+          if (bill.fees && bill.fees.name !== FeesNames.groomingFee) {
+            const amount = typeof bill.fees.amount === 'string'
+              ? parseFloat(bill.fees.amount) || 0
+              : Number(bill.fees.amount) || 0;
+            exemptableFeesTotal += amount;
+          }
+        }
+      }
+
+      // Exempted amount should not exceed exemptable fees total
+      // (not totalBill, since totalBill includes grooming fees which are never exempted)
+      if (exemptedAmount > exemptableFeesTotal) {
         this.throwInvoiceValidation(
-          'Exempted amount cannot exceed total bill',
+          'Exempted amount cannot exceed exemptable fees total',
           invoice,
-          { exemptedAmount: invoice.exemptedAmount, totalBill },
+          { 
+            exemptedAmount: invoice.exemptedAmount, 
+            exemptableFeesTotal,
+            totalBill,
+            note: 'Grooming fees are not subject to exemptions'
+          },
         );
       }
     }
