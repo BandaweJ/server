@@ -202,7 +202,11 @@ export class AuthService {
   private async validatePassword(signinDto: SigninDto): Promise<JwtPayload> {
     const { username, password } = signinDto;
 
-    const user = await this.accountsRepository.findOne({ where: { username } });
+    // Load account with student relation for students (to get student number)
+    const user = await this.accountsRepository.findOne({ 
+      where: { username },
+      relations: ['student'],
+    });
 
     if (!user) {
       return null; // User not found
@@ -234,8 +238,11 @@ export class AuthService {
           return { username, role: usr.role, id };
         }
         case ROLES.student: {
-          const usr = await this.resourceById.getStudentByStudentNumber(id);
-          return { username, role: usr.role, id };
+          // For students, use the student number from the linked student entity
+          // Fallback to account ID if student relation is not loaded (legacy accounts)
+          const studentNumber = user.student?.studentNumber || id;
+          const usr = await this.resourceById.getStudentByStudentNumber(studentNumber);
+          return { username, role: usr.role, id: studentNumber };
         }
       }
     } else {
