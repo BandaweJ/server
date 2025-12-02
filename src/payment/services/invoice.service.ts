@@ -355,6 +355,11 @@ export class InvoiceService {
             }
           }
 
+          // NOTE: When grooming fees ARE included in an invoice, they apply to ALL students
+          // regardless of exemption type. Grooming fees are never exempted and are always
+          // charged in full. However, grooming fees are not automatically added - they should
+          // only be included when explicitly added to the invoice by the user.
+
           const calculatedNetTotalBill = this.calculateNetBillAmount(
             bills,
             studentExemption,
@@ -2059,18 +2064,32 @@ export class InvoiceService {
   private calculateInvoiceBalance(
     invoice: InvoiceEntity,
   ): { totalBill: number; amountPaid: number; balance: number } {
-    const grossBill =
-      invoice.bills?.reduce(
-        (sum, bill) => sum + Number(bill.fees?.amount || 0),
-        0,
-      ) || 0;
-
-    const exemptedAmount = this._calculateExemptionAmount(invoice);
-    const netBill = Math.max(0, grossBill - exemptedAmount);
-    const balanceBfwdAmount = invoice.balanceBfwd
-      ? Number(invoice.balanceBfwd.amount)
-      : 0;
-    const totalBill = netBill + balanceBfwdAmount;
+    // Use the same logic as calculateNetBillAmount to ensure consistency
+    // This correctly handles grooming fees being excluded from exemptions
+    let totalBill: number;
+    
+    if (invoice.totalBill && Number(invoice.totalBill) > 0) {
+      // Use stored totalBill if available (it's already calculated correctly)
+      totalBill = Number(invoice.totalBill);
+    } else if (invoice.bills && invoice.bills.length > 0) {
+      // Recalculate using the same logic as calculateNetBillAmount
+      // This ensures grooming fees are excluded from exemption calculations
+      const studentExemption = invoice.exemption;
+      totalBill = this.calculateNetBillAmount(invoice.bills, studentExemption);
+      
+      // Add balanceBfwd if present
+      const balanceBfwdAmount = invoice.balanceBfwd
+        ? Number(invoice.balanceBfwd.amount)
+        : 0;
+      totalBill += balanceBfwdAmount;
+    } else {
+      // No bills, use stored totalBill or 0
+      totalBill = Number(invoice.totalBill || 0);
+      const balanceBfwdAmount = invoice.balanceBfwd
+        ? Number(invoice.balanceBfwd.amount)
+        : 0;
+      totalBill += balanceBfwdAmount;
+    }
 
     let receiptAllocations = 0;
     let creditAllocations = 0;
