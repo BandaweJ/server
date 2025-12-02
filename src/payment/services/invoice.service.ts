@@ -2991,7 +2991,12 @@ export class InvoiceService {
    * 4. Sort invoices by invoice date (oldest first)
    * 5. For each receipt, allocate to invoices that exist by that date (invoiceDate <= receipt.paymentDate)
    * 6. If receipt payment date is before any invoice exists, create credit for remaining amount
-   * 7. Apply credit to invoices with remaining balances (oldest first)
+   * 7. If receipt exceeds all available invoice balances, create credit for excess
+   * 8. Apply credit to invoices with remaining balances (oldest first)
+   * 
+   * Note: Credit is NOT restored when deleting allocations. Instead, credit will be
+   * recreated correctly from receipts during reallocation if there are overpayments.
+   * This ensures credit only comes from actual overpayments, not incorrect allocations.
    * 
    * This ensures proper chronological allocation and handles the case where payment
    * was made before invoice was created. Everything is recalculated from scratch.
@@ -3092,41 +3097,10 @@ export class InvoiceService {
         );
       }
 
-      // Restore credit balance (credit allocations were removed, so credit should be restored)
-      // Get the student's credit to restore the balance
-      const studentCredit = await this.creditService.getStudentCredit(
-        studentNumber,
-        transactionalEntityManager,
-      );
-
-      if (studentCredit) {
-        // Calculate total credit that was allocated (now deleted)
-        const totalCreditAllocated = existingCreditAllocations.reduce(
-          (sum, alloc) => sum + Number(alloc.amountApplied || 0),
-          0,
-        );
-
-        if (totalCreditAllocated > 0.01) {
-          // Restore the credit balance by adding back the allocated amount
-          const currentBalance = Number(studentCredit.amount || 0);
-          studentCredit.amount = currentBalance + totalCreditAllocated;
-          studentCredit.lastCreditSource = `Restored: Credit allocations removed during reallocation`;
-
-          await transactionalEntityManager.save(studentCredit);
-
-          logStructured(
-            this.logger,
-            'log',
-            'reconciliation.reallocate.restoreCredit',
-            'Restored credit balance after deleting allocations',
-            {
-              studentNumber,
-              creditRestored: totalCreditAllocated,
-              newBalance: studentCredit.amount,
-            },
-          );
-        }
-      }
+      // Note: We do NOT restore credit balance here
+      // Credit will be recreated correctly from receipts during reallocation
+      // If there are overpayments, credit will be created automatically
+      // This ensures credit only comes from actual overpayments, not incorrect allocations
     }
 
     // Step 2: Load and sort receipts by payment date (oldest first)
@@ -3295,6 +3269,7 @@ export class InvoiceService {
 
     // Step 6: Apply credit to invoices with remaining balances (oldest first)
     // Now that receipts are allocated, apply any available credit to remaining balances
+    // Reload credit to get current balance (may have been updated during receipt allocation)
     const studentCredit = await this.creditService.getStudentCredit(
       studentNumber,
       transactionalEntityManager,
@@ -3316,6 +3291,7 @@ export class InvoiceService {
         (inv) => Number(inv.balance || 0) > 0.01,
       );
 
+      // Track remaining credit (will be updated as we apply it)
       let remainingCredit = Number(studentCredit.amount);
 
       for (const invoice of invoicesNeedingCredit) {
