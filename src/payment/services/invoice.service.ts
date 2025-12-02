@@ -28,6 +28,7 @@ import { ExemptionType } from 'src/exemptions/enums/exemptions-type.enum';
 import { ReceiptEntity } from '../entities/payment.entity';
 import { CreditInvoiceAllocationEntity } from '../entities/credit-invoice-allocation.entity';
 import { ReceiptInvoiceAllocationEntity } from '../entities/receipt-invoice-allocation.entity';
+import { ReceiptCreditEntity } from '../entities/receipt-credit.entity';
 import { StudentCreditEntity } from '../entities/student-credit.entity';
 import {
   CreditTransactionEntity,
@@ -3148,6 +3149,46 @@ export class InvoiceService {
     });
 
     if (receipts.length === 0) {
+      // If there are no receipts, credit cannot exist (credit only comes from receipt overpayments)
+      // Reset credit balance to 0 and delete all receipt credit records
+      const studentCredit = await this.creditService.getStudentCredit(
+        studentNumber,
+        transactionalEntityManager,
+      );
+
+      if (studentCredit && Number(studentCredit.amount) > 0.01) {
+        logStructured(
+          this.logger,
+          'warn',
+          'reconciliation.reallocate.resetCreditNoReceipts',
+          'Resetting credit balance to 0 - student has no receipts but has credit balance',
+          {
+            studentNumber,
+            previousCreditBalance: studentCredit.amount,
+          },
+        );
+
+        // Delete all receipt credit records (they shouldn't exist if there are no receipts)
+        const receiptCredits = await transactionalEntityManager.find(
+          ReceiptCreditEntity,
+          {
+            where: { studentCredit: { id: studentCredit.id } },
+          },
+        );
+
+        if (receiptCredits.length > 0) {
+          await transactionalEntityManager.remove(
+            ReceiptCreditEntity,
+            receiptCredits,
+          );
+        }
+
+        // Reset credit balance to 0
+        studentCredit.amount = 0;
+        studentCredit.lastCreditSource = 'Reset: No receipts found during reallocation';
+        await transactionalEntityManager.save(studentCredit);
+      }
+
       logStructured(
         this.logger,
         'log',
@@ -3292,13 +3333,23 @@ export class InvoiceService {
             },
           );
 
-          await this.creditService.createOrUpdateStudentCredit(
+          const studentCredit = await this.creditService.createOrUpdateStudentCredit(
             studentNumber,
             remainingAmount,
             transactionalEntityManager,
             `Credit from receipt ${receipt.receiptNumber} (payment before invoice or excess payment)`,
             receipt.id,
           );
+
+          // Create ReceiptCreditEntity record to track which receipt created this credit
+          // This is required for proper credit balance verification
+          const receiptCredit = transactionalEntityManager.create(ReceiptCreditEntity, {
+            receipt: receipt,
+            studentCredit: studentCredit,
+            creditAmount: remainingAmount,
+            createdAt: receipt.paymentDate || new Date(),
+          });
+          await transactionalEntityManager.save(receiptCredit);
 
           totalCreditCreated += remainingAmount;
         }
