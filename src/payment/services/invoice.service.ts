@@ -2981,18 +2981,20 @@ export class InvoiceService {
   }
 
   /**
-   * Full reallocation of receipts to invoices based on dates.
+   * Full reallocation of receipts and credit to invoices based on dates.
    * This fixes incorrect allocations caused by bugs (e.g., double-counting).
    * 
    * Process:
-   * 1. Delete all receipt allocations for the student (keep credit allocations)
-   * 2. Sort receipts by payment date (oldest first)
-   * 3. Sort invoices by invoice date (oldest first)
-   * 4. For each receipt, allocate to invoices that exist by that date (invoiceDate <= receipt.paymentDate)
-   * 5. If receipt payment date is before any invoice exists, create credit for remaining amount
+   * 1. Delete ALL allocations (both receipt and credit allocations) for the student
+   * 2. Reset all invoice amounts to zero
+   * 3. Sort receipts by payment date (oldest first)
+   * 4. Sort invoices by invoice date (oldest first)
+   * 5. For each receipt, allocate to invoices that exist by that date (invoiceDate <= receipt.paymentDate)
+   * 6. If receipt payment date is before any invoice exists, create credit for remaining amount
+   * 7. Apply credit to invoices with remaining balances (oldest first)
    * 
    * This ensures proper chronological allocation and handles the case where payment
-   * was made before invoice was created.
+   * was made before invoice was created. Everything is recalculated from scratch.
    */
   private async reallocateReceiptsToInvoices(
     studentNumber: string,
@@ -3002,12 +3004,12 @@ export class InvoiceService {
       this.logger,
       'log',
       'reconciliation.reallocate.start',
-      'Starting full reallocation of receipts to invoices',
+      'Starting full reallocation of receipts and credit to invoices',
       { studentNumber },
     );
 
-    // Step 1: Delete all receipt allocations for this student
-    // Keep credit allocations as they represent actual credit applications
+    // Step 1: Delete ALL allocations (both receipt and credit) for this student
+    // We're doing a complete reset, so we can't trust any existing allocations
     const existingReceiptAllocations = await transactionalEntityManager.find(
       ReceiptInvoiceAllocationEntity,
       {
@@ -3018,47 +3020,56 @@ export class InvoiceService {
       },
     );
 
-    if (existingReceiptAllocations.length > 0) {
+    const existingCreditAllocations = await transactionalEntityManager.find(
+      CreditInvoiceAllocationEntity,
+      {
+        where: {
+          invoice: { student: { studentNumber } },
+        },
+        relations: ['invoice', 'studentCredit'],
+      },
+    );
+
+    if (existingReceiptAllocations.length > 0 || existingCreditAllocations.length > 0) {
       logStructured(
         this.logger,
         'log',
         'reconciliation.reallocate.deleteAllocations',
-        'Deleting existing receipt allocations for reallocation',
+        'Deleting all existing allocations for complete reallocation',
         {
           studentNumber,
-          allocationsCount: existingReceiptAllocations.length,
+          receiptAllocationsCount: existingReceiptAllocations.length,
+          creditAllocationsCount: existingCreditAllocations.length,
         },
       );
 
-      // First, reset invoice amounts that were affected by these allocations
-      const affectedInvoiceIds = new Set(
-        existingReceiptAllocations
-          .map((alloc) => alloc.invoice?.id)
-          .filter((id): id is number => id !== undefined),
-      );
+      // Get all affected invoice IDs
+      const affectedInvoiceIds = new Set<number>();
+      
+      existingReceiptAllocations.forEach((alloc) => {
+        if (alloc.invoice?.id) {
+          affectedInvoiceIds.add(alloc.invoice.id);
+        }
+      });
 
+      existingCreditAllocations.forEach((alloc) => {
+        if (alloc.invoice?.id) {
+          affectedInvoiceIds.add(alloc.invoice.id);
+        }
+      });
+
+      // Reset all affected invoices to zero payments
       for (const invoiceId of affectedInvoiceIds) {
         const invoice = await transactionalEntityManager.findOne(
           InvoiceEntity,
           {
             where: { id: invoiceId },
-            relations: ['allocations', 'creditAllocations'],
           },
         );
 
         if (invoice) {
-          // Recalculate amountPaidOnInvoice from credit allocations only
-          const creditAllocations = invoice.creditAllocations || [];
-          const totalCreditAllocated = creditAllocations.reduce(
-            (sum, alloc) => sum + Number(alloc.amountApplied || 0),
-            0,
-          );
-
-          invoice.amountPaidOnInvoice = totalCreditAllocated;
-          invoice.balance = Math.max(
-            0,
-            Number(invoice.totalBill || 0) - totalCreditAllocated,
-          );
+          invoice.amountPaidOnInvoice = 0;
+          invoice.balance = Number(invoice.totalBill || 0);
           invoice.status = this.getInvoiceStatus(invoice);
 
           await transactionalEntityManager.save(invoice);
@@ -3066,10 +3077,56 @@ export class InvoiceService {
       }
 
       // Delete all receipt allocations
-      await transactionalEntityManager.remove(
-        ReceiptInvoiceAllocationEntity,
-        existingReceiptAllocations,
+      if (existingReceiptAllocations.length > 0) {
+        await transactionalEntityManager.remove(
+          ReceiptInvoiceAllocationEntity,
+          existingReceiptAllocations,
+        );
+      }
+
+      // Delete all credit allocations
+      if (existingCreditAllocations.length > 0) {
+        await transactionalEntityManager.remove(
+          CreditInvoiceAllocationEntity,
+          existingCreditAllocations,
+        );
+      }
+
+      // Restore credit balance (credit allocations were removed, so credit should be restored)
+      // Get the student's credit to restore the balance
+      const studentCredit = await this.creditService.getStudentCredit(
+        studentNumber,
+        transactionalEntityManager,
       );
+
+      if (studentCredit) {
+        // Calculate total credit that was allocated (now deleted)
+        const totalCreditAllocated = existingCreditAllocations.reduce(
+          (sum, alloc) => sum + Number(alloc.amountApplied || 0),
+          0,
+        );
+
+        if (totalCreditAllocated > 0.01) {
+          // Restore the credit balance by adding back the allocated amount
+          const currentBalance = Number(studentCredit.amount || 0);
+          studentCredit.amount = currentBalance + totalCreditAllocated;
+          studentCredit.lastCreditSource = `Restored: Credit allocations removed during reallocation`;
+
+          await transactionalEntityManager.save(studentCredit);
+
+          logStructured(
+            this.logger,
+            'log',
+            'reconciliation.reallocate.restoreCredit',
+            'Restored credit balance after deleting allocations',
+            {
+              studentNumber,
+              creditRestored: totalCreditAllocated,
+              newBalance: studentCredit.amount,
+            },
+          );
+        }
+      }
     }
 
     // Step 2: Load and sort receipts by payment date (oldest first)
@@ -3232,6 +3289,93 @@ export class InvoiceService {
           );
 
           totalCreditCreated += remainingAmount;
+        }
+      }
+    }
+
+    // Step 6: Apply credit to invoices with remaining balances (oldest first)
+    // Now that receipts are allocated, apply any available credit to remaining balances
+    const studentCredit = await this.creditService.getStudentCredit(
+      studentNumber,
+      transactionalEntityManager,
+    );
+
+    if (studentCredit && Number(studentCredit.amount) > 0.01) {
+      // Reload invoices to get fresh balances after receipt allocation
+      const invoicesWithBalances = await transactionalEntityManager.find(
+        InvoiceEntity,
+        {
+          where: { student: { studentNumber }, isVoided: false },
+          relations: ['allocations', 'creditAllocations'],
+          order: { invoiceDate: 'ASC' }, // Oldest first
+        },
+      );
+
+      // Filter invoices with balances
+      const invoicesNeedingCredit = invoicesWithBalances.filter(
+        (inv) => Number(inv.balance || 0) > 0.01,
+      );
+
+      let remainingCredit = Number(studentCredit.amount);
+
+      for (const invoice of invoicesNeedingCredit) {
+        if (remainingCredit <= 0.01) {
+          break; // No more credit to apply
+        }
+
+        const invoiceBalance = Number(invoice.balance || 0);
+        if (invoiceBalance <= 0.01) {
+          continue; // Invoice already paid
+        }
+
+        const amountToApply = Math.min(remainingCredit, invoiceBalance);
+
+        if (amountToApply > 0.01) {
+          // Create credit allocation
+          const creditAllocation = transactionalEntityManager.create(
+            CreditInvoiceAllocationEntity,
+            {
+              studentCredit,
+              invoice: { id: invoice.id } as InvoiceEntity,
+              amountApplied: amountToApply,
+              allocationDate: new Date(),
+            },
+          );
+
+          await transactionalEntityManager.save(creditAllocation);
+
+          // Update invoice
+          invoice.amountPaidOnInvoice =
+            Number(invoice.amountPaidOnInvoice || 0) + amountToApply;
+          invoice.balance = invoiceBalance - amountToApply;
+          invoice.status = this.getInvoiceStatus(invoice);
+
+          await transactionalEntityManager.save(invoice);
+
+          // Deduct from credit balance using the credit service
+          await this.creditService.deductStudentCredit(
+            studentNumber,
+            amountToApply,
+            transactionalEntityManager,
+            `Applied to Invoice ${invoice.invoiceNumber} during reallocation`,
+            invoice.id,
+            'system',
+          );
+
+          remainingCredit -= amountToApply;
+
+          logStructured(
+            this.logger,
+            'log',
+            'reconciliation.reallocate.applyCredit',
+            'Applied credit to invoice during reallocation',
+            {
+              studentNumber,
+              invoiceNumber: invoice.invoiceNumber,
+              amountApplied: amountToApply,
+              remainingCredit,
+            },
+          );
         }
       }
     }
