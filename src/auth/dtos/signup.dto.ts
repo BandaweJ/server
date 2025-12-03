@@ -1,10 +1,10 @@
-import { IsIn, IsString, MinLength } from 'class-validator';
+import { IsEnum, IsIn, IsString, MinLength } from 'class-validator';
 import { ROLES } from '../models/roles.enum';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class AccountsDto {
-  @ApiProperty()
-  // @IsIn(['student', 'teacher', 'parent', 'admin', 'reception', 'hod', 'auditor', 'director])
+  @ApiProperty({ enum: ROLES, description: 'User role' })
+  @IsEnum(ROLES, { message: 'Invalid role. Valid roles are: teacher, student, parent, admin, reception, hod, auditor, director' })
   role: ROLES;
 
   @ApiProperty()
