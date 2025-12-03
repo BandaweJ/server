@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotImplementedException, UnauthorizedException } from '@nestjs/common';
 
 import { AccountsDto } from './dtos/signup.dto';
 import { ROLES } from './models/roles.enum';
@@ -13,12 +13,11 @@ import { JwtPayload } from './models/jwt-payload.interface';
 import { ResourceByIdService } from 'src/resource-by-id/resource-by-id.service';
 import { AccountStats } from './models/acc-stats.model';
 import { ActivityService } from '../activity/activity.service';
-import { Injectable } from '@nestjs/common';
-import { NotImplementedException } from '@nestjs/common';
-import { UnauthorizedException } from '@nestjs/common';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @InjectRepository(AccountsEntity)
     private accountsRepository: Repository<AccountsEntity>,
@@ -112,40 +111,97 @@ export class AuthService {
         // account.id is already set to id (student number) on line 80
         // Verify they match
         if (account.id !== id) {
+          this.logger.error('Student signup - Account ID mismatch', {
+            accountId: account.id,
+            dtoId: id,
+            studentNumber: st.studentNumber,
+          });
           throw new BadRequestException('Account ID mismatch during student signup');
         }
         
         // Verify student number matches
         if (st.studentNumber !== id) {
+          this.logger.error('Student signup - Student number mismatch', {
+            dtoId: id,
+            studentNumber: st.studentNumber,
+          });
           throw new BadRequestException('Student number mismatch during signup');
         }
         
         try {
+          // Link student entity to account (this will set the foreign key)
           account.student = st;
-          const user = await this.accountsRepository.save({
-            ...account,
+          
+          this.logger.log('Student signup - Saving account to database', {
+            studentNumber: id,
+            username,
+            accountId: account.id,
+            hasStudentRelation: !!account.student,
           });
+          
+          // Save the account to database
+          const user = await this.accountsRepository.save(account);
 
           // Verify the account was saved correctly with correct ID
           if (!user || !user.id || user.id !== id) {
-            console.error('Student signup - account save verification failed:', {
+            this.logger.error('Student signup - Account save verification failed', {
               expectedId: id,
               actualId: user?.id,
               studentNumber: st.studentNumber,
+              username,
             });
             throw new NotImplementedException('Failed to create account - account ID mismatch');
           }
 
+          // Verify the account actually exists in the database by querying it
+          const savedAccount = await this.accountsRepository.findOne({
+            where: { id: user.id },
+            relations: ['student'],
+          });
+
+          if (!savedAccount) {
+            this.logger.error('Student signup - Account not found in database after save', {
+              accountId: user.id,
+              studentNumber: id,
+              username,
+            });
+            throw new NotImplementedException('Failed to create account - account not persisted to database');
+          }
+
+          // Verify the student relation was saved correctly
+          if (!savedAccount.student || savedAccount.student.studentNumber !== id) {
+            this.logger.error('Student signup - Student relation not saved correctly', {
+              accountId: user.id,
+              studentNumber: id,
+              hasStudentRelation: !!savedAccount.student,
+              studentNumberFromRelation: savedAccount.student?.studentNumber,
+            });
+            throw new NotImplementedException('Failed to create account - student relation not saved');
+          }
+
+          this.logger.log('Student signup - Account successfully saved and verified', {
+            accountId: user.id,
+            studentNumber: id,
+            username,
+            studentRelationExists: !!savedAccount.student,
+          });
+
           return { response: true };
         } catch (err) {
-          if (err.code === 'ER_DUP_ENTRY') {
-            throw new BadRequestException('Username Already taken');
+          if (err.code === 'ER_DUP_ENTRY' || err.code === '23505') { // PostgreSQL unique constraint violation
+            this.logger.warn('Student signup - Duplicate entry', {
+              studentNumber: id,
+              username,
+              errorCode: err.code,
+            });
+            throw new BadRequestException('Username or student number already has an account');
           } else {
-            console.error('Student signup error:', {
+            this.logger.error('Student signup - Error saving account', {
               studentNumber: id,
               username,
               error: err instanceof Error ? err.message : String(err),
               errorCode: (err as any)?.code,
+              errorStack: err instanceof Error ? err.stack : undefined,
             });
             throw new NotImplementedException('Failed to create account');
           }
