@@ -58,6 +58,14 @@ export class AuthService {
   async signup(accountsDto: AccountsDto): Promise<SignupResponse> {
     const { role, id, username, password } = accountsDto;
 
+    this.logger.log('signup - Starting signup process', {
+      role,
+      id,
+      username,
+      roleType: typeof role,
+      roleValue: role,
+    });
+
     // Check if user already has an account
     const existingAccount = await this.accountsRepository.findOne({
       where: [
@@ -67,6 +75,7 @@ export class AuthService {
     });
 
     if (existingAccount) {
+      this.logger.warn('signup - Account already exists', { id, username });
       throw new BadRequestException(
         `User with ID ${id} or username ${username} already has an account`,
       );
@@ -87,6 +96,13 @@ export class AuthService {
     account.active = true; // New accounts are active by default
     account.deletedAt = null;
     // password = await this.hashPassword(password, salt);
+
+    this.logger.log('signup - Processing role', {
+      role,
+      roleEnumValues: Object.values(ROLES),
+      isStudent: role === ROLES.student,
+      studentEnumValue: ROLES.student,
+    });
 
     switch (role) {
       case ROLES.parent: {
@@ -235,6 +251,15 @@ export class AuthService {
           }
         }
         break;
+      }
+      default: {
+        this.logger.error('signup - Unknown role', {
+          role,
+          roleType: typeof role,
+          receivedRole: role,
+          validRoles: Object.values(ROLES),
+        });
+        throw new BadRequestException(`Invalid role: ${role}. Valid roles are: ${Object.values(ROLES).join(', ')}`);
       }
     }
   }
