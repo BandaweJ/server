@@ -244,11 +244,20 @@ export class AuthService {
   }
 
   async signin(signinDto: SigninDto): Promise<{ accessToken: string; permissions: string[] }> {
+    this.logger.log('signin - Attempting signin', { username: signinDto.username });
+    
     const result = await this.validatePassword(signinDto);
 
     if (!result) {
+      this.logger.warn('signin - Invalid credentials', { username: signinDto.username });
       throw new UnauthorizedException('Invalid login credentials');
     }
+    
+    this.logger.log('signin - Credentials validated successfully', {
+      username: signinDto.username,
+      role: result.role,
+      id: result.id,
+    });
 
     const payload = { ...result };
     const accessToken = await this.jwtService.sign(payload);
@@ -291,6 +300,8 @@ export class AuthService {
   private async validatePassword(signinDto: SigninDto): Promise<JwtPayload> {
     const { username, password } = signinDto;
 
+    this.logger.debug('validatePassword - Starting validation', { username });
+
     // Load account with student relation for students (to get student number)
     const user = await this.accountsRepository.findOne({ 
       where: { username },
@@ -298,17 +309,39 @@ export class AuthService {
     });
 
     if (!user) {
+      this.logger.warn('validatePassword - User not found', { username });
       return null; // User not found
     }
+
+    this.logger.debug('validatePassword - User found', {
+      username,
+      userId: user.id,
+      role: user.role,
+      active: user.active,
+      hasPassword: !!user.password,
+      hasSalt: !!user.salt,
+    });
 
     // Check if user account is active (not deleted)
     // For existing users without active field, default to true (handled by entity default value)
     // We check explicitly for false to handle cases where the field exists but is false
     if (user.active === false || user.deletedAt) {
+      this.logger.warn('validatePassword - Account deactivated', {
+        username,
+        active: user.active,
+        deletedAt: user.deletedAt,
+      });
       throw new UnauthorizedException('Account has been deactivated. Please contact an administrator.');
     }
 
-    if (await user.validatePassword(password)) {
+    // Validate password
+    const isPasswordValid = await user.validatePassword(password);
+    this.logger.debug('validatePassword - Password validation result', {
+      username,
+      isValid: isPasswordValid,
+    });
+
+    if (isPasswordValid) {
       const rol = user.role;
       const id = user.id;
 
@@ -349,6 +382,7 @@ export class AuthService {
         }
       }
     } else {
+      this.logger.warn('validatePassword - Invalid password', { username });
       return null; // Invalid password
     }
   }
