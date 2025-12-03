@@ -51,8 +51,9 @@ export class AccountsEntity extends BaseEntity {
   deletedAt?: Date;
 
   async validatePassword(password: string): Promise<boolean> {
-    const hash = await bcrypt.hash(password, this.salt);
-    return hash === this.password;
+    // Use bcrypt.compare() instead of hashing again
+    // bcrypt.compare() extracts the salt from the stored hash and compares correctly
+    return await bcrypt.compare(password, this.password);
   }
 
   @OneToOne(() => StudentsEntity, (student) => student.account)

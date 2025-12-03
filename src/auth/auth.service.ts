@@ -72,13 +72,17 @@ export class AuthService {
       );
     }
 
+    // Generate salt for bcrypt (bcrypt.hash will use this salt)
     const salt = await bcrypt.genSalt();
 
     const account = new AccountsEntity();
     account.role = role;
     account.id = id;
     account.username = username;
+    // Hash password with the generated salt
+    // Note: bcrypt.hash() embeds the salt in the resulting hash
     account.password = await this.hashPassword(password, salt);
+    // Store salt for reference (though bcrypt.compare doesn't need it)
     account.salt = salt;
     account.active = true; // New accounts are active by default
     account.deletedAt = null;
