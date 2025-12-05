@@ -1248,7 +1248,7 @@ export class ReportsService {
       });
 
       try {
-        const imgPath = path.join(__dirname, '../../public/banner.jpeg');
+        const imgPath = path.join(process.cwd(), 'public', 'banner.jpeg');
         const imgBuffer = fs.readFileSync(imgPath);
 
         doc.image(imgBuffer, margin, padding, {
@@ -1257,7 +1257,10 @@ export class ReportsService {
           align: 'center',
         }); // Adjust position and size as needed
       } catch (err) {
-        console.log('Failed to add image: ', err);
+        this.logger.error('Failed to add banner image to PDF', {
+          error: err instanceof Error ? err.message : String(err),
+          imgPath: path.join(process.cwd(), 'public', 'banner.jpeg'),
+        });
       }
 
       doc

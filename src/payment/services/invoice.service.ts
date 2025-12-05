@@ -3375,9 +3375,14 @@ export class InvoiceService {
         },
       );
 
-      // Filter invoices with balances and ensure they have IDs
+      // Filter invoices with balances and ensure they have valid IDs
+      // Must check for both existence and that it's a positive number
       const invoicesNeedingCredit = invoicesWithBalances.filter(
-        (inv) => inv.id && Number(inv.balance || 0) > 0.01,
+        (inv) => {
+          const hasValidId = inv.id && typeof inv.id === 'number' && inv.id > 0;
+          const hasBalance = Number(inv.balance || 0) > 0.01;
+          return hasValidId && hasBalance;
+        },
       );
 
       // Track remaining credit (will be updated as we apply it)
@@ -3396,28 +3401,32 @@ export class InvoiceService {
         const amountToApply = Math.min(remainingCredit, invoiceBalance);
 
         if (amountToApply > 0.01) {
-          // Ensure invoice has an ID before creating credit allocation
-          if (!invoice.id) {
+          // Ensure invoice has a valid ID before creating credit allocation
+          // Check for both null and undefined, and ensure it's a number
+          const invoiceId = invoice.id;
+          if (!invoiceId || typeof invoiceId !== 'number' || invoiceId <= 0) {
             logStructured(
               this.logger,
               'warn',
-              'reconciliation.reallocate.skipCreditAllocation.noInvoiceId',
-              'Skipping credit allocation - invoice has no ID',
+              'reconciliation.reallocate.skipCreditAllocation.invalidInvoiceId',
+              'Skipping credit allocation - invoice has invalid ID',
               {
                 studentNumber,
                 invoiceNumber: invoice.invoiceNumber,
+                invoiceId: invoiceId,
+                invoiceIdType: typeof invoiceId,
                 amountToApply,
               },
             );
-            continue; // Skip this invoice if it has no ID
+            continue; // Skip this invoice if it has no valid ID
           }
 
-          // Create credit allocation
+          // Create credit allocation with explicit invoice ID
           const creditAllocation = transactionalEntityManager.create(
             CreditInvoiceAllocationEntity,
             {
               studentCredit,
-              invoice: { id: invoice.id } as InvoiceEntity,
+              invoice: { id: invoiceId } as InvoiceEntity,
               amountApplied: amountToApply,
               allocationDate: new Date(),
             },
