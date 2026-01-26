@@ -85,8 +85,15 @@ export class StudentsService {
     profile: TeachersEntity | ParentsEntity | StudentsEntity,
   ): Promise<StudentsEntity> {
     // A more explicit way to handle roles
-    if (profile.role !== ROLES.admin && profile.role !== ROLES.reception) {
-      throw new UnauthorizedException('Only admins can add new students');
+    if (
+      profile.role !== ROLES.admin &&
+      profile.role !== ROLES.reception &&
+      profile.role !== ROLES.director &&
+      profile.role !== ROLES.auditor
+    ) {
+      throw new UnauthorizedException(
+        'Only admins, reception, director, and auditor can add new students',
+      );
     }
 
     // Step 1: Check for an existing student with the same name and surname
