@@ -222,25 +222,49 @@ export class EnrolmentService {
   //   return await this.enrolmentRepository.find()
   // }
 
+  /**
+   * Updates an enrolment (e.g. class name when student moves, or residence).
+   * When id is provided, finds by id (so class name can be changed). Otherwise finds by name, num, year, student.
+   * Invoices reference this enrolment by enrolId; they do not store class/residence denormalized,
+   * so once the enrolment row is saved, any invoice loaded with its enrol relation will show the updated data.
+   */
   async updateEnrolment(
     updateEnrolDto: UpdateEnrolDto,
-    profile: TeachersEntity,
-  ) {
-    const { student, name, num, year, residence } = updateEnrolDto;
+    _profile: TeachersEntity,
+  ): Promise<EnrolEntity> {
+    const { id, student, name, num, year, residence } = updateEnrolDto;
 
-    const enrol = await this.enrolmentRepository.findOne({
-      where: {
-        name,
-        num,
-        year,
-        student: {
-          studentNumber: student.studentNumber,
+    let enrol: EnrolEntity | null = null;
+
+    if (id != null) {
+      enrol = await this.enrolmentRepository.findOne({
+        where: { id },
+        relations: ['student'],
+      });
+    }
+
+    if (!enrol && student?.studentNumber && name != null && num != null && year != null) {
+      enrol = await this.enrolmentRepository.findOne({
+        where: {
+          name,
+          num,
+          year,
+          student: { studentNumber: student.studentNumber },
         },
-      },
-      relations: ['student'],
-    });
+        relations: ['student'],
+      });
+    }
 
-    enrol.residence = residence;
+    if (!enrol) {
+      throw new NotFoundException(
+        id != null
+          ? `Enrolment with id ${id} not found`
+          : 'Enrolment not found for the given student, class and term',
+      );
+    }
+
+    if (name !== undefined) enrol.name = name;
+    if (residence !== undefined) enrol.residence = residence;
 
     return await this.enrolmentRepository.save(enrol);
   }
