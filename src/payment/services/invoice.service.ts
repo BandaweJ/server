@@ -791,22 +791,22 @@ export class InvoiceService {
                 );
               }
 
-              const creditAllocationsToSave = creditAllocationsData.map(
-                (allocationData) =>
-                  transactionalEntityManager.create(
-                    CreditInvoiceAllocationEntity,
-                    {
-                      studentCredit: allocationData.studentCredit,
-                      invoice: invoiceRef,
-                      invoiceId: invoiceRef.id,
-                      amountApplied: allocationData.amountApplied,
-                      relatedReceiptId: allocationData.relatedReceiptId,
-                      allocationDate: new Date(),
-                    },
-                  ),
-              );
-
-              await transactionalEntityManager.save(creditAllocationsToSave);
+              // Use insert() with explicit invoiceId to satisfy NOT NULL and avoid TypeORM relation FK issues
+              const allocationDate = new Date();
+              await transactionalEntityManager
+                .createQueryBuilder()
+                .insert()
+                .into(CreditInvoiceAllocationEntity)
+                .values(
+                  creditAllocationsData.map((d) => ({
+                    studentCreditId: d.studentCredit.id,
+                    invoiceId: invoiceRef.id,
+                    amountApplied: d.amountApplied,
+                    relatedReceiptId: d.relatedReceiptId ?? null,
+                    allocationDate,
+                  })),
+                )
+                .execute();
             } else {
               logStructured(
                 this.logger,
@@ -2567,7 +2567,6 @@ export class InvoiceService {
             }
             for (const allocation of creditAllocationsToSave) {
               allocation.invoice = invoiceRef;
-              allocation.invoiceId = invoiceRef.id;
             }
           } else {
             logStructured(
@@ -3440,13 +3439,12 @@ export class InvoiceService {
             continue; // Skip this invoice if it has no valid ID
           }
 
-          // Use loaded invoice and explicit invoiceId so FK is always persisted
+          // Use loaded invoice so TypeORM persists invoiceId (avoids null FK)
           const creditAllocation = transactionalEntityManager.create(
             CreditInvoiceAllocationEntity,
             {
               studentCredit,
               invoice,
-              invoiceId: invoice.id,
               amountApplied: amountToApply,
               allocationDate: new Date(),
             },
@@ -3896,7 +3894,6 @@ export class InvoiceService {
         {
           studentCredit,
           invoice: invoiceRef,
-          invoiceId: invoiceRef.id,
           amountApplied: amountToApply,
           relatedReceiptId: relatedReceiptId || undefined,
           allocationDate: new Date(),
