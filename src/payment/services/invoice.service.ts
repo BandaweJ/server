@@ -791,7 +791,18 @@ export class InvoiceService {
                 );
               }
 
-              // Use insert() with explicit invoiceId to satisfy NOT NULL and avoid TypeORM relation FK issues
+              // Resolve studentCreditId from DB so insert never has null (d.studentCredit.id can be undefined in some paths)
+              const studentCreditRef = await transactionalEntityManager.findOne(
+                StudentCreditEntity,
+                { where: { studentNumber } },
+              );
+              if (!studentCreditRef?.id) {
+                throw new Error(
+                  `Student credit not found for ${studentNumber} when creating credit allocations`,
+                );
+              }
+
+              // Use insert() with explicit FKs to satisfy NOT NULL and avoid TypeORM relation FK issues
               const allocationDate = new Date();
               await transactionalEntityManager
                 .createQueryBuilder()
@@ -799,7 +810,7 @@ export class InvoiceService {
                 .into(CreditInvoiceAllocationEntity)
                 .values(
                   creditAllocationsData.map((d) => ({
-                    studentCreditId: d.studentCredit.id,
+                    studentCreditId: d.studentCredit?.id ?? studentCreditRef.id,
                     invoiceId: invoiceRef.id,
                     amountApplied: d.amountApplied,
                     relatedReceiptId: d.relatedReceiptId ?? null,
