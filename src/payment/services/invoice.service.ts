@@ -780,13 +780,24 @@ export class InvoiceService {
                 },
               );
 
+              // Load invoice so TypeORM persists invoiceId when saving allocations (avoids null FK)
+              const invoiceRef = await transactionalEntityManager.findOne(
+                InvoiceEntity,
+                { where: { id: invoiceIdToUse } },
+              );
+              if (!invoiceRef) {
+                throw new Error(
+                  `Invoice ${invoiceIdToUse} not found when creating credit allocations`,
+                );
+              }
+
               const creditAllocationsToSave = creditAllocationsData.map(
                 (allocationData) =>
                   transactionalEntityManager.create(
                     CreditInvoiceAllocationEntity,
                     {
                       studentCredit: allocationData.studentCredit,
-                      invoice: { id: invoiceIdToUse } as InvoiceEntity, // Use minimal invoice reference with ID
+                      invoice: invoiceRef,
                       amountApplied: allocationData.amountApplied,
                       relatedReceiptId: allocationData.relatedReceiptId,
                       allocationDate: new Date(),
@@ -2542,28 +2553,34 @@ export class InvoiceService {
 
         // Save all credit allocations
         if (creditAllocationsToSave.length > 0) {
-          // Ensure all allocations have the invoice reference properly set with ID
-          for (const allocation of creditAllocationsToSave) {
-            if (!allocation.invoice || !allocation.invoice.id) {
-              if (invoiceWithBalance.id) {
-                // Use minimal invoice reference with just the ID to ensure foreign key is set
-                allocation.invoice = { id: invoiceWithBalance.id } as InvoiceEntity;
-              } else {
-                logStructured(
-                  this.logger,
-                  'error',
-                  'reconciliation.creditAllocation.missingInvoiceId',
-                  'Cannot save credit allocation: invoice has no ID',
-                  {
-                    invoiceNumber: invoiceWithBalance.invoiceNumber,
-                    studentNumber,
-                  },
-                );
-                throw new Error(
-                  `Cannot save credit allocation: invoice ${invoiceWithBalance.invoiceNumber} has no ID`,
-                );
-              }
+          // Ensure all allocations have a loaded invoice reference so TypeORM persists invoiceId
+          if (invoiceWithBalance.id) {
+            const invoiceRef = await transactionalEntityManager.findOne(
+              InvoiceEntity,
+              { where: { id: invoiceWithBalance.id } },
+            );
+            if (!invoiceRef) {
+              throw new Error(
+                `Invoice ${invoiceWithBalance.invoiceNumber} (id ${invoiceWithBalance.id}) not found when saving credit allocations`,
+              );
             }
+            for (const allocation of creditAllocationsToSave) {
+              allocation.invoice = invoiceRef;
+            }
+          } else {
+            logStructured(
+              this.logger,
+              'error',
+              'reconciliation.creditAllocation.missingInvoiceId',
+              'Cannot save credit allocation: invoice has no ID',
+              {
+                invoiceNumber: invoiceWithBalance.invoiceNumber,
+                studentNumber,
+              },
+            );
+            throw new Error(
+              `Cannot save credit allocation: invoice ${invoiceWithBalance.invoiceNumber} has no ID`,
+            );
           }
 
           const totalCreditApplied = creditAllocationsToSave.reduce(
@@ -3421,12 +3438,12 @@ export class InvoiceService {
             continue; // Skip this invoice if it has no valid ID
           }
 
-          // Create credit allocation with explicit invoice ID
+          // Use loaded invoice so TypeORM persists invoiceId (avoids null FK)
           const creditAllocation = transactionalEntityManager.create(
             CreditInvoiceAllocationEntity,
             {
               studentCredit,
-              invoice: { id: invoiceId } as InvoiceEntity,
+              invoice,
               amountApplied: amountToApply,
               allocationDate: new Date(),
             },
@@ -3860,11 +3877,22 @@ export class InvoiceService {
     );
 
     if (invoice.id) {
+      // Load invoice so TypeORM persists invoiceId (avoids null FK in credit_invoice_allocations)
+      const invoiceRef = await transactionalEntityManager.findOne(
+        InvoiceEntity,
+        { where: { id: invoice.id } },
+      );
+      if (!invoiceRef) {
+        this.logger.warn(
+          `Invoice ${invoice.id} not found when applying credit, skipping allocation`,
+        );
+        return 0;
+      }
       const creditAllocation = transactionalEntityManager.create(
         CreditInvoiceAllocationEntity,
         {
           studentCredit,
-          invoice: { id: invoice.id } as InvoiceEntity, // Use minimal invoice reference with ID
+          invoice: invoiceRef,
           amountApplied: amountToApply,
           relatedReceiptId: relatedReceiptId || undefined,
           allocationDate: new Date(),
