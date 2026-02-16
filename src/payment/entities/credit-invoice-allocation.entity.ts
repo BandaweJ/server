@@ -41,6 +41,10 @@ export class CreditInvoiceAllocationEntity {
   @JoinColumn({ name: 'invoiceId' }) // Foreign key column
   invoice: InvoiceEntity;
 
+  /** Explicit FK so INSERT always has a value (TypeORM can leave relation FK null in some paths) */
+  @Column({ name: 'invoiceId', insert: true, update: false, nullable: false })
+  invoiceId: number;
+
   @Column({
     type: 'decimal',
     precision: 10,
