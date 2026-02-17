@@ -864,9 +864,12 @@ export class InvoiceService {
             },
           );
 
-          // Update status based on final balance
+          // Update status based on final balance (clear creditAllocations so TypeORM doesn't UPDATE those rows with null invoiceId)
           finalInvoice.status = this.getInvoiceStatus(finalInvoice);
+          const creditAllocationsBackup = finalInvoice.creditAllocations;
+          finalInvoice.creditAllocations = [];
           await transactionalEntityManager.save(InvoiceEntity, finalInvoice);
+          finalInvoice.creditAllocations = creditAllocationsBackup;
 
           // Audit logging - use final invoice data
           if (performedBy) {
