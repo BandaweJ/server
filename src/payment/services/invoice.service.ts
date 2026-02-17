@@ -616,8 +616,7 @@ export class InvoiceService {
           );
           
           // Reload the invoice after reconciliation to get fresh data
-          // Reconciliation may have updated allocations, balances, etc.
-          // Include all relations needed for the return value
+          // Do NOT load creditAllocations yet - we insert them via raw SQL later; loading them here would let TypeORM UPDATE them (with null invoiceId) when we save the invoice
           const reloadedInvoice = await transactionalEntityManager.findOne(
             InvoiceEntity,
             {
@@ -630,7 +629,6 @@ export class InvoiceService {
                 'bills.fees',
                 'exemption',
                 'allocations',
-                'creditAllocations',
               ],
             },
           );
@@ -655,7 +653,7 @@ export class InvoiceService {
             transactionalEntityManager,
           );
           
-          // Reload one more time to ensure we have the saved balance
+          // Reload one more time to ensure we have the saved balance (still no creditAllocations - avoid TypeORM touching them on save)
           const finalInvoice = await transactionalEntityManager.findOne(
             InvoiceEntity,
             {
@@ -668,7 +666,6 @@ export class InvoiceService {
                 'bills.fees',
                 'exemption',
                 'allocations',
-                'creditAllocations',
               ],
             },
           );
@@ -864,12 +861,9 @@ export class InvoiceService {
             },
           );
 
-          // Update status based on final balance (clear creditAllocations so TypeORM doesn't UPDATE those rows with null invoiceId)
+          // Update status based on final balance (finalInvoice was loaded without creditAllocations so save won't touch allocation rows)
           finalInvoice.status = this.getInvoiceStatus(finalInvoice);
-          const creditAllocationsBackup = finalInvoice.creditAllocations;
-          finalInvoice.creditAllocations = [];
           await transactionalEntityManager.save(InvoiceEntity, finalInvoice);
-          finalInvoice.creditAllocations = creditAllocationsBackup;
 
           // Audit logging - use final invoice data
           if (performedBy) {
@@ -923,8 +917,24 @@ export class InvoiceService {
             }
           }
 
-          // Return the final invoice (after reconciliation and balance update) with all relations
-          return finalInvoice;
+          // Return the invoice with all relations (reload so creditAllocations from our raw INSERT are included)
+          const invoiceToReturn = await transactionalEntityManager.findOne(
+            InvoiceEntity,
+            {
+              where: { id: finalInvoice.id },
+              relations: [
+                'student',
+                'enrol',
+                'balanceBfwd',
+                'bills',
+                'bills.fees',
+                'exemption',
+                'allocations',
+                'creditAllocations',
+              ],
+            },
+          );
+          return invoiceToReturn ?? finalInvoice;
         } catch (error) {
           logStructured(
             this.logger,
