@@ -809,22 +809,24 @@ export class InvoiceService {
                   { studentNumber, invoiceId: invoiceIdToUse, invoiceNumber: finalInvoice.invoiceNumber },
                 );
               } else {
-                // Use insert() with explicit FKs to satisfy NOT NULL and avoid TypeORM relation FK issues
+                // Raw INSERT: TypeORM InsertQueryBuilder can ignore relation join columns (studentCreditId, invoiceId), so use parameterized SQL
                 const allocationDate = new Date();
-                await transactionalEntityManager
-                  .createQueryBuilder()
-                  .insert()
-                  .into(CreditInvoiceAllocationEntity)
-                  .values(
-                    creditAllocationsData.map((d) => ({
-                      studentCreditId: studentCreditIdToUse,
-                      invoiceId: invoiceRef.id,
-                      amountApplied: d.amountApplied,
-                      relatedReceiptId: d.relatedReceiptId ?? null,
-                      allocationDate,
-                    })),
-                  )
-                  .execute();
+                const invoiceIdVal = Number(invoiceRef.id);
+                const cols = '"studentCreditId", "invoiceId", "amountApplied", "relatedReceiptId", "allocationDate"';
+                const placeholders = creditAllocationsData.map(
+                  (_, i) => `($${i * 5 + 1}, $${i * 5 + 2}, $${i * 5 + 3}, $${i * 5 + 4}, $${i * 5 + 5})`,
+                ).join(', ');
+                const params = creditAllocationsData.flatMap((d) => [
+                  studentCreditIdToUse,
+                  invoiceIdVal,
+                  d.amountApplied,
+                  d.relatedReceiptId ?? null,
+                  allocationDate,
+                ]);
+                await transactionalEntityManager.query(
+                  `INSERT INTO credit_invoice_allocations (${cols}) VALUES ${placeholders}`,
+                  params,
+                );
               }
             } else {
               logStructured(
