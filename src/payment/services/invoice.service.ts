@@ -796,28 +796,36 @@ export class InvoiceService {
                 StudentCreditEntity,
                 { where: { studentNumber } },
               );
-              if (!studentCreditRef?.id) {
-                throw new Error(
-                  `Student credit not found for ${studentNumber} when creating credit allocations`,
-                );
-              }
+              const studentCreditIdToUse = studentCreditRef?.id != null ? Number(studentCreditRef.id) : null;
 
-              // Use insert() with explicit FKs to satisfy NOT NULL and avoid TypeORM relation FK issues
-              const allocationDate = new Date();
-              await transactionalEntityManager
-                .createQueryBuilder()
-                .insert()
-                .into(CreditInvoiceAllocationEntity)
-                .values(
-                  creditAllocationsData.map((d) => ({
-                    studentCreditId: d.studentCredit?.id ?? studentCreditRef.id,
-                    invoiceId: invoiceRef.id,
-                    amountApplied: d.amountApplied,
-                    relatedReceiptId: d.relatedReceiptId ?? null,
-                    allocationDate,
-                  })),
-                )
-                .execute();
+              if (studentCreditIdToUse == null) {
+                // Student has no credit record (or it wasn't found) - skip allocation insert but still succeed
+                // Invoice is already saved; we just don't persist the credit allocation rows
+                logStructured(
+                  this.logger,
+                  'warn',
+                  'invoice.save.creditAllocation.skippedNoStudentCredit',
+                  'Skipping credit allocation insert (no student credit found) - invoice saved successfully',
+                  { studentNumber, invoiceId: invoiceIdToUse, invoiceNumber: finalInvoice.invoiceNumber },
+                );
+              } else {
+                // Use insert() with explicit FKs to satisfy NOT NULL and avoid TypeORM relation FK issues
+                const allocationDate = new Date();
+                await transactionalEntityManager
+                  .createQueryBuilder()
+                  .insert()
+                  .into(CreditInvoiceAllocationEntity)
+                  .values(
+                    creditAllocationsData.map((d) => ({
+                      studentCreditId: studentCreditIdToUse,
+                      invoiceId: invoiceRef.id,
+                      amountApplied: d.amountApplied,
+                      relatedReceiptId: d.relatedReceiptId ?? null,
+                      allocationDate,
+                    })),
+                  )
+                  .execute();
+              }
             } else {
               logStructured(
                 this.logger,
