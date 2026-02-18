@@ -26,6 +26,7 @@ import { TeachersEntity } from 'src/profiles/entities/teachers.entity';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { AuditService } from './services/audit.service';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { SystemModule } from '../system/system.module';
 import { forwardRef } from '@nestjs/common';
 
 @Module({
@@ -59,6 +60,7 @@ import { forwardRef } from '@nestjs/common';
     ]),
     ResourceByIdModule,
     forwardRef(() => NotificationsModule),
+    forwardRef(() => SystemModule),
   ],
 })
 export class PaymentModule {}

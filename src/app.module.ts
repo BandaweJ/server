@@ -25,6 +25,8 @@ import { ContinuousAssessmentModule } from './continuous-assessment/continuous-a
 import { AIModule } from './ai/ai.module';
 import { Logger, OnModuleInit, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { LoggingMiddleware } from './common/middleware/logging.middleware';
+import { TenantModule } from './tenant/tenant.module';
+import { TenantMiddleware } from './tenant/tenant.middleware';
 
 @Module({
   imports: [
@@ -101,6 +103,7 @@ import { LoggingMiddleware } from './common/middleware/logging.middleware';
     MessagingModule,
     ContinuousAssessmentModule,
     AIModule,
+    TenantModule,
   ],
   controllers: [AppController],
   providers: [
@@ -111,11 +114,12 @@ import { LoggingMiddleware } from './common/middleware/logging.middleware';
 export class AppModule implements OnModuleInit, NestModule {
   private readonly logger = new Logger(AppModule.name);
 
+  constructor(private readonly tenantMiddleware: TenantMiddleware) {}
+
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(LoggingMiddleware)
-      .forRoutes('*'); // Apply to all routes
-    this.logger.log('LoggingMiddleware configured for all routes');
+    consumer.apply(this.tenantMiddleware).forRoutes('*');
+    consumer.apply(LoggingMiddleware).forRoutes('*');
+    this.logger.log('TenantMiddleware and LoggingMiddleware configured');
   }
 
   onModuleInit() {

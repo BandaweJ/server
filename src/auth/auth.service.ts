@@ -268,23 +268,29 @@ export class AuthService {
     return await bcrypt.hash(password, salt);
   }
 
-  async signin(signinDto: SigninDto): Promise<{ accessToken: string; permissions: string[] }> {
+  async signin(
+    signinDto: SigninDto,
+    tenant?: { id: string; slug: string },
+  ): Promise<{ accessToken: string; permissions: string[] }> {
     this.logger.log('signin - Attempting signin', { username: signinDto.username });
-    
+
     const result = await this.validatePassword(signinDto);
 
     if (!result) {
       this.logger.warn('signin - Invalid credentials', { username: signinDto.username });
       throw new UnauthorizedException('Invalid login credentials');
     }
-    
+
     this.logger.log('signin - Credentials validated successfully', {
       username: signinDto.username,
       role: result.role,
       id: result.id,
     });
 
-    const payload = { ...result };
+    const payload: JwtPayload = {
+      ...result,
+      ...(tenant && { tenantSlug: tenant.slug, tenantId: tenant.id }),
+    };
     const accessToken = await this.jwtService.sign(payload);
 
     // Get user permissions from their role

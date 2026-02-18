@@ -27,9 +27,8 @@ export class AuthController {
   }
 
   @Post('/signin')
-  signin(@Body() signinDto: SigninDto) {
-    // console.log(signinDto);
-    return this.authService.signin(signinDto);
+  signin(@Body() signinDto: SigninDto, @Req() req: { tenant?: { id: string; slug: string } }) {
+    return this.authService.signin(signinDto, req.tenant);
   }
 
   @Get('accounts/all')

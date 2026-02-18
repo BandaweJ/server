@@ -48,6 +48,7 @@ import { AuditService } from './audit.service';
 import { sanitizeAmount, sanitizeOptionalAmount } from '../utils/sanitization.util';
 import { InvoiceResponseDto } from '../dtos/invoice-response.dto';
 import { NotificationService } from '../../notifications/services/notification.service';
+import { SystemSettingsService } from 'src/system/services/system-settings.service';
 
 @Injectable()
 export class InvoiceService {
@@ -67,6 +68,7 @@ export class InvoiceService {
     private readonly creditService: CreditService,
     private readonly auditService: AuditService,
     private readonly notificationService: NotificationService,
+    private readonly systemSettingsService: SystemSettingsService,
   ) {}
 
   async generateStatementOfAccount(
@@ -1570,6 +1572,13 @@ export class InvoiceService {
   }
 
   async generateInvoicePdf(invoiceData: InvoiceEntity): Promise<Buffer> {
+    const settings = await this.systemSettingsService.getSettings();
+    const companyName = settings.schoolName ?? 'Junior High School';
+    const companyAddress = settings.schoolAddress ?? '30588 Lundi Drive, Rhodene, Masvingo';
+    const companyPhone = settings.schoolPhone ?? '+263 392 263 293 / +263 78 223 8026';
+    const companyEmail = settings.schoolEmail ?? 'info@juniorhighschool.ac.zw';
+    const companyWebsite = settings.schoolWebsite ?? 'www.juniorhighschool.ac.zw';
+
     const doc = new PDFDocument({
       size: 'A4',
       margins: { top: 50, bottom: 50, left: 50, right: 50 },
@@ -1588,12 +1597,6 @@ export class InvoiceService {
     const accentGold = '#ffc107';
 
     let currentY = 50;
-
-    const companyName = 'Junior High School';
-    const companyAddress = '30588 Lundi Drive, Rhodene, Masvingo';
-    const companyPhone = '+263 392 263 293 / +263 78 223 8026';
-    const companyEmail = 'info@juniorhighschool.ac.zw';
-    const companyWebsite = 'www.juniorhighschool.ac.zw';
 
     try {
       const imgPath = path.join(process.cwd(), 'public', 'jhs_logo.jpg');
@@ -1969,7 +1972,7 @@ export class InvoiceService {
     currentY += 24;
 
     const bankingDetails = [
-      { label: 'Account Name', value: 'JUNIOR HIGH SCHOOL' },
+      { label: 'Account Name', value: companyName.toUpperCase() },
       { label: 'Bank', value: 'ZB BANK' },
       { label: 'Branch', value: 'MASVINGO' },
       {

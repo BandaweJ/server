@@ -5,4 +5,6 @@ export interface JwtPayload {
   username: string;
   role: string;
   id: string;
+  tenantSlug?: string;
+  tenantId?: string;
 }

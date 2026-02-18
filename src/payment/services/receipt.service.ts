@@ -55,6 +55,7 @@ import { logStructured } from '../utils/logger.util';
 import { AuditService } from './audit.service';
 import { sanitizeAmount } from '../utils/sanitization.util';
 import { NotificationService } from '../../notifications/services/notification.service';
+import { SystemSettingsService } from 'src/system/services/system-settings.service';
 
 @Injectable()
 export class ReceiptService {
@@ -73,6 +74,7 @@ export class ReceiptService {
     private readonly invoiceService: InvoiceService,
     private readonly dataSource: DataSource,
     private readonly auditService: AuditService,
+    private readonly systemSettingsService: SystemSettingsService,
   ) {}
 
   /**
@@ -1263,6 +1265,12 @@ export class ReceiptService {
   }
 
   async generateReceiptPdf(receipt: ReceiptEntity): Promise<Buffer> {
+    const settings = await this.systemSettingsService.getSettings();
+    const companyName = settings.schoolName ?? 'Junior High School';
+    const companyAddress = settings.schoolAddress ?? '30588 Lundi Drive, Rhodene, Masvingo';
+    const companyPhone = settings.schoolPhone ?? '+263 392 263 293 / +263 78 223 8026';
+    const companyEmail = settings.schoolEmail ?? 'info@juniorhighschool.ac.zw';
+
     const pageHeight = 841.89;
     const pageWidth = 595.28;
 
@@ -1499,17 +1507,18 @@ export class ReceiptService {
       doc.font(defaultFont).fontSize(9).fillColor('#000');
 
       doc.font(defaultFontBold).fontSize(10);
-      doc.text('Junior High School', toBlockX + partyBlockPadding, toContentY);
+      doc.text(companyName, toBlockX + partyBlockPadding, toContentY);
       toContentY += doc.currentLineHeight() + lineSpacing;
       doc.font(defaultFont).fontSize(9);
 
-      doc.text('30588 Lundi Drive, Rhodene, Masvingo', toBlockX + partyBlockPadding, toContentY);
+      doc.text(companyAddress, toBlockX + partyBlockPadding, toContentY);
       toContentY += doc.currentLineHeight() + lineSpacing;
-      doc.text('+263 392 263 293', toBlockX + partyBlockPadding, toContentY);
-      toContentY += doc.currentLineHeight() + lineSpacing;
-      doc.text('+263 78 223 8026', toBlockX + partyBlockPadding, toContentY);
-      toContentY += doc.currentLineHeight() + lineSpacing;
-      doc.text('info@juniorhighschool.ac.zw', toBlockX + partyBlockPadding, toContentY);
+      const phoneParts = (companyPhone || '').split(/[\/,]+/).map((p) => p.trim()).filter(Boolean);
+      for (const part of phoneParts) {
+        doc.text(part, toBlockX + partyBlockPadding, toContentY);
+        toContentY += doc.currentLineHeight() + lineSpacing;
+      }
+      doc.text(companyEmail, toBlockX + partyBlockPadding, toContentY);
 
       currentY = Math.max(fromBlockY + fromBlockHeight, toBlockY + toBlockHeight) + this.mmToPt(8);
 

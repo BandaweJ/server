@@ -1,12 +1,15 @@
 /* eslint-disable prettier/prettier */
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
   NotImplementedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { REQUEST } from '@nestjs/core';
 import { Like, Repository } from 'typeorm';
+import { TENANT_REQUEST_KEY } from 'src/tenant/tenant.middleware';
 import { CreateStudentDto } from '../dtos/createStudents.dto';
 import { StudentsEntity } from '../entities/students.entity';
 import { UpdateStudentDto } from '../dtos/updateStudent.dto';
@@ -22,6 +25,7 @@ export class StudentsService {
     @InjectRepository(StudentsEntity)
     private studentsRepository: Repository<StudentsEntity>,
     private resourceById: ResourceByIdService,
+    @Inject(REQUEST) private req: Record<string, unknown>,
   ) {}
 
   async getStudent(
@@ -178,7 +182,8 @@ export class StudentsService {
      * C is the check digit
      */
 
-    const schoolPrefix = 'S';
+    const tenant = this.req[TENANT_REQUEST_KEY] as { settings?: { studentNumberPrefix?: string } } | undefined;
+    const schoolPrefix = tenant?.settings?.studentNumberPrefix ?? 'S';
     const today = new Date();
     const YY = today.getFullYear().toString().substring(2);
     // Use padStart for safe two-digit month formatting
