@@ -38,4 +38,13 @@ export class TenantService {
     });
     return tenant?.slug ?? 'default';
   }
+
+  /** List all tenants for sign-in school selector (reads from public.tenants). */
+  async listOptions(): Promise<{ slug: string; name: string }[]> {
+    const rows = await this.tenantRepository.find({
+      select: ['slug', 'name'],
+      order: { name: 'ASC' },
+    });
+    return rows.map((t) => ({ slug: t.slug, name: t.name }));
+  }
 }
