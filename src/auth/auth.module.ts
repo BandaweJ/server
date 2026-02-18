@@ -66,8 +66,9 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
     JwtAuthGuard, // Provide JwtAuthGuard for better error handling
   ],
   exports: [
-    JwtStrategy, 
-    PassportModule, 
+    JwtModule, // So TenantMiddleware (in AppModule) can inject JwtService
+    JwtStrategy,
+    PassportModule,
     RolesPermissionsService,
     RolesGuard, // Export RolesGuard so AppModule can use it as APP_GUARD
     PermissionsGuard, // Export PermissionsGuard for use in other modules
