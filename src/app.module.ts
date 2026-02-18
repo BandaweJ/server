@@ -114,10 +114,8 @@ import { TenantMiddleware } from './tenant/tenant.middleware';
 export class AppModule implements OnModuleInit, NestModule {
   private readonly logger = new Logger(AppModule.name);
 
-  constructor(private readonly tenantMiddleware: TenantMiddleware) {}
-
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(this.tenantMiddleware).forRoutes('*');
+    consumer.apply(TenantMiddleware).forRoutes('*');
     consumer.apply(LoggingMiddleware).forRoutes('*');
     this.logger.log('TenantMiddleware and LoggingMiddleware configured');
   }

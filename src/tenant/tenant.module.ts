@@ -12,7 +12,7 @@ import { TenantController } from './tenant.controller';
 
 const requestScopedRepositoryProviders = TENANT_SCOPED_ENTITIES.map(
   (entity) => ({
-    provide: getRepositoryToken(entity),
+    provide: getRepositoryToken(entity as Function),
     scope: Scope.REQUEST,
     useFactory: (req: Record<string, unknown>) => {
       const qr = req?.[QUERY_RUNNER_REQUEST_KEY] as
