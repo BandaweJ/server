@@ -81,6 +81,11 @@ import { TenantMiddleware } from './tenant/tenant.middleware';
           // Render's PostgreSQL often requires SSL with rejectUnauthorized: false
           ssl: databaseUrl ? { rejectUnauthorized: false } : false, // Apply SSL only if DATABASE_URL is used
           // which implies a production/cloud environment
+
+          // Connection pool limits to avoid unbounded connections when the DB is slow
+          extra: {
+            max: 10,
+          },
         };
 
         return typeOrmOptions;
