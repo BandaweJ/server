@@ -25,6 +25,11 @@ export class TenantMiddleware implements NestMiddleware {
   ) {}
 
   async use(req: Request, res: Response, next: NextFunction): Promise<void> {
+    // Skip tenant DB work for CORS preflight; these requests don't need DB access
+    if (req.method === 'OPTIONS') {
+      return next();
+    }
+
     const slug = this.resolveSlug(req);
     try {
       const tenant = await this.tenantService.findBySlug(slug);
