@@ -1170,6 +1170,41 @@ export class ReceiptService {
     return receipts;
   }
 
+  /**
+   * Optimized, paginated fetch for dashboard/list views to limit memory usage.
+   */
+  async getReceiptsPage(
+    limit: number,
+    offset: number,
+  ): Promise<{ items: ReceiptEntity[]; total: number }> {
+    const qb = this.receiptRepository
+      .createQueryBuilder('receipt')
+      .where('receipt.isVoided = :isVoided', { isVoided: false })
+      .leftJoinAndSelect('receipt.student', 'student')
+      .leftJoinAndSelect('receipt.enrol', 'enrol')
+      .orderBy('receipt.date', 'DESC')
+      .take(limit)
+      .skip(offset);
+
+    const [items, total] = await qb.getManyAndCount();
+    return { items, total };
+  }
+
+  /**
+   * Aggregate total amount paid across all non-voided receipts.
+   * Uses SQL SUM so we don't load all receipts into memory.
+   */
+  async getTotalReceiptedAmount(): Promise<number> {
+    const raw = await this.receiptRepository
+      .createQueryBuilder('receipt')
+      .select('COALESCE(SUM(receipt.amountPaid), 0)', 'total')
+      .where('receipt.isVoided = :isVoided', { isVoided: false })
+      .getRawOne<{ total: string | number | null }>();
+
+    const total = raw?.total ?? 0;
+    return typeof total === 'string' ? parseFloat(total) : total;
+  }
+
   async getPaymentsByStudentForAudit(
     studentNumber: string,
   ): Promise<ReceiptEntity[]> {

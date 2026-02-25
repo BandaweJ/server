@@ -171,6 +171,16 @@ export class PaymentService {
   }
 
   /**
+   * Paginated receipts for dashboards/list views to avoid loading entire history.
+   */
+  async getDashboardReceipts(
+    limit: number,
+    offset: number,
+  ): Promise<{ items: ReceiptEntity[]; total: number }> {
+    return this.receiptService.getReceiptsPage(limit, offset);
+  }
+
+  /**
    * Get all receipts including voided ones (for audit purposes)
    * @returns All receipts including voided
    */
@@ -269,6 +279,16 @@ export class PaymentService {
 
   async getAllInvoices(): Promise<InvoiceEntity[]> {
     return this.invoiceService.getAllInvoices();
+  }
+
+  /**
+   * Paginated invoices for dashboards/list views to avoid loading entire history.
+   */
+  async getDashboardInvoices(
+    limit: number,
+    offset: number,
+  ): Promise<{ items: InvoiceEntity[]; total: number }> {
+    return this.invoiceService.getInvoicesPage(limit, offset);
   }
 
   /**
@@ -473,5 +493,26 @@ export class PaymentService {
     }>;
   }> {
     return this.creditService.getCreditActivityReport(startDate, endDate);
+  }
+
+  /**
+   * Aggregated finance summary for the dashboard.
+   * Uses SQL aggregates for invoices and receipts to minimise memory usage.
+   */
+  async getFinanceDashboardSummary(): Promise<{
+    totalInvoicesAmount: number;
+    totalPaymentsAmount: number;
+    outstandingBalance: number;
+  }> {
+    const [totalInvoicesAmount, totalPaymentsAmount] = await Promise.all([
+      this.invoiceService.getTotalInvoicedAmount(),
+      this.receiptService.getTotalReceiptedAmount(),
+    ]);
+
+    return {
+      totalInvoicesAmount,
+      totalPaymentsAmount,
+      outstandingBalance: totalInvoicesAmount - totalPaymentsAmount,
+    };
   }
 }

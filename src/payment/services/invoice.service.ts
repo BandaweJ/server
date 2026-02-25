@@ -1427,6 +1427,49 @@ export class InvoiceService {
     });
   }
 
+  /**
+   * Optimized, paginated fetch for dashboard and list views.
+   * Limits how many invoices are loaded into memory at once.
+   */
+  async getInvoicesPage(
+    limit: number,
+    offset: number,
+  ): Promise<{ items: InvoiceEntity[]; total: number }> {
+    const [items, total] = await this.invoiceRepository.findAndCount({
+      where: { isVoided: false },
+      relations: [
+        'student',
+        'enrol',
+        'balanceBfwd',
+        'bills',
+        'bills.fees',
+        'exemption',
+        'allocations',
+        'creditAllocations',
+      ],
+      order: { invoiceDate: 'DESC' },
+      take: limit,
+      skip: offset,
+    });
+
+    return { items, total };
+  }
+
+  /**
+   * Aggregate total billed amount for all non-voided invoices.
+   * Uses SQL SUM to avoid loading all rows into Node memory.
+   */
+  async getTotalInvoicedAmount(): Promise<number> {
+    const raw = await this.invoiceRepository
+      .createQueryBuilder('invoice')
+      .select('COALESCE(SUM(invoice.totalBill), 0)', 'total')
+      .where('invoice.isVoided = :isVoided', { isVoided: false })
+      .getRawOne<{ total: string | number | null }>();
+
+    const total = raw?.total ?? 0;
+    return typeof total === 'string' ? parseFloat(total) : total;
+  }
+
   async getAllInvoicesForAudit(): Promise<InvoiceEntity[]> {
     return this.invoiceRepository.find({
       relations: [

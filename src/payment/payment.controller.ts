@@ -169,6 +169,24 @@ export class PaymentController {
     return this.paymentService.getAllReceipts();
   }
 
+  /**
+   * Paginated receipts endpoint for dashboards/list views.
+   * Defaults: page=1, limit=100, max limit=200.
+   */
+  @Get('dashboard/receipts')
+  getDashboardReceipts(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const pageNum = Math.max(parseInt(page ?? '1', 10) || 1, 1);
+    const limitNum = Math.min(
+      Math.max(parseInt(limit ?? '100', 10) || 100, 1),
+      200,
+    );
+    const offset = (pageNum - 1) * limitNum;
+    return this.paymentService.getDashboardReceipts(limitNum, offset);
+  }
+
   // AUDIT ENDPOINTS - Include voided records
   @Get('receipt/audit/all')
   getAllReceiptsForAudit() {
@@ -255,6 +273,24 @@ export class PaymentController {
   @Get('invoice')
   getAllInvoices() {
     return this.paymentService.getAllInvoices();
+  }
+
+  /**
+   * Paginated invoices endpoint for dashboards/list views.
+   * Defaults: page=1, limit=100, max limit=200.
+   */
+  @Get('dashboard/invoices')
+  getDashboardInvoices(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const pageNum = Math.max(parseInt(page ?? '1', 10) || 1, 1);
+    const limitNum = Math.min(
+      Math.max(parseInt(limit ?? '100', 10) || 100, 1),
+      200,
+    );
+    const offset = (pageNum - 1) * limitNum;
+    return this.paymentService.getDashboardInvoices(limitNum, offset);
   }
 
   @Get('invoice/:studentNumber')
@@ -352,6 +388,14 @@ export class PaymentController {
     @GetUser() profile: TeachersEntity,
   ) {
     return this.paymentService.reconcileStudentFinances(studentNumber);
+  }
+
+  /**
+   * Finance dashboard summary aggregating invoice and receipt totals.
+   */
+  @Get('dashboard/summary')
+  getFinanceDashboardSummary() {
+    return this.paymentService.getFinanceDashboardSummary();
   }
 
 }

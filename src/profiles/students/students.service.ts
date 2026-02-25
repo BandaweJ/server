@@ -84,6 +84,50 @@ export class StudentsService {
     return await this.studentsRepository.find();
   }
 
+  /**
+   * Search students with pagination for large lists and typeahead.
+   * Matches on name, surname, studentNumber, cell and email.
+   */
+  async searchStudents(
+    profile: TeachersEntity | ParentsEntity | StudentsEntity,
+    query: string,
+    page: number,
+    limit: number,
+  ): Promise<{ items: StudentsEntity[]; total: number }> {
+    switch (profile.role) {
+      case ROLES.parent:
+      case ROLES.student: {
+        throw new UnauthorizedException(
+          'You are not allowed to search across all students',
+        );
+      }
+    }
+
+    const pageNum = Math.max(page || 1, 1);
+    const take = Math.min(Math.max(limit || 50, 1), 200);
+    const skip = (pageNum - 1) * take;
+
+    const where =
+      query && query.trim()
+        ? [
+            { name: Like(`%${query}%`) },
+            { surname: Like(`%${query}%`) },
+            { studentNumber: Like(`%${query}%`) },
+            { cell: Like(`%${query}%`) },
+            { email: Like(`%${query}%`) },
+          ]
+        : {};
+
+    const [items, total] = await this.studentsRepository.findAndCount({
+      where,
+      order: { surname: 'ASC', name: 'ASC' },
+      take,
+      skip,
+    });
+
+    return { items, total };
+  }
+
   async createStudent(
     createStudentDto: CreateStudentDto,
     profile: TeachersEntity | ParentsEntity | StudentsEntity,
