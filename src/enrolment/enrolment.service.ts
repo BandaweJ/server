@@ -343,13 +343,12 @@ export class EnrolmentService {
       girls: [],
     };
 
-    //create date object with current date
+    // Find the "current" term using the same inclusive logic as getCurrentTerm()
     const today = new Date();
-    //use the terms repository to find a term where current date lies between its startDate and endDate
     const currentTerm = await this.termRepository.findOne({
       where: {
-        startDate: LessThan(today),
-        endDate: MoreThan(today),
+        startDate: LessThanOrEqual(today),
+        endDate: MoreThanOrEqual(today),
       },
     });
     //get enrolments for that term
