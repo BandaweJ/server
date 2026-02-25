@@ -18,6 +18,8 @@ declare global {
 
 @Injectable()
 export class TenantMiddleware implements NestMiddleware {
+  private readonly isSingleTenant = process.env.SINGLE_TENANT === 'true';
+
   constructor(
     private readonly tenantService: TenantService,
     private readonly dataSource: DataSource,
@@ -27,6 +29,25 @@ export class TenantMiddleware implements NestMiddleware {
   async use(req: Request, res: Response, next: NextFunction): Promise<void> {
     // Skip tenant DB work for CORS preflight; these requests don't need DB access
     if (req.method === 'OPTIONS') {
+      return next();
+    }
+
+    // Fast path for single-tenant deployments:
+    // avoid per-request tenant lookup and query runner / search_path overhead.
+    if (this.isSingleTenant) {
+      const defaultSlug =
+        (process.env.SINGLE_TENANT_SLUG || 'default').trim().toLowerCase();
+      const defaultSchema =
+        (process.env.SINGLE_TENANT_SCHEMA || 'public').trim();
+
+      req[TENANT_REQUEST_KEY] = {
+        id: 'single-tenant',
+        slug: defaultSlug,
+        schemaName: defaultSchema,
+        name: 'Single Tenant',
+        settings: null,
+      };
+
       return next();
     }
 
