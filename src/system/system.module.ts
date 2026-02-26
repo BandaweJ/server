@@ -64,7 +64,14 @@ import { CalendarController } from './controllers/calendar.controller';
     IntegrationController,
     CalendarController,
   ],
-  exports: [GradingSystemService, SystemSettingsService, AnalyticsService, IntegrationService, CalendarService],
+  exports: [
+    GradingSystemService, 
+    SystemSettingsService, 
+    AnalyticsService, 
+    IntegrationService, 
+    CalendarService,
+    ReportReleaseModule,
+  ],
 })
 export class SystemModule implements OnModuleInit {
   private readonly logger = new Logger(SystemModule.name);
