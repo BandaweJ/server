@@ -43,24 +43,21 @@ export class ReportReleaseNotificationService {
         const parentNotifications = await this.getParentNotifications(reportRelease);
         
         for (const notification of parentNotifications) {
-          await this.notificationService.createNotification({
-            userId: notification.userId,
-            title: 'Student Report Released',
-            message: `${message} - Please check your child's performance.`,
-            type: 'report_release',
-            data: {
-              termNumber: reportRelease.termNumber,
-              termYear: reportRelease.termYear,
-              examType: reportRelease.examType,
-              releaseDate: reportRelease.releaseDate,
-              studentName: notification.studentName,
-            },
-            isRead: false,
+          await this.notificationService.sendReportCardNotification({
+            studentName: notification.studentName,
+            studentNumber: notification.userId,
+            className: 'Various Classes',
+            termNumber: reportRelease.termNumber,
+            termYear: reportRelease.termYear,
+            examType: reportRelease.examType,
+            parentEmail: notification.studentEmail,
           });
         }
+        
+        this.logger.log(`Successfully sent ${studentNotifications.length + parentNotifications.length} notifications for report release`);
+      } else {
+        this.logger.log(`Successfully sent ${studentNotifications.length} notifications for report release`);
       }
-      
-      this.logger.log(`Successfully sent ${studentNotifications.length + parentNotifications.length} notifications for report release`);
       
     } catch (error) {
       this.logger.error(`Failed to send release notifications: ${error.message}`, error);
