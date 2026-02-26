@@ -9,7 +9,7 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "postinstall": "node scripts/patch-buffer-equal-constant-time.js",
+    "postinstall": "node scripts/patch-buffer-equal-constant-time.js && npm run migration:run",
     "prebuild": "rimraf dist",
     "build": "cross-env NODE_OPTIONS=--max-old-space-size=1024 nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
