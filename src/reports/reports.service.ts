@@ -28,6 +28,7 @@ import * as path from 'path';
 import { ExamType } from 'src/marks/models/examtype.enum';
 import { NotificationService } from '../notifications/services/notification.service';
 import { ResourceByIdService } from '../resource-by-id/resource-by-id.service';
+import { ReportReleaseService } from '../system/report-release.service';
 // import bannerImagePath from '../assets/images/banner3.png';
 
 @Injectable()
@@ -44,6 +45,7 @@ export class ReportsService {
     private teacherCommentRepository: Repository<TeacherCommentEntity>,
     private notificationService: NotificationService,
     private resourceById: ResourceByIdService,
+    private reportReleaseService: ReportReleaseService,
   ) {}
 
   async generateReports(
@@ -881,8 +883,22 @@ export class ReportsService {
         studentNumber,
       },
     });
+
+    // Filter reports based on release status
+    const filteredReports = [];
+    for (const report of reports) {
+      const isReleased = await this.reportReleaseService.checkReleaseStatus(
+        report.report.termNumber,
+        report.report.termYear,
+        report.examType
+      );
+      
+      if (isReleased) {
+        filteredReports.push(report);
+      }
+    }
     
-    const normalizedReports = reports.map((rep) =>
+    const normalizedReports = filteredReports.map((rep) =>
       this.normalizeReportStructure(rep),
     );
 

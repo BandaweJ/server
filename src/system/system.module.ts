@@ -29,6 +29,7 @@ import { IntegrationController } from './controllers/integration.controller';
 import { CalendarEventEntity } from './entities/calendar-event.entity';
 import { EventNotificationEntity } from './entities/event-notification.entity';
 import { CalendarService } from './services/calendar.service';
+import { ReportReleaseModule } from './report-release.module';
 import { CalendarController } from './controllers/calendar.controller';
 
 @Module({
@@ -52,6 +53,7 @@ import { CalendarController } from './controllers/calendar.controller';
     AuthModule, // Import AuthModule to provide RolesGuard and AccountsEntityRepository
     forwardRef(() => PaymentModule), // Import PaymentModule to access AuditService (forwardRef to break circular dependency)
     EnrolmentModule, // Import EnrolmentModule to access EnrolmentService for current term
+    ReportReleaseModule, // Import ReportReleaseModule for report release management
   ],
   providers: [GradingSystemService, SystemSettingsService, AnalyticsService, IntegrationService, CalendarService],
   controllers: [
