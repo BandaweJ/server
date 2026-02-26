@@ -26,7 +26,6 @@ async function bootstrap() {
       forbidNonWhitelisted: false, // Don't throw error for non-whitelisted properties
     }),
   );
-  // console.log(process.env.DB_PASSWORD);
 
   // Define your allowed origins dynamically or explicitly
   const allowedOrigins = [
