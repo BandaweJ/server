@@ -317,4 +317,27 @@ export class StudentsService {
       relations: ['exemption'], // Ensure 'exemption' relation is loaded
     });
   }
+
+  // Search students by name or student number with debouncing
+  async searchStudentsByName(query: string): Promise<StudentsEntity[]> {
+    if (!query || query.trim().length < 2) {
+      return [];
+    }
+
+    const searchTerm = `%${query.trim().toLowerCase()}%`;
+    
+    return this.studentsRepository
+      .createQueryBuilder('student')
+      .leftJoinAndSelect('student.enrols', 'enrol')
+      .where(
+        '(LOWER(student.firstName) LIKE LOWER(:searchTerm) OR ' +
+        'LOWER(student.lastName) LIKE LOWER(:searchTerm) OR ' +
+        'LOWER(student.studentNumber) LIKE LOWER(:searchTerm))'
+      )
+      .setParameter('searchTerm', searchTerm)
+      .orderBy('student.lastName', 'ASC')
+      .addOrderBy('student.firstName', 'ASC')
+      .limit(50) // Limit results for performance
+      .getMany();
+  }
 }

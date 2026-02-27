@@ -80,6 +80,11 @@ export class StudentsController {
     );
   }
 
+  @Get('search')
+  searchStudents(@Query('q') query: string) {
+    return this.studentsService.searchStudentsByName(query);
+  }
+
   @Delete(':studentNumber')
   deleteStudent(@Param('studentNumber') studentnumber: string) {
     // console.log('here' + studentnumber);
