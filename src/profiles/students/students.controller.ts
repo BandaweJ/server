@@ -39,10 +39,15 @@ export class StudentsController {
     return this.studentsService.getAllStudents(profile);
   }
 
+  @Get('search')
+  searchStudents(@Query('q') query: string) {
+    return this.studentsService.searchStudentsByName(query);
+  }
+
   @Get(':studentNumber')
   getStudent(
     @Param('studentNumber') studentNumber: string,
-    profile: TeachersEntity | ParentsEntity | StudentsEntity,
+    @GetUser() profile: TeachersEntity | ParentsEntity | StudentsEntity,
   ) {
     return this.studentsService.getStudent(studentNumber, profile);
   }
@@ -58,11 +63,6 @@ export class StudentsController {
       updateStudentDto,
       profile,
     );
-  }
-
-  @Get('search')
-  searchStudents(@Query('q') query: string) {
-    return this.studentsService.searchStudentsByName(query);
   }
 
   @Delete(':studentNumber')
