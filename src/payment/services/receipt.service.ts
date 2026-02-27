@@ -1182,7 +1182,7 @@ export class ReceiptService {
       .where('receipt.isVoided = :isVoided', { isVoided: false })
       .leftJoinAndSelect('receipt.student', 'student')
       .leftJoinAndSelect('receipt.enrol', 'enrol')
-      .orderBy('receipt.date', 'DESC')
+      .orderBy('receipt.paymentDate', 'DESC')
       .take(limit)
       .skip(offset);
 
