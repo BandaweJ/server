@@ -13,6 +13,7 @@ import { JwtPayload } from './models/jwt-payload.interface';
 import { ResourceByIdService } from 'src/resource-by-id/resource-by-id.service';
 import { AccountStats } from './models/acc-stats.model';
 import { ActivityService } from '../activity/activity.service';
+import { RolesPermissionsService } from './services/roles-permissions.service';
 
 @Injectable()
 export class AuthService {
@@ -24,6 +25,7 @@ export class AuthService {
     private jwtService: JwtService,
     private resourceById: ResourceByIdService,
     private activityService: ActivityService,
+    private rolesPermissionsService: RolesPermissionsService,
   ) {}
 
   async getAccountsStats() {
@@ -234,7 +236,8 @@ export class AuthService {
       case ROLES.hod:
       case ROLES.admin:
       case ROLES.auditor:
-      case ROLES.director: {
+      case ROLES.director:
+      case ROLES.dev: {
         const tr = await this.resourceById.getTeacherById(id);
 
         try {
@@ -296,16 +299,13 @@ export class AuthService {
     // Get user permissions from their role
     let permissions: string[] = [];
     try {
-      // Get account to find roleId
       const account = await this.accountsRepository.findOne({
         where: { username: signinDto.username },
         relations: ['roleEntity', 'roleEntity.permissions'],
       });
 
-      if (account?.roleEntity?.permissions) {
-        permissions = account.roleEntity.permissions
-          .filter((p) => p.active)
-          .map((p) => p.name);
+      if (account) {
+        permissions = await this.rolesPermissionsService.getUserPermissions(account.id);
       }
     } catch (error) {
       // Don't fail the login if permission fetching fails
@@ -382,7 +382,8 @@ export class AuthService {
         case ROLES.auditor:
         case ROLES.hod:
         case ROLES.reception:
-        case ROLES.teacher: {
+        case ROLES.teacher:
+        case ROLES.dev: {
           const usr = await this.resourceById.getTeacherById(id);
           return { username, role: usr.role, id };
         }
@@ -434,7 +435,7 @@ export class AuthService {
     if (role === ROLES.student && account.student) {
       userDetails = account.student;
     } else if (
-      [ROLES.teacher, ROLES.hod, ROLES.reception, ROLES.admin, ROLES.auditor, ROLES.director].includes(role as ROLES) &&
+      [ROLES.teacher, ROLES.hod, ROLES.reception, ROLES.admin, ROLES.auditor, ROLES.director, ROLES.dev].includes(role as ROLES) &&
       account.teacher
     ) {
       userDetails = account.teacher;
@@ -477,7 +478,7 @@ export class AuthService {
             name = `${account.student.name || ''} ${account.student.surname || ''}`.trim() || account.username;
             email = account.student.email || null;
           } else if (
-            [ROLES.teacher, ROLES.admin, ROLES.hod, ROLES.reception, ROLES.auditor, ROLES.director].includes(
+            [ROLES.teacher, ROLES.admin, ROLES.hod, ROLES.reception, ROLES.auditor, ROLES.director, ROLES.dev].includes(
               account.role as ROLES
             ) &&
             account.teacher
@@ -655,7 +656,7 @@ export class AuthService {
     // Update profile based on role
     if (account.role === 'student' && account.student) {
       await this.resourceById.updateStudent(account.student.studentNumber, updateData);
-    } else if (['teacher', 'admin', 'hod', 'reception', 'auditor', 'director'].includes(account.role) && account.teacher) {
+    } else if (['teacher', 'admin', 'hod', 'reception', 'auditor', 'director', 'dev'].includes(account.role) && account.teacher) {
       await this.resourceById.updateTeacher(account.teacher.id, updateData);
     } else {
       throw new BadRequestException('Profile not found for this user');

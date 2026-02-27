@@ -96,6 +96,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         case ROLES.reception:
         case ROLES.auditor:
         case ROLES.director:
+        case ROLES.dev:
           try {
             profile = await this.resourceById.getTeacherById(id);
             if (!profile) {

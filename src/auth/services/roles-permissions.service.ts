@@ -86,6 +86,7 @@ export class RolesPermissionsService {
       [ROLES.auditor]: 'Auditor with read-only access to financial records',
       [ROLES.student]: 'Student with access to personal records and reports',
       [ROLES.parent]: 'Parent with access to child\'s records and reports',
+      [ROLES.dev]: 'Developer with full access to all parts of the system',
     };
 
     const rolesToCreate: Partial<RoleEntity>[] = Object.values(ROLES).map((roleName) => ({
@@ -395,6 +396,19 @@ export class RolesPermissionsService {
     return await this.accountsRepository.save(account);
   }
 
+  /** All permission names from PERMISSIONS constant (dev and admin get these) */
+  private getAllPermissionNames(): string[] {
+    return [
+      ...Object.values(PERMISSIONS.MARKS),
+      ...Object.values(PERMISSIONS.FINANCE),
+      ...Object.values(PERMISSIONS.REPORTS),
+      ...Object.values(PERMISSIONS.ATTENDANCE),
+      ...Object.values(PERMISSIONS.ENROLMENT),
+      ...Object.values(PERMISSIONS.USERS),
+      ...Object.values(PERMISSIONS.SYSTEM),
+    ];
+  }
+
   // Get user permissions
   async getUserPermissions(accountId: string): Promise<string[]> {
     const account = await this.accountsRepository.findOne({
@@ -405,6 +419,11 @@ export class RolesPermissionsService {
     if (!account) {
       this.logger.warn(`Account ${accountId} not found`);
       return [];
+    }
+
+    const roleName = account.roleEntity?.name ?? account.role;
+    if (roleName === ROLES.dev) {
+      return this.getAllPermissionNames();
     }
 
     // If roleEntity is loaded and has permissions, use it
@@ -424,19 +443,22 @@ export class RolesPermissionsService {
         relations: ['permissions'],
       });
 
-      if (role && role.permissions) {
-        // Optionally update the account to set roleId for future lookups
-        if (!account.roleId) {
-          account.roleId = role.id;
-          account.roleEntity = role;
-          await this.accountsRepository.save(account).catch(err => {
-            this.logger.warn(`Failed to update account ${accountId} with roleId:`, err);
-          });
+      if (role) {
+        if (role.name === ROLES.dev) {
+          return this.getAllPermissionNames();
         }
-
-        return role.permissions
-          .filter((p) => p.active)
-          .map((p) => p.name);
+        if (role.permissions) {
+          if (!account.roleId) {
+            account.roleId = role.id;
+            account.roleEntity = role;
+            await this.accountsRepository.save(account).catch(err => {
+              this.logger.warn(`Failed to update account ${accountId} with roleId:`, err);
+            });
+          }
+          return role.permissions
+            .filter((p) => p.active)
+            .map((p) => p.name);
+        }
       }
     }
 
@@ -457,20 +479,22 @@ export class RolesPermissionsService {
   async seedDefaultRolePermissions(): Promise<void> {
     this.logger.log('Starting default role permissions seeding...');
 
+    // All permission names (used for admin and dev)
+    const allPermissionNames = [
+      ...Object.values(PERMISSIONS.MARKS),
+      ...Object.values(PERMISSIONS.FINANCE),
+      ...Object.values(PERMISSIONS.REPORTS),
+      ...Object.values(PERMISSIONS.ATTENDANCE),
+      ...Object.values(PERMISSIONS.ENROLMENT),
+      ...Object.values(PERMISSIONS.USERS),
+      ...Object.values(PERMISSIONS.SYSTEM),
+    ];
+
     // Define default permissions for each role
     const rolePermissions = {
-      [ROLES.admin]: [
-        // Admin gets all permissions
-        ...Object.values(PERMISSIONS.MARKS),
-        ...Object.values(PERMISSIONS.FINANCE),
-        ...Object.values(PERMISSIONS.REPORTS),
-        ...Object.values(PERMISSIONS.ATTENDANCE),
-        ...Object.values(PERMISSIONS.ENROLMENT),
-        ...Object.values(PERMISSIONS.USERS),
-        ...Object.values(PERMISSIONS.SYSTEM),
-      ],
+      [ROLES.admin]: allPermissionNames,
+      [ROLES.dev]: allPermissionNames,
       [ROLES.director]: [
-        // Director gets most permissions except system management
         ...Object.values(PERMISSIONS.MARKS),
         ...Object.values(PERMISSIONS.FINANCE),
         ...Object.values(PERMISSIONS.REPORTS),

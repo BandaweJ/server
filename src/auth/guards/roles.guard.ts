@@ -98,6 +98,10 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException(`Invalid user role: ${normalizedRole}`);
     }
 
+    if (normalizedRole === ROLES.dev) {
+      return true;
+    }
+
     console.log('RolesGuard: Checking access', {
       userRole: normalizedRole,
       requiredRoles,
