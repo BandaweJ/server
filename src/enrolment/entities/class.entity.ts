@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Column, Entity, PrimaryGeneratedColumn, Unique } from 'typeorm';
+import { Column, Entity, PrimaryGeneratedColumn, Unique, OneToMany } from 'typeorm';
+import { EnrolEntity } from './enrol.entity';
 
 @Entity('classes')
 @Unique(['name'])
@@ -12,4 +13,7 @@ export class ClassEntity {
 
   @Column()
   form: number;
+
+  @OneToMany(() => EnrolEntity, (enrol) => enrol.name)
+  enrols: EnrolEntity[];
 }
