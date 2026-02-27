@@ -39,26 +39,6 @@ export class StudentsController {
     return this.studentsService.getAllStudents(profile);
   }
 
-  /**
-   * Paginated student search endpoint for typeahead and large lists.
-   */
-  @Get('search')
-  searchStudents(
-    @Query('q') query: string,
-    @Query('page') page: string,
-    @Query('limit') limit: string,
-    @GetUser() profile: TeachersEntity | ParentsEntity | StudentsEntity,
-  ) {
-    const pageNum = parseInt(page ?? '1', 10) || 1;
-    const limitNum = parseInt(limit ?? '50', 10) || 50;
-    return this.studentsService.searchStudents(
-      profile,
-      query ?? '',
-      pageNum,
-      limitNum,
-    );
-  }
-
   @Get(':studentNumber')
   getStudent(
     @Param('studentNumber') studentNumber: string,
