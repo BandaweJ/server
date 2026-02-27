@@ -55,11 +55,17 @@ export class EnrolmentService {
   ) {}
 
   async getAllClasses(): Promise<ClassEntity[]> {
-    return await this.classRepository
-      .createQueryBuilder('class')
-      .leftJoinAndSelect('class.enrols', 'enrol')
-      .loadRelationCountAndMap('class.studentCount', 'class.enrols')
-      .getMany();
+    const classes = await this.classRepository.find();
+    
+    // Get student count for each class by querying enrolments
+    for (const classItem of classes) {
+      const studentCount = await this.enrolmentRepository.count({
+        where: { name: classItem.name }
+      });
+      classItem.studentCount = studentCount;
+    }
+    
+    return classes;
   }
 
   async getOneClass(name: string): Promise<ClassEntity> {
