@@ -16,4 +16,6 @@ export class ClassEntity {
 
   @OneToMany(() => EnrolEntity, (enrol) => enrol.name)
   enrols: EnrolEntity[];
+
+  studentCount?: number;
 }

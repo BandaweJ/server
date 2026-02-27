@@ -58,7 +58,7 @@ export class EnrolmentService {
     return await this.classRepository
       .createQueryBuilder('class')
       .leftJoinAndSelect('class.enrols', 'enrol')
-      .loadRelationCountAndMap('class', 'studentCount', 'enrols')
+      .loadRelationCountAndMap('class.studentCount', 'class.enrols')
       .getMany();
   }
 
