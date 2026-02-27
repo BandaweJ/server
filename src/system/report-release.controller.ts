@@ -73,7 +73,7 @@ export class ReportReleaseController {
     return this.reportReleaseService.getScheduledReleases();
   }
 
-  @Get('generate-sessions-from-terms')
+  @Post('generate-from-terms')
   @Roles(ROLES.admin, ROLES.director)
   @ApiOperation({ summary: 'Generate report release settings from existing terms in database' })
   @ApiResponse({ status: 200, description: 'Report release settings generated from terms', type: [ReportReleaseSettings] })
