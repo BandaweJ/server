@@ -96,8 +96,10 @@ export class PaymentService {
     }
 
     // Get account by teacher ID (account.id = teacher.id based on OneToOne relationship)
+    // Load roleEntity so we use the assigned role (roleEntity.name); account.role string may be stale when role was assigned via UI
     const account = await this.accountsRepository.findOne({
       where: { id: teacher.id },
+      relations: ['roleEntity'],
     });
 
     if (!account) {
@@ -106,7 +108,8 @@ export class PaymentService {
       );
     }
 
-    return account.role;
+    const roleName = account.roleEntity?.name ?? account.role;
+    return roleName as ROLES;
   }
 
   /**
