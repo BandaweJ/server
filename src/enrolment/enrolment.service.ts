@@ -33,6 +33,7 @@ import { AttendanceEntity } from '../attendance/entities/attendance.entity';
 import { StudentsSummary } from './models/students-summary.model';
 import { StudentsService } from 'src/profiles/students/students.service';
 import { UpdateEnrolDto } from './dtos/update-enrol.dto';
+import { BillsEntity } from 'src/finance/entities/bills.entity';
 // import { FinanceService } from 'src/finance/finance.service';
 
 @Injectable()
@@ -46,6 +47,8 @@ export class EnrolmentService {
     private termRepository: Repository<TermsEntity>,
     @InjectRepository(EnrolEntity)
     private enrolmentRepository: Repository<EnrolEntity>,
+    @InjectRepository(BillsEntity)
+    private billsRepository: Repository<BillsEntity>,
     private resourceById: ResourceByIdService,
 
     @InjectRepository(AttendanceEntity)
@@ -507,16 +510,28 @@ export class EnrolmentService {
   async unenrolStudent(id: number) {
     const enrol = await this.enrolmentRepository.findOne({
       where: { id },
-      // relations: ['student'],
     });
+
+    if (!enrol) {
+      throw new NotFoundException(`Enrolment with id ${id} not found`);
+    }
+
+    const billsCount = await this.billsRepository.count({
+      where: { enrol: { id } },
+    });
+
+    if (billsCount > 0) {
+      throw new BadRequestException(
+        `Cannot unenrol: this enrolment has ${billsCount} bill(s) linked to it. Remove or void the related invoice(s) first, then try again.`,
+      );
+    }
 
     const result = await this.enrolmentRepository.delete(id);
 
     if (result.affected) {
       return enrol;
-    } else {
-      throw new NotImplementedException(`Enrolment not removed`, result.raw);
     }
+    throw new NotImplementedException(`Enrolment not removed`, result.raw);
   }
 
   async addTerm(term: CreateTermDto) {
