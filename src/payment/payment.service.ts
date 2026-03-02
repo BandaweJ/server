@@ -307,6 +307,18 @@ export class PaymentService {
   }
 
   /**
+   * Fix stored balance/status when they disagree with totalBill - amountPaidOnInvoice.
+   * Call when loading student data (e.g. dashboard) to correct timing/bugs/data issues.
+   * @param invoices - Invoices already loaded for the student
+   * @returns Number of invoices that were corrected and saved
+   */
+  async normalizeStudentInvoiceBalances(
+    invoices: InvoiceEntity[],
+  ): Promise<number> {
+    return this.invoiceService.normalizeInvoiceBalances(invoices);
+  }
+
+  /**
    * Get all invoices for a student including voided ones (for audit purposes)
    * @param studentNumber - The student number
    * @returns All invoices including voided

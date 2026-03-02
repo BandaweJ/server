@@ -830,7 +830,12 @@ export class ReceiptService {
 
       invoice.amountPaidOnInvoice =
         Number(invoice.amountPaidOnInvoice) + Number(amountAppliedNumber);
-      invoice.balance = invoiceCurrentBalance - Number(amountAppliedNumber);
+      const totalBill = Number(invoice.totalBill || 0);
+      const amountPaid = Number(invoice.amountPaidOnInvoice);
+      invoice.balance = Math.max(
+        0,
+        Math.round((totalBill - amountPaid) * 100) / 100,
+      );
       invoice.status = this.getInvoiceStatus(invoice);
       updatedInvoices.push(invoice);
 

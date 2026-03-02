@@ -4493,6 +4493,35 @@ export class InvoiceService {
     return InvoiceStatus.Pending;
   }
 
+  /**
+   * Fix stored balance (and status) when they disagree with totalBill - amountPaidOnInvoice.
+   * Call when loading invoices for display (e.g. dashboard) to correct timing/bugs/data issues.
+   * @param invoices - Invoices to normalize (will be updated and saved only when mismatch)
+   * @returns Number of invoices that were corrected and saved
+   */
+  async normalizeInvoiceBalances(
+    invoices: InvoiceEntity[],
+  ): Promise<number> {
+    const tolerance = 0.01;
+    let corrected = 0;
+    for (const invoice of invoices) {
+      if (invoice.isVoided) continue;
+      const totalBill = Number(invoice.totalBill || 0);
+      const amountPaid = Number(invoice.amountPaidOnInvoice || 0);
+      const expectedBalance = Math.max(
+        0,
+        Math.round((totalBill - amountPaid) * 100) / 100,
+      );
+      const storedBalance = Number(invoice.balance);
+      if (Math.abs(storedBalance - expectedBalance) <= tolerance) continue;
+      invoice.balance = expectedBalance;
+      invoice.status = this.getInvoiceStatus(invoice);
+      await this.invoiceRepository.save(invoice);
+      corrected += 1;
+    }
+    return corrected;
+  }
+
 }
 
 

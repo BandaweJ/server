@@ -6,6 +6,7 @@ import { StudentDashboardSummary } from './models/student-dashboard-summary.mode
 import { PaymentService } from 'src/payment/payment.service';
 import { ReportsService } from 'src/reports/reports.service';
 import { EnrolEntity } from 'src/enrolment/entities/enrol.entity';
+import { InvoiceStatus } from 'src/finance/models/invoice-status.enum';
 
 @Injectable()
 export class DashboardService {
@@ -28,6 +29,10 @@ export class DashboardService {
         this.paymentService.getStudentBalance(studentNumber),
       ]);
 
+    // Fix any invoices where stored balance disagrees with totalBill - amountPaidOnInvoice
+    // (corrects timing, bugs, or legacy data so ledger and dashboard stay in sync)
+    await this.paymentService.normalizeStudentInvoiceBalances(studentInvoices);
+
     // --- Financial Summary ---
     const totalBilled = studentInvoices.reduce(
       (sum, invoice) => sum + Number(invoice.totalBill),
@@ -39,22 +44,36 @@ export class DashboardService {
     );
     const amountOwed = amountOwedResult.amountDue;
 
-    // ADDED: Create an array of outstanding balances
+    // Outstanding balances by term: use same criteria as getStudentBalance (only
+    // Pending / PartiallyPaid / Overdue). Use calculated balance (totalBill - amountPaidOnInvoice)
+    // so display is correct even if stored balance was stale (timing/bugs/data fixes).
+    const outstandingStatuses = [
+      InvoiceStatus.Pending,
+      InvoiceStatus.PartiallyPaid,
+      InvoiceStatus.Overdue,
+    ];
     const outstandingBalances = studentInvoices
-      .filter((invoice) => invoice.balance > 0)
+      .filter((invoice) =>
+        outstandingStatuses.includes(invoice.status as InvoiceStatus),
+      )
       .map((invoice) => {
-        // Ensure enrol data is available
+        const totalBill = Number(invoice.totalBill || 0);
+        const amountPaid = Number(invoice.amountPaidOnInvoice || 0);
+        const calculatedBalance = Math.max(
+          0,
+          Math.round((totalBill - amountPaid) * 100) / 100,
+        );
+        if (calculatedBalance <= 0) return null;
         const enrol: EnrolEntity = invoice.enrol;
-        // Construct the label from the enrolment data
         const termLabel = enrol ? `Term ${enrol.num}` : 'N/A';
         const year = enrol ? enrol.year : null;
-
         return {
           term: termLabel,
           year: year,
-          amount: invoice.balance,
+          amount: calculatedBalance,
         };
-      });
+      })
+      .filter((item): item is NonNullable<typeof item> => item != null);
 
     // --- Academic Summary ---
     const numberOfReportCards = studentReports.length;
