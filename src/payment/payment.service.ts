@@ -18,6 +18,14 @@ import { InvoiceEntity } from './entities/invoice.entity';
 import { InvoiceStatsModel } from 'src/finance/models/invoice-stats.model';
 import { CreditTransactionEntity } from './entities/credit-transaction.entity';
 import { CreditTransactionQueryDto } from './dtos/credit-transaction-query.dto';
+import {
+  FinanceDashboardSummaryDto,
+  FinanceDashboardSummaryFilters,
+  MonthlyBreakdownItem,
+} from './dtos/finance-dashboard-summary.dto';
+import { StudentFinanceSummaryDto } from './dtos/student-finance-summary.dto';
+import { InvoiceStatus } from 'src/finance/models/invoice-status.enum';
+import { EnrolEntity } from 'src/enrolment/entities/enrol.entity';
 import { AccountsEntity } from 'src/auth/entities/accounts.entity';
 import { CreditService } from './services/credit.service';
 import { InvoiceService } from './services/invoice.service';
@@ -155,6 +163,62 @@ export class PaymentService {
     studentNumber: string,
   ): Promise<{ amountDue: number }> {
     return this.receiptService.getStudentBalance(studentNumber);
+  }
+
+  /**
+   * Finance-only summary for a student (single source for totals and balance).
+   * Loads invoices/receipts, normalizes balances, then returns totals and outstanding by term.
+   */
+  async getStudentFinanceSummary(
+    studentNumber: string,
+  ): Promise<StudentFinanceSummaryDto> {
+    const [studentInvoices, studentReceipts] = await Promise.all([
+      this.getStudentInvoices(studentNumber),
+      this.getPaymentsByStudent(studentNumber),
+    ]);
+    await this.normalizeStudentInvoiceBalances(studentInvoices);
+    const { amountDue: amountOwed } =
+      await this.getStudentBalance(studentNumber);
+
+    const totalBilled = studentInvoices.reduce(
+      (sum, inv) => sum + Number(inv.totalBill),
+      0,
+    );
+    const totalPaid = studentReceipts.reduce(
+      (sum, rec) => sum + Number(rec.amountPaid),
+      0,
+    );
+
+    const outstandingStatuses = [
+      InvoiceStatus.Pending,
+      InvoiceStatus.PartiallyPaid,
+      InvoiceStatus.Overdue,
+    ];
+    const outstandingBalances = studentInvoices
+      .filter((inv) =>
+        outstandingStatuses.includes(inv.status as InvoiceStatus),
+      )
+      .map((inv) => {
+        const totalBill = Number(inv.totalBill || 0);
+        const amountPaid = Number(inv.amountPaidOnInvoice || 0);
+        const calculatedBalance = Math.max(
+          0,
+          Math.round((totalBill - amountPaid) * 100) / 100,
+        );
+        if (calculatedBalance <= 0) return null;
+        const enrol: EnrolEntity | undefined = inv.enrol;
+        const termLabel = enrol ? `Term ${enrol.num}` : 'N/A';
+        const year = enrol ? enrol.year : null;
+        return { term: termLabel, year, amount: calculatedBalance };
+      })
+      .filter((item): item is NonNullable<typeof item> => item != null);
+
+    return {
+      totalBilled,
+      totalPaid,
+      amountOwed,
+      outstandingBalances,
+    };
   }
 
   async createReceipt(
@@ -511,23 +575,131 @@ export class PaymentService {
   }
 
   /**
-   * Aggregated finance summary for the dashboard.
+   * Aggregated finance summary for the dashboard (cards + chart).
    * Uses SQL aggregates for invoices and receipts to minimise memory usage.
+   * @param filters - Optional startDate, endDate, enrolTerm, transactionType
    */
-  async getFinanceDashboardSummary(): Promise<{
-    totalInvoicesAmount: number;
-    totalPaymentsAmount: number;
-    outstandingBalance: number;
-  }> {
-    const [totalInvoicesAmount, totalPaymentsAmount] = await Promise.all([
-      this.invoiceService.getTotalInvoicedAmount(),
-      this.receiptService.getTotalReceiptedAmount(),
+  async getFinanceDashboardSummary(
+    filters?: FinanceDashboardSummaryFilters,
+  ): Promise<FinanceDashboardSummaryDto> {
+    const includeInvoices = !filters || filters.transactionType !== 'Payment';
+    const includeReceipts = !filters || filters.transactionType !== 'Invoice';
+    const invoiceFilters = includeInvoices ? this.toInvoiceFilters(filters) : undefined;
+    const receiptFilters = includeReceipts ? this.toReceiptFilters(filters) : undefined;
+
+    const [
+      totalInvoiced,
+      totalPayments,
+      invoiceCount,
+      receiptCount,
+      invoiceMonthly,
+      receiptMonthly,
+    ] = await Promise.all([
+      includeInvoices
+        ? this.invoiceService.getTotalInvoicedAmount(invoiceFilters)
+        : Promise.resolve(0),
+      includeReceipts
+        ? this.receiptService.getTotalReceiptedAmount(receiptFilters)
+        : Promise.resolve(0),
+      includeInvoices
+        ? this.invoiceService.getInvoiceCount(invoiceFilters)
+        : Promise.resolve(0),
+      includeReceipts
+        ? this.receiptService.getReceiptCount(receiptFilters)
+        : Promise.resolve(0),
+      includeInvoices
+        ? this.invoiceService.getMonthlyInvoiceBreakdown(invoiceFilters)
+        : Promise.resolve([]),
+      includeReceipts
+        ? this.receiptService.getMonthlyReceiptBreakdown(receiptFilters)
+        : Promise.resolve([]),
     ]);
 
+    const outstandingBalance = totalInvoiced - totalPayments;
+    const totalTransactions = invoiceCount + receiptCount;
+    const averageInvoiceAmount =
+      invoiceCount > 0 ? totalInvoiced / invoiceCount : 0;
+    const averagePaymentAmount =
+      receiptCount > 0 ? totalPayments / receiptCount : 0;
+    const collectionRate =
+      totalInvoiced > 0 ? (totalPayments / totalInvoiced) * 100 : 0;
+
+    const monthlyBreakdown = this.mergeMonthlyBreakdowns(
+      invoiceMonthly,
+      receiptMonthly,
+    );
+
     return {
-      totalInvoicesAmount,
-      totalPaymentsAmount,
-      outstandingBalance: totalInvoicesAmount - totalPaymentsAmount,
+      totalInvoiced,
+      totalPayments,
+      outstandingBalance,
+      invoiceCount,
+      receiptCount,
+      totalTransactions,
+      averageInvoiceAmount,
+      averagePaymentAmount,
+      collectionRate,
+      monthlyBreakdown,
     };
+  }
+
+  private toInvoiceFilters(
+    f?: FinanceDashboardSummaryFilters,
+  ): { startDate?: string; endDate?: string; enrolTerm?: string } | undefined {
+    if (!f) return undefined;
+    return {
+      startDate: f.startDate,
+      endDate: f.endDate,
+      enrolTerm: f.enrolTerm,
+    };
+  }
+
+  private toReceiptFilters(
+    f?: FinanceDashboardSummaryFilters,
+  ): { startDate?: string; endDate?: string; enrolTerm?: string } | undefined {
+    if (!f) return undefined;
+    return {
+      startDate: f.startDate,
+      endDate: f.endDate,
+      enrolTerm: f.enrolTerm,
+    };
+  }
+
+  private mergeMonthlyBreakdowns(
+    invoiceMonthly: { monthLabel: string; year: number; month: number; total: number }[],
+    receiptMonthly: { monthLabel: string; year: number; month: number; total: number }[],
+  ): MonthlyBreakdownItem[] {
+    const map = new Map<string, MonthlyBreakdownItem>();
+    const add = (
+      label: string,
+      year: number,
+      month: number,
+      invoicesTotal: number,
+      paymentsTotal: number,
+    ) => {
+      const key = `${year}-${month}`;
+      const existing = map.get(key);
+      if (existing) {
+        existing.invoicesTotal += invoicesTotal;
+        existing.paymentsTotal += paymentsTotal;
+      } else {
+        map.set(key, {
+          monthLabel: label,
+          year,
+          month,
+          invoicesTotal,
+          paymentsTotal,
+        });
+      }
+    };
+    for (const row of invoiceMonthly) {
+      add(row.monthLabel, row.year, row.month, row.total, 0);
+    }
+    for (const row of receiptMonthly) {
+      add(row.monthLabel, row.year, row.month, 0, row.total);
+    }
+    return Array.from(map.values()).sort(
+      (a, b) => a.year - b.year || a.month - b.month,
+    );
   }
 }

@@ -70,6 +70,17 @@ export class PaymentController {
     return this.paymentService.getStudentBalance(studentNumber);
   }
 
+  /**
+   * Finance-only summary for a student (totalBilled, totalPaid, amountOwed, outstandingBalances).
+   * Single source for student financials views; no academic/reports data.
+   */
+  @Get('student/:studentNumber/finance-summary')
+  getStudentFinanceSummary(
+    @Param('studentNumber') studentNumber: string,
+  ) {
+    return this.paymentService.getStudentFinanceSummary(studentNumber);
+  }
+
   // CREDIT TRANSACTION HISTORY
   @Get('credit-transactions/:studentNumber')
   getCreditTransactions(
@@ -391,11 +402,21 @@ export class PaymentController {
   }
 
   /**
-   * Finance dashboard summary aggregating invoice and receipt totals.
+   * Finance dashboard summary for cards and chart (optional filters).
+   * Query params: startDate, endDate (ISO), enrolTerm (e.g. "1 2026"), transactionType (Invoice | Payment).
    */
   @Get('dashboard/summary')
-  getFinanceDashboardSummary() {
-    return this.paymentService.getFinanceDashboardSummary();
+  getFinanceDashboardSummary(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('enrolTerm') enrolTerm?: string,
+    @Query('transactionType') transactionType?: 'Invoice' | 'Payment',
+  ) {
+    const filters =
+      startDate || endDate || enrolTerm || transactionType
+        ? { startDate, endDate, enrolTerm, transactionType }
+        : undefined;
+    return this.paymentService.getFinanceDashboardSummary(filters);
   }
 
 }

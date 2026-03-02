@@ -171,14 +171,18 @@ export class ReceiptService {
               0,
               Number(invoice.amountPaidOnInvoice) - amountApplied,
             );
-            invoice.balance = Number(invoice.balance) + amountApplied;
-            invoice.status = this.getInvoiceStatus(invoice);
-
             updatedInvoices.push(invoice);
           }
         }
 
-        await transactionalEntityManager.save(updatedInvoices);
+        if (updatedInvoices.length > 0) {
+          await transactionalEntityManager.save(updatedInvoices);
+          const invoiceIds = updatedInvoices.map((inv) => inv.id).filter((id): id is number => id != null);
+          await this.invoiceService.recomputeAndPersistInvoiceBalances(
+            invoiceIds,
+            transactionalEntityManager,
+          );
+        }
 
         // 3. Reverse any credit that was created from this receipt's overpayment
         const receiptCredit = await transactionalEntityManager.findOne(
@@ -223,9 +227,6 @@ export class ReceiptService {
                   0,
                   Number(invoice.amountPaidOnInvoice) - amountToReverse,
                 );
-                invoice.balance = Number(invoice.balance) + amountToReverse;
-                invoice.status = this.getInvoiceStatus(invoice);
-
                 invoicesToUpdate.push(invoice);
 
                 if (amountToReverse >= allocationAmount) {
@@ -241,6 +242,11 @@ export class ReceiptService {
 
             if (invoicesToUpdate.length > 0) {
               await transactionalEntityManager.save(invoicesToUpdate);
+              const invoiceIds = invoicesToUpdate.map((inv) => inv.id).filter((id): id is number => id != null);
+              await this.invoiceService.recomputeAndPersistInvoiceBalances(
+                invoiceIds,
+                transactionalEntityManager,
+              );
             }
 
             studentCredit.amount =
@@ -830,13 +836,6 @@ export class ReceiptService {
 
       invoice.amountPaidOnInvoice =
         Number(invoice.amountPaidOnInvoice) + Number(amountAppliedNumber);
-      const totalBill = Number(invoice.totalBill || 0);
-      const amountPaid = Number(invoice.amountPaidOnInvoice);
-      invoice.balance = Math.max(
-        0,
-        Math.round((totalBill - amountPaid) * 100) / 100,
-      );
-      invoice.status = this.getInvoiceStatus(invoice);
       updatedInvoices.push(invoice);
 
       remainingPaymentAmount =
@@ -846,6 +845,11 @@ export class ReceiptService {
     if (updatedInvoices.length > 0) {
       try {
         await transactionalEntityManager.save(updatedInvoices);
+        const invoiceIds = updatedInvoices.map((inv) => inv.id).filter((id): id is number => id != null);
+        await this.invoiceService.recomputeAndPersistInvoiceBalances(
+          invoiceIds,
+          transactionalEntityManager,
+        );
       } catch (error) {
         logStructured(
           this.logger,
@@ -1198,16 +1202,100 @@ export class ReceiptService {
   /**
    * Aggregate total amount paid across all non-voided receipts.
    * Uses SQL SUM so we don't load all receipts into memory.
+   * @param filters - Optional date range and enrol term
    */
-  async getTotalReceiptedAmount(): Promise<number> {
-    const raw = await this.receiptRepository
+  async getTotalReceiptedAmount(filters?: {
+    startDate?: string;
+    endDate?: string;
+    enrolTerm?: string;
+  }): Promise<number> {
+    const qb = this.receiptRepository
       .createQueryBuilder('receipt')
       .select('COALESCE(SUM(receipt.amountPaid), 0)', 'total')
-      .where('receipt.isVoided = :isVoided', { isVoided: false })
-      .getRawOne<{ total: string | number | null }>();
-
+      .where('receipt.isVoided = :isVoided', { isVoided: false });
+    this.applyDashboardFiltersToReceiptQuery(qb, filters);
+    const raw = await qb.getRawOne<{ total: string | number | null }>();
     const total = raw?.total ?? 0;
     return typeof total === 'string' ? parseFloat(total) : total;
+  }
+
+  /**
+   * Count of non-voided receipts (optionally filtered).
+   */
+  async getReceiptCount(filters?: {
+    startDate?: string;
+    endDate?: string;
+    enrolTerm?: string;
+  }): Promise<number> {
+    const qb = this.receiptRepository
+      .createQueryBuilder('receipt')
+      .select('COUNT(receipt.id)', 'count')
+      .where('receipt.isVoided = :isVoided', { isVoided: false });
+    this.applyDashboardFiltersToReceiptQuery(qb, filters);
+    const raw = await qb.getRawOne<{ count: string }>();
+    const count = raw?.count ?? '0';
+    return parseInt(String(count), 10) || 0;
+  }
+
+  /**
+   * Monthly receipt totals for chart (optionally filtered).
+   */
+  async getMonthlyReceiptBreakdown(filters?: {
+    startDate?: string;
+    endDate?: string;
+    enrolTerm?: string;
+  }): Promise<{ monthLabel: string; year: number; month: number; total: number }[]> {
+    const qb = this.receiptRepository
+      .createQueryBuilder('receipt')
+      .select('EXTRACT(YEAR FROM receipt.paymentDate)', 'year')
+      .addSelect('EXTRACT(MONTH FROM receipt.paymentDate)', 'month')
+      .addSelect('COALESCE(SUM(receipt.amountPaid), 0)', 'total')
+      .where('receipt.isVoided = :isVoided', { isVoided: false })
+      .groupBy('EXTRACT(YEAR FROM receipt.paymentDate)')
+      .addGroupBy('EXTRACT(MONTH FROM receipt.paymentDate)')
+      .orderBy('year', 'ASC')
+      .addOrderBy('month', 'ASC');
+    this.applyDashboardFiltersToReceiptQuery(qb, filters);
+    const rows = await qb.getRawMany<{ year: string; month: string; total: string }>();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return rows.map((r) => {
+      const year = parseInt(String(r.year), 10) || 0;
+      const month = parseInt(String(r.month), 10) || 0;
+      return {
+        monthLabel: `${months[month - 1] || ''} ${year}`.trim(),
+        year,
+        month,
+        total: parseFloat(r.total || '0') || 0,
+      };
+    });
+  }
+
+  private applyDashboardFiltersToReceiptQuery(
+    qb: import('typeorm').SelectQueryBuilder<ReceiptEntity>,
+    filters?: { startDate?: string; endDate?: string; enrolTerm?: string },
+  ): void {
+    if (!filters) return;
+    if (filters.startDate) {
+      qb.andWhere('receipt.paymentDate >= :startDate', {
+        startDate: new Date(filters.startDate),
+      });
+    }
+    if (filters.endDate) {
+      qb.andWhere('receipt.paymentDate <= :endDate', {
+        endDate: new Date(filters.endDate),
+      });
+    }
+    if (filters.enrolTerm && filters.enrolTerm.trim()) {
+      const parts = filters.enrolTerm.trim().split(/\s+/);
+      const num = parts.length > 0 ? parseInt(parts[0], 10) : NaN;
+      const year = parts.length > 1 ? parseInt(parts[1], 10) : NaN;
+      if (!isNaN(num) && !isNaN(year)) {
+        qb.innerJoin('receipt.enrol', 'enrol').andWhere(
+          'enrol.num = :enrolNum AND enrol.year = :enrolYear',
+          { enrolNum: num, enrolYear: year },
+        );
+      }
+    }
   }
 
   async getPaymentsByStudentForAudit(

@@ -18,20 +18,24 @@ export class DashboardService {
   async getStudentDashboardSummary(
     studentNumber: string,
   ): Promise<StudentDashboardSummary> {
-    // Fetch all necessary data concurrently using Promise.all
+    // Fetch invoices, receipts, and reports (do not fetch balance yet).
     // NOTE: The getStudentInvoices method MUST fetch the 'enrol' relation for this to work.
-    // e.g., this.invoiceRepository.find({ where: { ... }, relations: ['enrol'] });
-    const [studentInvoices, studentReceipts, studentReports, amountOwedResult] =
+    const [studentInvoices, studentReceipts, studentReports] =
       await Promise.all([
         this.paymentService.getStudentInvoices(studentNumber),
         this.paymentService.getPaymentsByStudent(studentNumber),
         this.reportsService.getStudentReports(studentNumber),
-        this.paymentService.getStudentBalance(studentNumber),
       ]);
 
     // Fix any invoices where stored balance disagrees with totalBill - amountPaidOnInvoice
-    // (corrects timing, bugs, or legacy data so ledger and dashboard stay in sync)
+    // (corrects timing, bugs, or legacy data so ledger and dashboard stay in sync).
+    // Must run before getStudentBalance so amountOwed reflects normalized balances.
     await this.paymentService.normalizeStudentInvoiceBalances(studentInvoices);
+
+    // Get balance after normalization so summary amountOwed is the single source of truth.
+    const amountOwedResult =
+      await this.paymentService.getStudentBalance(studentNumber);
+    const amountOwed = amountOwedResult.amountDue;
 
     // --- Financial Summary ---
     const totalBilled = studentInvoices.reduce(
@@ -42,7 +46,6 @@ export class DashboardService {
       (sum, receipt) => sum + Number(receipt.amountPaid),
       0,
     );
-    const amountOwed = amountOwedResult.amountDue;
 
     // Outstanding balances by term: use same criteria as getStudentBalance (only
     // Pending / PartiallyPaid / Overdue). Use calculated balance (totalBill - amountPaidOnInvoice)

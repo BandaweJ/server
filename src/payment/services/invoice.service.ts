@@ -1458,16 +1458,100 @@ export class InvoiceService {
   /**
    * Aggregate total billed amount for all non-voided invoices.
    * Uses SQL SUM to avoid loading all rows into Node memory.
+   * @param filters - Optional date range and enrol term
    */
-  async getTotalInvoicedAmount(): Promise<number> {
-    const raw = await this.invoiceRepository
+  async getTotalInvoicedAmount(filters?: {
+    startDate?: string;
+    endDate?: string;
+    enrolTerm?: string;
+  }): Promise<number> {
+    const qb = this.invoiceRepository
       .createQueryBuilder('invoice')
       .select('COALESCE(SUM(invoice.totalBill), 0)', 'total')
-      .where('invoice.isVoided = :isVoided', { isVoided: false })
-      .getRawOne<{ total: string | number | null }>();
-
+      .where('invoice.isVoided = :isVoided', { isVoided: false });
+    this.applyDashboardFiltersToInvoiceQuery(qb, filters);
+    const raw = await qb.getRawOne<{ total: string | number | null }>();
     const total = raw?.total ?? 0;
     return typeof total === 'string' ? parseFloat(total) : total;
+  }
+
+  /**
+   * Count of non-voided invoices (optionally filtered).
+   */
+  async getInvoiceCount(filters?: {
+    startDate?: string;
+    endDate?: string;
+    enrolTerm?: string;
+  }): Promise<number> {
+    const qb = this.invoiceRepository
+      .createQueryBuilder('invoice')
+      .select('COUNT(invoice.id)', 'count')
+      .where('invoice.isVoided = :isVoided', { isVoided: false });
+    this.applyDashboardFiltersToInvoiceQuery(qb, filters);
+    const raw = await qb.getRawOne<{ count: string }>();
+    const count = raw?.count ?? '0';
+    return parseInt(String(count), 10) || 0;
+  }
+
+  /**
+   * Monthly invoice totals for chart (optionally filtered).
+   */
+  async getMonthlyInvoiceBreakdown(filters?: {
+    startDate?: string;
+    endDate?: string;
+    enrolTerm?: string;
+  }): Promise<{ monthLabel: string; year: number; month: number; total: number }[]> {
+    const qb = this.invoiceRepository
+      .createQueryBuilder('invoice')
+      .select('EXTRACT(YEAR FROM invoice.invoiceDate)', 'year')
+      .addSelect('EXTRACT(MONTH FROM invoice.invoiceDate)', 'month')
+      .addSelect('COALESCE(SUM(invoice.totalBill), 0)', 'total')
+      .where('invoice.isVoided = :isVoided', { isVoided: false })
+      .groupBy('EXTRACT(YEAR FROM invoice.invoiceDate)')
+      .addGroupBy('EXTRACT(MONTH FROM invoice.invoiceDate)')
+      .orderBy('year', 'ASC')
+      .addOrderBy('month', 'ASC');
+    this.applyDashboardFiltersToInvoiceQuery(qb, filters);
+    const rows = await qb.getRawMany<{ year: string; month: string; total: string }>();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return rows.map((r) => {
+      const year = parseInt(String(r.year), 10) || 0;
+      const month = parseInt(String(r.month), 10) || 0;
+      return {
+        monthLabel: `${months[month - 1] || ''} ${year}`.trim(),
+        year,
+        month,
+        total: parseFloat(r.total || '0') || 0,
+      };
+    });
+  }
+
+  private applyDashboardFiltersToInvoiceQuery(
+    qb: import('typeorm').SelectQueryBuilder<InvoiceEntity>,
+    filters?: { startDate?: string; endDate?: string; enrolTerm?: string },
+  ): void {
+    if (!filters) return;
+    if (filters.startDate) {
+      qb.andWhere('invoice.invoiceDate >= :startDate', {
+        startDate: new Date(filters.startDate),
+      });
+    }
+    if (filters.endDate) {
+      qb.andWhere('invoice.invoiceDate <= :endDate', {
+        endDate: new Date(filters.endDate),
+      });
+    }
+    if (filters.enrolTerm && filters.enrolTerm.trim()) {
+      const parts = filters.enrolTerm.trim().split(/\s+/);
+      const num = parts.length > 0 ? parseInt(parts[0], 10) : NaN;
+      const year = parts.length > 1 ? parseInt(parts[1], 10) : NaN;
+      if (!isNaN(num) && !isNaN(year)) {
+        qb.innerJoin('invoice.enrol', 'enrol').andWhere(
+          'enrol.num = :enrolNum AND enrol.year = :enrolYear',
+          { enrolNum: num, enrolYear: year },
+        );
+      }
+    }
   }
 
   async getAllInvoicesForAudit(): Promise<InvoiceEntity[]> {
@@ -4491,6 +4575,34 @@ export class InvoiceService {
     }
 
     return InvoiceStatus.Pending;
+  }
+
+  /**
+   * Recompute and persist balance and status for the given invoices (single source of truth).
+   * Call after allocation/void from ReceiptService so only InvoiceService writes balance.
+   * @param invoiceIds - Invoice IDs to update
+   * @param transactionalEntityManager - If provided, use for find/save (same transaction)
+   */
+  async recomputeAndPersistInvoiceBalances(
+    invoiceIds: number[],
+    transactionalEntityManager?: EntityManager,
+  ): Promise<void> {
+    if (invoiceIds.length === 0) return;
+    const em = transactionalEntityManager ?? this.dataSource.manager;
+    const invoices = await em.find(InvoiceEntity, {
+      where: invoiceIds.map((id) => ({ id })),
+    });
+    for (const invoice of invoices) {
+      if (invoice.isVoided) continue;
+      const totalBill = Number(invoice.totalBill || 0);
+      const amountPaid = Number(invoice.amountPaidOnInvoice || 0);
+      invoice.balance = Math.max(
+        0,
+        Math.round((totalBill - amountPaid) * 100) / 100,
+      );
+      invoice.status = this.getInvoiceStatus(invoice);
+    }
+    await em.save(InvoiceEntity, invoices);
   }
 
   /**
