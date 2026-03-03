@@ -221,6 +221,7 @@ export class StudentsService {
     return await this.studentsRepository.save({
       ...student,
       ...safeUpdate,
+      studentNumber, // Always set PK from route param so save() does UPDATE, not INSERT
     });
   }
 
