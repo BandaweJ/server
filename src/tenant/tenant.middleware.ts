@@ -50,7 +50,7 @@ export class TenantMiddleware implements NestMiddleware {
 
       const queryRunner = this.dataSource.createQueryRunner();
       try {
-        await this.connectWithTimeout(queryRunner, 5000);
+        await this.connectWithTimeout(queryRunner, 15000);
         await queryRunner.query(
           `SET search_path TO "${defaultSchema}", public`,
         );
@@ -72,8 +72,8 @@ export class TenantMiddleware implements NestMiddleware {
 
       const queryRunner = this.dataSource.createQueryRunner();
       try {
-        // Fail fast if the database is slow or unavailable instead of hanging requests indefinitely
-        await this.connectWithTimeout(queryRunner, 5000);
+        // Allow enough time for cold DB (e.g. Render free tier) to accept connections
+        await this.connectWithTimeout(queryRunner, 15000);
         await queryRunner.query(
           `SET search_path TO "${tenant.schemaName}", public`,
         );
