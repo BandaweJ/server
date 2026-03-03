@@ -595,7 +595,6 @@ export class InvoiceService {
             invoiceToSave,
           );
 
-          const isNewInvoice = !invoiceToSave.id;
           const saved = await transactionalEntityManager.save(invoiceToSave);
 
           // Reconcile finances AFTER saving invoice. For new invoices, run full reallocation
@@ -3535,12 +3534,12 @@ export class InvoiceService {
     // Step 6: Apply credit to invoices with remaining balances (oldest first)
     // Now that receipts are allocated, apply any available credit to remaining balances
     // Reload credit to get current balance (may have been updated during receipt allocation)
-    const studentCredit = await this.creditService.getStudentCredit(
+    const studentCreditAfterAllocation = await this.creditService.getStudentCredit(
       studentNumber,
       transactionalEntityManager,
     );
 
-    if (studentCredit && Number(studentCredit.amount) > 0.01) {
+    if (studentCreditAfterAllocation && Number(studentCreditAfterAllocation.amount) > 0.01) {
       // Reload invoices to get fresh balances after receipt allocation
       const invoicesWithBalances = await transactionalEntityManager.find(
         InvoiceEntity,
@@ -3562,7 +3561,7 @@ export class InvoiceService {
       );
 
       // Track remaining credit (will be updated as we apply it)
-      let remainingCredit = Number(studentCredit.amount);
+      let remainingCredit = Number(studentCreditAfterAllocation.amount);
 
       for (const invoice of invoicesNeedingCredit) {
         if (remainingCredit <= 0.01) {
@@ -3601,7 +3600,7 @@ export class InvoiceService {
           const creditAllocation = transactionalEntityManager.create(
             CreditInvoiceAllocationEntity,
             {
-              studentCredit,
+              studentCredit: studentCreditAfterAllocation,
               invoice,
               amountApplied: amountToApply,
               allocationDate: new Date(),
