@@ -556,15 +556,14 @@ export class ReceiptService {
           throw new Error(error);
         }
 
-        // Reconcile finances AFTER saving receipt and allocations
-        // This ensures all balances are correct and any new credit is applied
-        // Skip full reallocation (expensive) - only needed for manual reconciliation
+        // Reconcile finances AFTER saving receipt: run full reallocation so allocations
+        // stay correct (e.g. payment-before-invoice, receipt order). One student per payment.
         try {
           await this.invoiceService.reconcileStudentFinances(
             studentNumber,
             transactionalEntityManager,
             undefined,
-            { skipFullReallocation: true }, // Skip expensive reallocation during receipt saves
+            { skipFullReallocation: false }, // Full reallocation so all students stay correct
           );
         } catch (reconciliationError) {
           // Don't fail the main operation if reconciliation fails, but log it
@@ -770,9 +769,24 @@ export class ReceiptService {
         continue;
       }
 
+      // Safeguard: never allocate more than (totalBill - existing allocations)
+      // so we don't over-allocate if balance/status were stale (e.g. race or receipt order)
+      const totalBill = Number(invoice.totalBill ?? 0);
+      const existingAllocated = await transactionalEntityManager
+        .createQueryBuilder(ReceiptInvoiceAllocationEntity, 'a')
+        .where('a.invoiceId = :invoiceId', { invoiceId: invoice.id })
+        .select('COALESCE(SUM(a.amountApplied), 0)', 'total')
+        .getRawOne<{ total: string }>();
+      const existingSum = Number(existingAllocated?.total ?? 0);
+      const headroom = Math.max(0, totalBill - existingSum);
+      if (headroom <= 0.01) {
+        continue; // invoice already fully allocated
+      }
+
       const amountToApplyToCurrentInvoice = Math.min(
         Number(remainingPaymentAmount),
         Number(invoiceCurrentBalance),
+        headroom,
       );
 
       const amountAppliedNumber = Number(amountToApplyToCurrentInvoice);
