@@ -673,6 +673,11 @@ export class ReceiptService {
     }
   }
 
+  /**
+   * Student balance = max(0, totalBilled - totalPaid) so it matches the ledger
+   * (cash flow) and is not affected by allocation bugs or stale invoice.balance.
+   * Only non-voided invoices and receipts are included.
+   */
   async getStudentBalance(
     studentNumber: string,
   ): Promise<{ amountDue: number }> {
@@ -683,25 +688,29 @@ export class ReceiptService {
       throw new NotFoundException('Student not found');
     }
 
-    const outstandingInvoices = await this.invoiceRepository.find({
-      where: {
-        student: { studentNumber },
-        status: In([
-          InvoiceStatus.Pending,
-          InvoiceStatus.PartiallyPaid,
-          InvoiceStatus.Overdue,
-        ]),
-      },
-    });
+    const [invoices, receipts] = await Promise.all([
+      this.invoiceRepository.find({
+        where: { student: { studentNumber }, isVoided: false },
+      }),
+      this.receiptRepository.find({
+        where: { student: { studentNumber }, isVoided: false },
+      }),
+    ]);
 
-    const totalInvoiceBalance = outstandingInvoices.reduce(
-      (sum, inv) => sum + Number(inv.balance),
+    const totalBilled = invoices.reduce(
+      (sum, inv) => sum + Number(inv.totalBill ?? 0),
       0,
     );
+    const totalPaid = receipts.reduce(
+      (sum, rec) => sum + Number(rec.amountPaid ?? 0),
+      0,
+    );
+    const amountDue = Math.max(
+      0,
+      Math.round((totalBilled - totalPaid) * 100) / 100,
+    );
 
-    return {
-      amountDue: totalInvoiceBalance,
-    };
+    return { amountDue };
   }
 
   private async allocateReceiptToInvoices(

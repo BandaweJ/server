@@ -47,36 +47,38 @@ export class DashboardService {
       0,
     );
 
-    // Outstanding balances by term: use same criteria as getStudentBalance (only
-    // Pending / PartiallyPaid / Overdue). Use calculated balance (totalBill - amountPaidOnInvoice)
-    // so display is correct even if stored balance was stale (timing/bugs/data fixes).
+    // Outstanding by term: only show when amountOwed > 0 so we don't show
+    // per-term amounts that contradict the cash-flow total (e.g. $960 for a term when total is $0).
     const outstandingStatuses = [
       InvoiceStatus.Pending,
       InvoiceStatus.PartiallyPaid,
       InvoiceStatus.Overdue,
     ];
-    const outstandingBalances = studentInvoices
-      .filter((invoice) =>
-        outstandingStatuses.includes(invoice.status as InvoiceStatus),
-      )
-      .map((invoice) => {
-        const totalBill = Number(invoice.totalBill || 0);
-        const amountPaid = Number(invoice.amountPaidOnInvoice || 0);
-        const calculatedBalance = Math.max(
-          0,
-          Math.round((totalBill - amountPaid) * 100) / 100,
-        );
-        if (calculatedBalance <= 0) return null;
-        const enrol: EnrolEntity = invoice.enrol;
-        const termLabel = enrol ? `Term ${enrol.num}` : 'N/A';
-        const year = enrol ? enrol.year : null;
-        return {
-          term: termLabel,
-          year: year,
-          amount: calculatedBalance,
-        };
-      })
-      .filter((item): item is NonNullable<typeof item> => item != null);
+    const outstandingBalances =
+      amountOwed <= 0
+        ? []
+        : studentInvoices
+            .filter((invoice) =>
+              outstandingStatuses.includes(invoice.status as InvoiceStatus),
+            )
+            .map((invoice) => {
+              const totalBill = Number(invoice.totalBill || 0);
+              const amountPaid = Number(invoice.amountPaidOnInvoice || 0);
+              const calculatedBalance = Math.max(
+                0,
+                Math.round((totalBill - amountPaid) * 100) / 100,
+              );
+              if (calculatedBalance <= 0) return null;
+              const enrol: EnrolEntity = invoice.enrol;
+              const termLabel = enrol ? `Term ${enrol.num}` : 'N/A';
+              const year = enrol ? enrol.year : null;
+              return {
+                term: termLabel,
+                year: year,
+                amount: calculatedBalance,
+              };
+            })
+            .filter((item): item is NonNullable<typeof item> => item != null);
 
     // --- Academic Summary ---
     const numberOfReportCards = studentReports.length;

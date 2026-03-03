@@ -194,24 +194,27 @@ export class PaymentService {
       InvoiceStatus.PartiallyPaid,
       InvoiceStatus.Overdue,
     ];
-    const outstandingBalances = studentInvoices
-      .filter((inv) =>
-        outstandingStatuses.includes(inv.status as InvoiceStatus),
-      )
-      .map((inv) => {
-        const totalBill = Number(inv.totalBill || 0);
-        const amountPaid = Number(inv.amountPaidOnInvoice || 0);
-        const calculatedBalance = Math.max(
-          0,
-          Math.round((totalBill - amountPaid) * 100) / 100,
-        );
-        if (calculatedBalance <= 0) return null;
-        const enrol: EnrolEntity | undefined = inv.enrol;
-        const termLabel = enrol ? `Term ${enrol.num}` : 'N/A';
-        const year = enrol ? enrol.year : null;
-        return { term: termLabel, year, amount: calculatedBalance };
-      })
-      .filter((item): item is NonNullable<typeof item> => item != null);
+    const outstandingBalances =
+      amountOwed <= 0
+        ? []
+        : studentInvoices
+            .filter((inv) =>
+              outstandingStatuses.includes(inv.status as InvoiceStatus),
+            )
+            .map((inv) => {
+              const totalBill = Number(inv.totalBill || 0);
+              const amountPaid = Number(inv.amountPaidOnInvoice || 0);
+              const calculatedBalance = Math.max(
+                0,
+                Math.round((totalBill - amountPaid) * 100) / 100,
+              );
+              if (calculatedBalance <= 0) return null;
+              const enrol: EnrolEntity | undefined = inv.enrol;
+              const termLabel = enrol ? `Term ${enrol.num}` : 'N/A';
+              const year = enrol ? enrol.year : null;
+              return { term: termLabel, year, amount: calculatedBalance };
+            })
+            .filter((item): item is NonNullable<typeof item> => item != null);
 
     return {
       totalBilled,
