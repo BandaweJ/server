@@ -31,7 +31,9 @@ const requestScopedRepositoryProviders = TENANT_SCOPED_ENTITIES.map(
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([TenantEntity]),
+    // Register tenant-scoped entities so TypeORM has metadata for them.
+    // Request-scoped repos (above) override these for injection and use the query runner's search_path.
+    TypeOrmModule.forFeature([TenantEntity, ...TENANT_SCOPED_ENTITIES]),
     ConfigModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -44,11 +46,6 @@ const requestScopedRepositoryProviders = TENANT_SCOPED_ENTITIES.map(
   ],
   controllers: [TenantController],
   providers: [TenantService, TenantMiddleware, ...requestScopedRepositoryProviders],
-  exports: [
-    TenantService,
-    TenantMiddleware,
-    TypeOrmModule,
-    ...requestScopedRepositoryProviders,
-  ],
+  exports: [TenantService, TenantMiddleware, TypeOrmModule],
 })
 export class TenantModule {}
