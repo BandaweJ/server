@@ -10,24 +10,29 @@ import { QUERY_RUNNER_REQUEST_KEY } from './tenant.middleware';
 import { TENANT_SCOPED_ENTITIES } from './tenant-scoped-entities';
 import { TenantController } from './tenant.controller';
 
-const requestScopedRepositoryProviders = TENANT_SCOPED_ENTITIES.map(
-  (entity) => ({
-    provide: getRepositoryToken(entity as Function),
-    scope: Scope.REQUEST,
-    useFactory: (req: Record<string, unknown>) => {
-      const qr = req?.[QUERY_RUNNER_REQUEST_KEY] as
-        | { manager: { getRepository: (e: unknown) => unknown } }
-        | undefined;
-      if (!qr) {
-        throw new Error(
-          'Tenant context not set. Ensure TenantMiddleware runs before routes that need DB access.',
-        );
-      }
-      return qr.manager.getRepository(entity);
-    },
-    inject: [REQUEST],
-  }),
-);
+// For multi-tenant we provide request-scoped repositories that use the per-request
+// query runner (with schema set by TenantMiddleware). For single-tenant we can rely
+// on the default TypeORM repositories, so we skip these providers entirely.
+const isSingleTenantEnv = process.env.SINGLE_TENANT === 'true';
+
+const requestScopedRepositoryProviders = isSingleTenantEnv
+  ? []
+  : TENANT_SCOPED_ENTITIES.map((entity) => ({
+      provide: getRepositoryToken(entity as Function),
+      scope: Scope.REQUEST,
+      useFactory: (req: Record<string, unknown>) => {
+        const qr = req?.[QUERY_RUNNER_REQUEST_KEY] as
+          | { manager: { getRepository: (e: unknown) => unknown } }
+          | undefined;
+        if (!qr) {
+          throw new Error(
+            'Tenant context not set. Ensure TenantMiddleware runs before routes that need DB access.',
+          );
+        }
+        return qr.manager.getRepository(entity);
+      },
+      inject: [REQUEST],
+    }));
 
 @Module({
   imports: [

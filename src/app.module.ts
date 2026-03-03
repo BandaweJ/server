@@ -56,6 +56,15 @@ import { TenantMiddleware } from './tenant/tenant.middleware';
         const typeOrmOptions: TypeOrmModuleOptions = {
           type: 'postgres', // Database type
 
+          // When running in single-tenant mode, configure the default schema at the
+          // connection level so we don't need per-request search_path changes.
+          schema:
+            configService.get<string>('SINGLE_TENANT') === 'true'
+              ? (configService.get<string>('SINGLE_TENANT_SCHEMA') ||
+                  'tenant_default'
+                ).trim()
+              : undefined,
+
           // Conditionally use DATABASE_URL or individual host/port/user/password/db
           // This allows flexibility between Render's single URL and local environment variables.
           url: databaseUrl, // TypeORM can connect directly via a URL
@@ -85,6 +94,16 @@ import { TenantMiddleware } from './tenant/tenant.middleware';
           // Connection pool limits to avoid unbounded connections when the DB is slow
           extra: {
             max: 10,
+            // For single-tenant deployments, also set the PostgreSQL search_path at
+            // connection time so all queries hit the tenant schema by default.
+            search_path:
+              configService.get<string>('SINGLE_TENANT') === 'true'
+                ? `${
+                    (configService.get<string>('SINGLE_TENANT_SCHEMA') ||
+                      'tenant_default'
+                    ).trim()
+                  },public`
+                : undefined,
           },
         };
 

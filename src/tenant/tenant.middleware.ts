@@ -48,21 +48,9 @@ export class TenantMiddleware implements NestMiddleware {
         settings: null,
       };
 
-      const queryRunner = this.dataSource.createQueryRunner();
-      try {
-        await this.connectWithTimeout(queryRunner, 15000);
-        await queryRunner.query(
-          `SET search_path TO "${defaultSchema}", public`,
-        );
-        req[QUERY_RUNNER_REQUEST_KEY] = queryRunner;
-        res.on('finish', () => {
-          queryRunner.release().catch(() => {});
-        });
-        return next();
-      } catch (dbError) {
-        await queryRunner.release().catch(() => {});
-        throw dbError;
-      }
+      // In single-tenant mode we rely on the DataSource's default schema configuration
+      // and do not perform per-request database work in the middleware.
+      return next();
     }
 
     const slug = this.resolveSlug(req);
