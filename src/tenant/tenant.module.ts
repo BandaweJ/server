@@ -44,6 +44,11 @@ const requestScopedRepositoryProviders = TENANT_SCOPED_ENTITIES.map(
   ],
   controllers: [TenantController],
   providers: [TenantService, TenantMiddleware, ...requestScopedRepositoryProviders],
-  exports: [TenantService, TenantMiddleware, TypeOrmModule],
+  exports: [
+    TenantService,
+    TenantMiddleware,
+    TypeOrmModule,
+    ...requestScopedRepositoryProviders,
+  ],
 })
 export class TenantModule {}

@@ -210,9 +210,17 @@ export class StudentsService {
   ): Promise<StudentsEntity> {
     const student = await this.getStudent(studentNumber, profile);
 
+    // Never allow the primary key to be changed via PATCH.
+    // Frontend payloads may include a null or different studentNumber,
+    // which would cause TypeORM to attempt an INSERT with a null PK.
+    const { studentNumber: _ignoredStudentNumber, ...safeUpdate } =
+      updateStudentDto as unknown as Partial<StudentsEntity> & {
+        studentNumber?: string | null;
+      };
+
     return await this.studentsRepository.save({
       ...student,
-      ...updateStudentDto,
+      ...safeUpdate,
     });
   }
 

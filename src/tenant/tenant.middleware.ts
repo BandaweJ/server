@@ -32,13 +32,13 @@ export class TenantMiddleware implements NestMiddleware {
       return next();
     }
 
-    // Fast path for single-tenant deployments:
-    // avoid per-request tenant lookup and query runner / search_path overhead.
+    // Single-tenant: use one schema (default tenant_default) and still set search_path
+    // so request-scoped repos and system settings / dashboard read from the correct schema.
     if (this.isSingleTenant) {
       const defaultSlug =
         (process.env.SINGLE_TENANT_SLUG || 'default').trim().toLowerCase();
       const defaultSchema =
-        (process.env.SINGLE_TENANT_SCHEMA || 'public').trim();
+        (process.env.SINGLE_TENANT_SCHEMA || 'tenant_default').trim();
 
       req[TENANT_REQUEST_KEY] = {
         id: 'single-tenant',
@@ -48,7 +48,21 @@ export class TenantMiddleware implements NestMiddleware {
         settings: null,
       };
 
-      return next();
+      const queryRunner = this.dataSource.createQueryRunner();
+      try {
+        await this.connectWithTimeout(queryRunner, 5000);
+        await queryRunner.query(
+          `SET search_path TO "${defaultSchema}", public`,
+        );
+        req[QUERY_RUNNER_REQUEST_KEY] = queryRunner;
+        res.on('finish', () => {
+          queryRunner.release().catch(() => {});
+        });
+        return next();
+      } catch (dbError) {
+        await queryRunner.release().catch(() => {});
+        throw dbError;
+      }
     }
 
     const slug = this.resolveSlug(req);

@@ -13,6 +13,8 @@ export interface TenantInfo {
 
 @Injectable()
 export class TenantService {
+  private readonly isSingleTenant = process.env.SINGLE_TENANT === 'true';
+
   constructor(
     @InjectRepository(TenantEntity)
     private readonly tenantRepository: Repository<TenantEntity>,
@@ -33,6 +35,10 @@ export class TenantService {
   }
 
   async getDefaultSlug(): Promise<string> {
+    if (this.isSingleTenant) {
+      return (process.env.SINGLE_TENANT_SLUG || 'default').trim().toLowerCase();
+    }
+
     const tenant = await this.tenantRepository.findOne({
       where: { slug: 'default' },
     });
@@ -41,6 +47,19 @@ export class TenantService {
 
   /** List all tenants for sign-in school selector (reads from public.tenants). */
   async listOptions(): Promise<{ slug: string; name: string }[]> {
+    // In single-tenant mode, treat this as a simple static "app info" endpoint and
+    // avoid hitting the tenants table at all.
+    if (this.isSingleTenant) {
+      const slug = (process.env.SINGLE_TENANT_SLUG || 'default')
+        .trim()
+        .toLowerCase();
+      const name =
+        (process.env.SINGLE_TENANT_NAME || 'Default School').trim() ||
+        'Default School';
+
+      return [{ slug, name }];
+    }
+
     const rows = await this.tenantRepository.find({
       select: ['slug', 'name'],
       order: { name: 'ASC' },
