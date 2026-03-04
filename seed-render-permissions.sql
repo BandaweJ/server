@@ -192,7 +192,7 @@ WHERE r.name = 'teacher'
     WHERE rp."roleId" = r.id AND rp."permissionId" = p.id
   );
 
--- RECEPTION ROLE - Gets enrolment and basic finance permissions
+-- RECEPTION ROLE - Gets enrolment, basic finance, and report download permissions
 INSERT INTO role_permissions ("roleId", "permissionId")
 SELECT 
   r.id as "roleId",
@@ -206,7 +206,9 @@ WHERE r.name = 'reception'
     -- Basic finance
     'finance.view', 'finance.create',
     -- User management
-    'users.view', 'users.create'
+    'users.view', 'users.create',
+    -- Reports (view and download saved reports, edit comments)
+    'reports.view', 'reports.download', 'reports.edit.comment'
   )
   AND NOT EXISTS (
     SELECT 1 FROM role_permissions rp 
