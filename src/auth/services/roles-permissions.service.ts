@@ -1,5 +1,5 @@
 /* eslint-disable prettier/prettier */
-import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { RoleEntity } from '../entities/role.entity';
@@ -14,7 +14,7 @@ import { ROLES } from '../models/roles.enum';
 import { PERMISSIONS } from '../models/permissions.constants';
 
 @Injectable()
-export class RolesPermissionsService {
+export class RolesPermissionsService implements OnModuleInit {
   private readonly logger = new Logger(RolesPermissionsService.name);
 
   constructor(
@@ -25,6 +25,22 @@ export class RolesPermissionsService {
     @InjectRepository(AccountsEntity)
     private accountsRepository: Repository<AccountsEntity>,
   ) {}
+
+  /**
+   * On app startup: ensure roles and permissions exist, then sync default
+   * role permissions from code to DB. This way each deploy keeps the DB in sync
+   * (e.g. reception gets reports.download) without running SQL or calling the seed endpoint.
+   */
+  async onModuleInit(): Promise<void> {
+    try {
+      await this.findAllRoles();
+      await this.findAllPermissions();
+      await this.seedDefaultRolePermissions();
+    } catch (err) {
+      this.logger.error('Startup role/permissions sync failed', err);
+      // Don't throw: allow app to start so existing users aren't blocked
+    }
+  }
 
   // Role CRUD Operations
   async createRole(createRoleDto: CreateRoleDto): Promise<RoleEntity> {
