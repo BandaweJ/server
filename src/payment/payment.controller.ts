@@ -31,9 +31,10 @@ import { ROLES } from 'src/auth/models/roles.enum';
 import { PermissionsGuard } from 'src/auth/guards/permissions.guard';
 import { HasPermissions } from 'src/auth/decorators/has-permissions.decorator';
 import { PERMISSIONS } from 'src/auth/models/permissions.constants';
+import { ParentStudentAccessGuard } from 'src/auth/guards/parent-student-access.guard';
 
 @Controller('payment')
-@UseGuards(AuthGuard(), RolesGuard)
+@UseGuards(AuthGuard(), RolesGuard, ParentStudentAccessGuard)
 export class PaymentController {
   constructor(private paymentService: PaymentService) {}
 

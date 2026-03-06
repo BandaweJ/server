@@ -11,6 +11,7 @@ import { TeacherCommentEntity } from 'src/marks/entities/teacher-comments.entity
 import { SystemModule } from '../system/system.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ResourceByIdModule } from '../resource-by-id/resource-by-id.module';
+import { PaymentModule } from '../payment/payment.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { ResourceByIdModule } from '../resource-by-id/resource-by-id.module';
     SystemModule,
     NotificationsModule,
     ResourceByIdModule,
+    PaymentModule,
   ],
   providers: [ReportsService],
   controllers: [ReportsController],

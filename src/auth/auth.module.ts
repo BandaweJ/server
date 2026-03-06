@@ -18,6 +18,7 @@ import { RolesPermissionsService } from './services/roles-permissions.service';
 import { RolesGuard } from './guards/roles.guard';
 import { PermissionsGuard } from './guards/permissions.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { ParentStudentAccessGuard } from './guards/parent-student-access.guard';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
     RolesGuard, // Provide RolesGuard here so it can access AccountsEntity repository
     PermissionsGuard, // Provide PermissionsGuard for permission-based access control
     JwtAuthGuard, // Provide JwtAuthGuard for better error handling
+    ParentStudentAccessGuard,
   ],
   exports: [
     JwtModule, // So TenantMiddleware (in AppModule) can inject JwtService
@@ -73,6 +75,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
     RolesGuard, // Export RolesGuard so AppModule can use it as APP_GUARD
     PermissionsGuard, // Export PermissionsGuard for use in other modules
     JwtAuthGuard, // Export JwtAuthGuard for use in other modules
+    ParentStudentAccessGuard,
     TypeOrmModule, // Export TypeOrmModule so RolesGuard can access AccountsEntity
   ],
 })

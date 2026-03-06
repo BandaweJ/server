@@ -7,9 +7,9 @@ import {
   Param,
   Patch,
   Post,
+  Put,
 } from '@nestjs/common';
 import { CreateParentsDto } from '../dtos/createParents.dto';
-
 import { UpdateParentDto } from '../dtos/updateParent.dto';
 import { UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -17,6 +17,10 @@ import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { TeachersEntity } from '../entities/teachers.entity';
 import { StudentsEntity } from '../entities/students.entity';
 import { ParentsEntity } from '../entities/parents.entity';
+
+export class LinkStudentsDto {
+  studentNumbers: string[];
+}
 
 @Controller('parents')
 @UseGuards(AuthGuard())
@@ -28,6 +32,19 @@ export class ParentsController {
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
     return this.parentsService.getAllParents(profile);
+  }
+
+  @Put(':email/students')
+  setLinkedStudents(
+    @Param('email') email: string,
+    @Body() body: LinkStudentsDto,
+    @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
+  ) {
+    return this.parentsService.setLinkedStudents(
+      email,
+      body.studentNumbers ?? [],
+      profile,
+    );
   }
 
   @Get(':email')

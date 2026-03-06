@@ -2,6 +2,7 @@ import {
   Injectable,
   NotImplementedException,
   UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ParentsEntity } from '../entities/parents.entity';
@@ -18,6 +19,8 @@ export class ParentsService {
   constructor(
     @InjectRepository(ParentsEntity)
     private parentsRepository: Repository<ParentsEntity>,
+    @InjectRepository(StudentsEntity)
+    private studentsRepository: Repository<StudentsEntity>,
     private resourceById: ResourceByIdService,
   ) {}
 
@@ -27,54 +30,45 @@ export class ParentsService {
   ): Promise<ParentsEntity> {
     switch (profile.role) {
       case ROLES.admin:
+      case ROLES.director:
+      case ROLES.auditor:
       case ROLES.hod:
       case ROLES.reception:
       case ROLES.teacher: {
-        return await this.resourceById.getParentByEmail(email);
-        break;
+        return await this.resourceById.getParentByEmail(email, true);
       }
       case ROLES.student: {
-        const parent = await this.resourceById.getParentByEmail(email);
+        const parent = await this.resourceById.getParentByEmail(email, true);
         if (profile instanceof StudentsEntity) {
-          if (profile.parent == parent) {
-            return this.resourceById.getParentByEmail(email);
-          } else {
-            throw new UnauthorizedException('Can only access own parent');
+          if (profile.parent?.email === parent.email) {
+            return parent;
           }
+          throw new UnauthorizedException('Can only access own parent');
         }
-        break;
+        throw new UnauthorizedException('Invalid profile');
       }
       case ROLES.parent: {
-        if (profile instanceof ParentsEntity) {
-          const parent = await this.resourceById.getParentByEmail(email);
-          if (parent.email == profile.email) {
-            return parent;
-          } else {
-            throw new UnauthorizedException(
-              'Only allowed to access your own record',
-            );
-          }
+        if (profile instanceof ParentsEntity && profile.email === email) {
+          return this.resourceById.getParentByEmail(email, true);
         }
-        break;
+        throw new UnauthorizedException('Only allowed to access your own record');
       }
+      default:
+        throw new UnauthorizedException('Access denied');
     }
   }
 
   async getAllParents(
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ): Promise<ParentsEntity[]> {
-    switch (profile.role) {
-      case ROLES.parent:
-      case ROLES.student: {
-        throw new UnauthorizedException(
-          'Only members of staff can access parent list',
-        );
-        break;
-      }
+    if (profile.role === ROLES.parent || profile.role === ROLES.student) {
+      throw new UnauthorizedException(
+        'Only members of staff can access parent list',
+      );
     }
     return await this.parentsRepository.find({
-      order: { email: 'DESC' },
-      take: 1,
+      relations: ['students'],
+      order: { email: 'ASC' },
     });
   }
 
@@ -82,40 +76,41 @@ export class ParentsService {
     createParentDto: CreateParentsDto,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ): Promise<ParentsEntity> {
-    switch (profile.role) {
-      case ROLES.teacher:
-      case ROLES.hod:
-      case ROLES.parent:
-      case ROLES.student:
-      case ROLES.reception: {
-        throw new UnauthorizedException('Only admins can add parents');
-        break;
-      }
+    if (
+      profile.role !== ROLES.admin &&
+      profile.role !== ROLES.director &&
+      profile.role !== ROLES.reception
+    ) {
+      throw new UnauthorizedException(
+        'Only admin, director, or reception can add parents',
+      );
     }
-    return await this.parentsRepository.save(createParentDto);
+    return await this.parentsRepository.save(createParentDto as Partial<ParentsEntity>);
   }
 
   async deleteParent(
     email: string,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ): Promise<number> {
-    switch (profile.role) {
-      case ROLES.hod:
-      case ROLES.parent:
-      case ROLES.reception:
-      case ROLES.student:
-      case ROLES.teacher: {
-        throw new UnauthorizedException('Only admins can delete parents');
-        break;
+    if (profile.role !== ROLES.admin && profile.role !== ROLES.director) {
+      throw new UnauthorizedException('Only admin or director can delete parents');
+    }
+    const parent = await this.parentsRepository.findOne({
+      where: { email },
+      relations: ['students'],
+    });
+    if (parent?.students?.length) {
+      for (const student of parent.students) {
+        student.parent = null;
+        await this.studentsRepository.save(student);
       }
     }
     const result = await this.parentsRepository.delete(email);
-
-    if (!result.affected)
+    if (!result.affected) {
       throw new NotImplementedException(
         `Parent with email ${email} not deleted`,
       );
-
+    }
     return result.affected;
   }
 
@@ -125,10 +120,67 @@ export class ParentsService {
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ): Promise<ParentsEntity> {
     const parent = await this.getParent(email, profile);
-
+    if (updateParentDto.email && updateParentDto.email !== email) {
+      throw new BadRequestException(
+        'Changing parent email is not allowed. Create a new parent record instead.',
+      );
+    }
     return await this.parentsRepository.save({
       ...parent,
       ...updateParentDto,
+    });
+  }
+
+  /**
+   * Set which students are linked to this parent. Replaces existing links.
+   * Only staff (admin, director, reception) can update links.
+   */
+  async setLinkedStudents(
+    parentEmail: string,
+    studentNumbers: string[],
+    profile: TeachersEntity | StudentsEntity | ParentsEntity,
+  ): Promise<ParentsEntity> {
+    if (
+      profile.role !== ROLES.admin &&
+      profile.role !== ROLES.director &&
+      profile.role !== ROLES.reception
+    ) {
+      throw new UnauthorizedException(
+        'Only admin, director, or reception can link parents to students',
+      );
+    }
+    const parent = await this.parentsRepository.findOne({
+      where: { email: parentEmail },
+      relations: ['students'],
+    });
+    if (!parent) {
+      throw new BadRequestException(`Parent with email ${parentEmail} not found`);
+    }
+    const currentStudents = parent.students || [];
+    const newSet = new Set(studentNumbers);
+
+    for (const student of currentStudents) {
+      if (!newSet.has(student.studentNumber)) {
+        student.parent = null;
+        await this.studentsRepository.save(student);
+      }
+    }
+    for (const studentNumber of newSet) {
+      const student = await this.studentsRepository.findOne({
+        where: { studentNumber },
+        relations: ['parent'],
+      });
+      if (!student) {
+        throw new BadRequestException(
+          `Student ${studentNumber} not found`,
+        );
+      }
+      student.parent = parent;
+      await this.studentsRepository.save(student);
+    }
+    return this.parentsRepository.findOne({
+      where: { email: parentEmail },
+      relations: ['students'],
     });
   }
 }

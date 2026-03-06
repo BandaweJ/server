@@ -126,7 +126,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           }
           break;
         case ROLES.parent:
-          profile = await this.resourceById.getParentByEmail(id);
+          profile = await this.resourceById.getParentByEmail(id, true);
           if (!profile) {
             this.logger.error('JWT Strategy: Parent profile not found', { email: id });
             throw new UnauthorizedException('Parent profile not found');

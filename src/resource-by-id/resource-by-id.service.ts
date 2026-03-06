@@ -16,9 +16,10 @@ export class ResourceByIdService {
     private teachersRepository: Repository<TeachersEntity>,
   ) {}
 
-  async getParentByEmail(email: string): Promise<ParentsEntity> {
+  async getParentByEmail(email: string, withStudents = false): Promise<ParentsEntity> {
     const found = await this.parentsRepository.findOne({
       where: { email },
+      relations: withStudents ? ['students'] : [],
     });
 
     if (!found) {

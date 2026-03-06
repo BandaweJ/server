@@ -1,9 +1,12 @@
 /* eslint-disable prettier/prettier */
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { StudentDashboardSummary } from './models/student-dashboard-summary.model';
 import { DashboardService } from './dashboard.service';
+import { ParentStudentAccessGuard } from 'src/auth/guards/parent-student-access.guard';
 
 @Controller('dashboard')
+@UseGuards(AuthGuard(), ParentStudentAccessGuard)
 export class DashboardController {
   constructor(private dashboardService: DashboardService) {}
 

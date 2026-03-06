@@ -5,6 +5,7 @@ import {
   NotFoundException,
   Logger,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { EnrolmentService } from '../enrolment/enrolment.service';
 import { MarksService } from '../marks/marks.service';
@@ -29,6 +30,7 @@ import { ExamType } from 'src/marks/models/examtype.enum';
 import { NotificationService } from '../notifications/services/notification.service';
 import { ResourceByIdService } from '../resource-by-id/resource-by-id.service';
 import { ReportReleaseService } from '../system/report-release.service';
+import { InvoiceService } from '../payment/services/invoice.service';
 // import bannerImagePath from '../assets/images/banner3.png';
 
 @Injectable()
@@ -46,6 +48,7 @@ export class ReportsService {
     private notificationService: NotificationService,
     private resourceById: ResourceByIdService,
     private reportReleaseService: ReportReleaseService,
+    private invoiceService: InvoiceService,
   ) {}
 
   async generateReports(
@@ -1202,6 +1205,31 @@ export class ReportsService {
       if (profile.studentNumber !== studentNumber) {
         throw new BadRequestException(
           'Students can only download their own reports',
+        );
+      }
+    }
+    // Parents can only download reports for their linked children
+    if (profile instanceof ParentsEntity) {
+      const linkedStudentNumbers = (profile.students || []).map(
+        (s) => s.studentNumber,
+      );
+      if (!linkedStudentNumbers.includes(studentNumber)) {
+        throw new BadRequestException(
+          'You can only download reports for your linked children',
+        );
+      }
+    }
+
+    // Students and parents: allow download only if the invoice for this term has zero balance (same rule as view).
+    if (profile instanceof StudentsEntity || profile instanceof ParentsEntity) {
+      const balance = await this.invoiceService.getBalanceForStudentTerm(
+        studentNumber,
+        num,
+        year,
+      );
+      if (balance !== null && Number(balance) !== 0) {
+        throw new ForbiddenException(
+          'Report not available for download due to pending balance for this term.',
         );
       }
     }

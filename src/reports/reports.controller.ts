@@ -23,9 +23,10 @@ import { ExamType } from 'src/marks/models/examtype.enum';
 import { PermissionsGuard } from 'src/auth/guards/permissions.guard';
 import { HasPermissions } from 'src/auth/decorators/has-permissions.decorator';
 import { PERMISSIONS } from 'src/auth/models/permissions.constants';
+import { ParentStudentAccessGuard } from 'src/auth/guards/parent-student-access.guard';
 
 @Controller('reports')
-@UseGuards(AuthGuard(), PermissionsGuard)
+@UseGuards(AuthGuard(), PermissionsGuard, ParentStudentAccessGuard)
 export class ReportsController {
   constructor(private reportsService: ReportsService) {}
 

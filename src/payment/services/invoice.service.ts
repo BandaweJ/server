@@ -1369,6 +1369,31 @@ export class InvoiceService {
     });
   }
 
+  /**
+   * Returns the outstanding balance for an existing invoice for the given student and term.
+   * Does not create an invoice. Used e.g. to restrict report download when balance is not zero.
+   * @returns balance amount, or null if no (non-voided) invoice exists for that student/term.
+   */
+  async getBalanceForStudentTerm(
+    studentNumber: string,
+    num: number,
+    year: number,
+  ): Promise<number | null> {
+    const invoice = await this.invoiceRepository
+      .createQueryBuilder('invoice')
+      .innerJoin('invoice.student', 'student')
+      .innerJoin('invoice.enrol', 'enrol')
+      .where('student.studentNumber = :studentNumber', { studentNumber })
+      .andWhere('enrol.num = :num', { num })
+      .andWhere('enrol.year = :year', { year })
+      .andWhere('(invoice.isVoided = false OR invoice.isVoided IS NULL)')
+      .select('invoice.balance', 'balance')
+      .getRawOne<{ balance: string }>();
+    if (!invoice) return null;
+    const balance = Number(invoice.balance);
+    return Number.isFinite(balance) ? balance : null;
+  }
+
   async getTermInvoices(num: number, year: number): Promise<InvoiceEntity[]> {
     return this.invoiceRepository.find({
       where: {

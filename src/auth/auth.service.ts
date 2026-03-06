@@ -440,8 +440,8 @@ export class AuthService {
     ) {
       userDetails = account.teacher;
     } else if (role === ROLES.parent) {
-      // For parents, we need to get the parent by email (since parent uses email as primary key)
-      userDetails = await this.resourceById.getParentByEmail(id);
+      // For parents, load with linked students so frontend can restrict finance/reports to their children
+      userDetails = await this.resourceById.getParentByEmail(id, true);
     }
 
     if (!userDetails) {
