@@ -3,8 +3,8 @@ import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@
 import { Reflector } from '@nestjs/core';
 import { HAS_PERMISSIONS_KEY } from '../decorators/has-permissions.decorator';
 import { RolesPermissionsService } from '../services/roles-permissions.service';
-import { AccountsEntity } from '../entities/accounts.entity';
 import { ROLES } from '../models/roles.enum';
+import { PERMISSIONS } from '../models/permissions.constants';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -43,12 +43,21 @@ export class PermissionsGuard implements CanActivate {
     }
 
     // 4. Check if the user has all required permissions
+    const role = (user as any).role as string | undefined;
     for (const permission of requiredPermissions) {
       const hasPermission = await this.rolesPermissionsService.hasPermission(
         accountId,
         permission,
       );
       if (!hasPermission) {
+        // Fallback: allow report download for reception/auditor/director if DB permission is missing
+        if (
+          permission === PERMISSIONS.REPORTS.DOWNLOAD &&
+          role &&
+          [ROLES.reception, ROLES.auditor, ROLES.director].includes(role as ROLES)
+        ) {
+          continue;
+        }
         throw new ForbiddenException(`Missing required permission: ${permission}`);
       }
     }

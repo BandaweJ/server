@@ -31,6 +31,7 @@ import { CreditService } from './services/credit.service';
 import { InvoiceService } from './services/invoice.service';
 import { ReceiptService } from './services/receipt.service';
 import { logStructured } from './utils/logger.util';
+import { EnrolmentService } from 'src/enrolment/enrolment.service';
 @Injectable()
 export class PaymentService {
   private readonly logger = new Logger(PaymentService.name);
@@ -43,6 +44,7 @@ export class PaymentService {
     private readonly creditService: CreditService,
     private readonly invoiceService: InvoiceService,
     private readonly receiptService: ReceiptService,
+    private readonly enrolmentService: EnrolmentService,
   ) {}
 
   /**
@@ -510,6 +512,128 @@ export class PaymentService {
       );
       throw error;
     }
+  }
+
+  async reconcileClassTerm(
+    className: string,
+    num: number,
+    year: number,
+  ): Promise<{
+    className: string;
+    termNum: number;
+    year: number;
+    totalStudents: number;
+    succeeded: number;
+    failed: number;
+    results: Array<{
+      studentNumber: string;
+      studentName?: string;
+      success: boolean;
+      error?: string;
+      reconciliationSummary?: {
+        invoicesProcessed: number;
+        invoicesCorrected: number;
+        receiptsProcessed: number;
+        voidedInvoicesUnlinked: number;
+        creditApplied: boolean;
+        creditAmount?: number;
+        creditAppliedToInvoice?: string;
+        invoicesWithBalance: number;
+        totalCreditBalance: number;
+      };
+    }>;
+  }> {
+    logStructured(
+      this.logger,
+      'log',
+      'payment.reconcile.class.start',
+      'Starting class-term reconciliation',
+      { className, termNum: num, year },
+    );
+
+    const enrols = await this.enrolmentService.getEnrolmentByClass(
+      className,
+      num,
+      year,
+    );
+
+    const studentsByNumber = new Map<
+      string,
+      { studentNumber: string; studentName?: string }
+    >();
+
+    for (const enrol of enrols) {
+      const studentNumber = enrol.student?.studentNumber;
+      if (!studentNumber) continue;
+      if (!studentsByNumber.has(studentNumber)) {
+        const studentName =
+          enrol.student?.surname || enrol.student?.name
+            ? `${enrol.student?.surname ?? ''} ${enrol.student?.name ?? ''}`.trim()
+            : undefined;
+        studentsByNumber.set(studentNumber, { studentNumber, studentName });
+      }
+    }
+
+    const results: Array<{
+      studentNumber: string;
+      studentName?: string;
+      success: boolean;
+      error?: string;
+      reconciliationSummary?: {
+        invoicesProcessed: number;
+        invoicesCorrected: number;
+        receiptsProcessed: number;
+        voidedInvoicesUnlinked: number;
+        creditApplied: boolean;
+        creditAmount?: number;
+        creditAppliedToInvoice?: string;
+        invoicesWithBalance: number;
+        totalCreditBalance: number;
+      };
+    }> = [];
+
+    for (const student of studentsByNumber.values()) {
+      try {
+        const reconciled =
+          await this.invoiceService.reconcileStudentFinancesForStudent(
+            student.studentNumber,
+          );
+        results.push({
+          studentNumber: student.studentNumber,
+          studentName: student.studentName,
+          success: true,
+          reconciliationSummary: reconciled.summary,
+        });
+      } catch (error) {
+        results.push({
+          studentNumber: student.studentNumber,
+          studentName: student.studentName,
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    const succeeded = results.filter((r) => r.success).length;
+    const failed = results.length - succeeded;
+
+    logStructured(
+      this.logger,
+      'log',
+      'payment.reconcile.class.complete',
+      'Class-term reconciliation completed',
+      { className, termNum: num, year, totalStudents: results.length, succeeded, failed },
+    );
+
+    return {
+      className,
+      termNum: num,
+      year,
+      totalStudents: results.length,
+      succeeded,
+      failed,
+      results,
+    };
   }
 
   /**

@@ -119,7 +119,9 @@ export class CreditService {
     for (const invoice of studentInvoices) {
       const totalBill = Number(invoice.totalBill || 0);
       const exemptedAmount = Number(invoice.exemptedAmount || 0);
-      const netBill = totalBill - exemptedAmount;
+      // totalBill is already net of exemptions (see calculateNetBillAmount / saveInvoice),
+      // so do NOT subtract exemptedAmount again here.
+      const netBill = totalBill;
 
       const receiptAllocations = invoice.allocations || [];
       const creditAllocations = invoice.creditAllocations || [];

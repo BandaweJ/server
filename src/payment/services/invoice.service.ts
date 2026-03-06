@@ -280,24 +280,6 @@ export class InvoiceService {
             ]);
           }
 
-          // Reconcile student finances BEFORE saving invoice
-          // This fixes any existing data integrity issues (overpayments, balance mismatches, etc.)
-          // so that the new invoice can be saved correctly
-          // Skip full reallocation (expensive) - only needed for manual reconciliation
-          logStructured(
-            this.logger,
-            'log',
-            'invoice.save.preReconciliation',
-            'Reconciling student finances before saving invoice',
-            { studentNumber },
-          );
-          await this.reconcileStudentFinances(
-            student.studentNumber,
-            transactionalEntityManager,
-            undefined,
-            { skipFullReallocation: true }, // Skip expensive reallocation during invoice saves
-          );
-
           const studentExemption = student.exemption;
           let bills: BillsEntity[] = [];
 
@@ -495,6 +477,22 @@ export class InvoiceService {
           
           isNewInvoice = !foundInvoice;
 
+          // Reconcile student finances BEFORE saving invoice. For new invoices run full
+          // reallocation so existing data is clean; for updates use lightweight only.
+          logStructured(
+            this.logger,
+            'log',
+            'invoice.save.preReconciliation',
+            'Reconciling student finances before saving invoice',
+            { studentNumber, isNewInvoice },
+          );
+          await this.reconcileStudentFinances(
+            student.studentNumber,
+            transactionalEntityManager,
+            undefined,
+            { skipFullReallocation: !isNewInvoice }, // Full reallocation only for new invoice (clean slate)
+          );
+
           if (foundInvoice) {
             invoiceToSave = foundInvoice;
 
@@ -597,8 +595,8 @@ export class InvoiceService {
 
           const saved = await transactionalEntityManager.save(invoiceToSave);
 
-          // Reconcile finances AFTER saving invoice. For new invoices, run full reallocation
-          // so existing credit/unallocated payments can apply to the new invoice.
+          // Reconcile finances AFTER saving invoice: lightweight only. For new invoices
+          // allow auto credit application so credit from pre-save full reallocation applies to the new invoice.
           logStructured(
             this.logger,
             'log',
@@ -611,8 +609,8 @@ export class InvoiceService {
             transactionalEntityManager,
             undefined,
             {
-              skipAutoCreditApplication: true, // Don't auto-apply credit during invoice updates
-              skipFullReallocation: !isNewInvoice, // Full reallocation when new invoice so it gets allocations/credit
+              skipAutoCreditApplication: !isNewInvoice, // Allow auto-apply credit for new invoice only
+              skipFullReallocation: true, // Lightweight only; full reallocation already ran pre-save for new invoices
             },
           );
           
@@ -3901,7 +3899,8 @@ export class InvoiceService {
 
     const totalBill = Number(freshInvoice.totalBill || 0);
     const exemptedAmount = Number(freshInvoice.exemptedAmount || 0);
-    const netBill = totalBill - exemptedAmount; // Net amount due after exemptions
+    // Consistent with verifyAndRecalculateInvoiceBalance: totalBill already has exemption applied during invoice creation
+    const netBill = totalBill;
     
     // Calculate actual amount paid from allocations (not from stored amountPaidOnInvoice)
     const receiptAllocations = freshInvoice.allocations || [];

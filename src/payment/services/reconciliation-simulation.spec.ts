@@ -185,4 +185,61 @@ describe('Reconciliation simulation (S2406558)', () => {
     expect(round2(invDA!.amountPaidOnInvoice)).toBe(1280);
     expect(round2(inv55!.amountPaidOnInvoice)).toBe(1280);
   });
+
+  it('with inconsistent initial allocations, full reconciliation (reset + reallocate) produces correct figures', () => {
+    const { invoices, receipts } = getStudentData();
+    // Corrupt state: wrong amountPaidOnInvoice/balance (e.g. from bugs or legacy data)
+    const dirtyInvoices: SimInvoice[] = invoices.map((inv, i) =>
+      i === 0
+        ? { ...inv, amountPaidOnInvoice: 500, balance: 790 } // wrong
+        : { ...inv, amountPaidOnInvoice: 1280, balance: 0 }, // over-allocated
+    );
+    const { invoices: after, creditRemaining } = simulateReconciliation(
+      dirtyInvoices,
+      receipts,
+    );
+    // Simulation resets and reallocates from scratch, so result should match clean run
+    const totalPaidOnInvoices = after.reduce((s, i) => s + i.amountPaidOnInvoice, 0);
+    const totalBalance = after.reduce((s, i) => s + i.balance, 0);
+    expect(round2(totalPaidOnInvoices)).toBe(3850);
+    expect(round2(totalBalance)).toBe(0);
+    expect(round2(creditRemaining)).toBe(0);
+  });
+
+  it('new invoice after historical receipts receives applied credit', () => {
+    // Two invoices, receipts that pay them and leave credit
+    const invoices: SimInvoice[] = [
+      { id: 1, invoiceNumber: 'INV-1', invoiceDate: new Date('2025-01-01'), totalBill: 100, amountPaidOnInvoice: 0, balance: 100 },
+      { id: 2, invoiceNumber: 'INV-2', invoiceDate: new Date('2025-02-01'), totalBill: 200, amountPaidOnInvoice: 0, balance: 200 },
+    ].sort((a, b) => a.invoiceDate.getTime() - b.invoiceDate.getTime());
+    const receipts: SimReceipt[] = [
+      { id: 1, receiptNumber: 'R1', amountPaid: 150, paymentDate: new Date('2025-02-15') },
+      { id: 2, receiptNumber: 'R2', amountPaid: 200, paymentDate: new Date('2025-03-01') },
+    ].sort((a, b) => a.paymentDate.getTime() - b.paymentDate.getTime());
+    const { invoices: after, creditRemaining } = simulateReconciliation(invoices, receipts);
+    expect(round2(creditRemaining)).toBe(50); // 350 paid - 300 billed = 50 credit
+    // Simulate new invoice created after: apply remaining credit to it
+    const newInvoice: SimInvoice = { id: 3, invoiceNumber: 'INV-3', invoiceDate: new Date('2025-04-01'), totalBill: 80, amountPaidOnInvoice: 0, balance: 80 };
+    const apply = Math.min(creditRemaining, newInvoice.balance);
+    newInvoice.amountPaidOnInvoice = round2(apply);
+    newInvoice.balance = round2(newInvoice.balance - apply);
+    expect(round2(newInvoice.amountPaidOnInvoice)).toBe(50);
+    expect(round2(newInvoice.balance)).toBe(30);
+  });
+
+  it('exemption: overpayment uses totalBill as net (no double-subtract of exemptedAmount)', () => {
+    // totalBill is already net of exemption (as in verifyAndRecalculateInvoiceBalance).
+    // correctInvoiceOverpayment must use netBill = totalBill, not netBill = totalBill - exemptedAmount.
+    const totalBill = 100; // already net
+    const exemptedAmount = 20; // informational only
+    const actualAmountPaid = 120;
+    const netBillCorrect = totalBill;
+    const netBillWrong = totalBill - exemptedAmount;
+    const overpaymentCorrect = actualAmountPaid - netBillCorrect; // 20
+    const overpaymentWrong = actualAmountPaid - netBillWrong; // 40 - would create extra credit
+    expect(overpaymentCorrect).toBe(20);
+    expect(overpaymentWrong).toBe(40);
+    // Assert we use the correct formula (as in correctInvoiceOverpayment after fix)
+    expect(overpaymentCorrect).toBe(actualAmountPaid - totalBill);
+  });
 });

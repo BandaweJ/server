@@ -34,6 +34,8 @@ export class RolesPermissionsService implements OnModuleInit {
   async onModuleInit(): Promise<void> {
     try {
       await this.findAllRoles();
+      // Always sync permission rows from constants (creates any missing e.g. reports.download)
+      await this.seedPermissions();
       await this.findAllPermissions();
       await this.seedDefaultRolePermissions();
     } catch (err) {

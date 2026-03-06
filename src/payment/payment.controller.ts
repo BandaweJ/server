@@ -401,6 +401,16 @@ export class PaymentController {
     return this.paymentService.reconcileStudentFinances(studentNumber);
   }
 
+  @Post('reconcile/class/:name/:num/:year')
+  @Roles(ROLES.director, ROLES.auditor, ROLES.reception, ROLES.dev)
+  reconcileClassTerm(
+    @Param('name') name: string,
+    @Param('num', ParseIntPipe) num: number,
+    @Param('year', ParseIntPipe) year: number,
+  ) {
+    return this.paymentService.reconcileClassTerm(name, num, year);
+  }
+
   /**
    * Finance dashboard summary for cards and chart (optional filters).
    * Query params: startDate, endDate (ISO), enrolTerm (e.g. "1 2026"), transactionType (Invoice | Payment).

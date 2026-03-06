@@ -332,6 +332,31 @@ export class ReceiptService {
           }
         }
 
+        // Reconcile student finances after void so remaining receipts re-allocate and
+        // any restored credit is re-applied (consistent with void invoice behaviour).
+        const studentNumber = receiptToVoid.student?.studentNumber;
+        if (studentNumber) {
+          try {
+            await this.invoiceService.reconcileStudentFinances(
+              studentNumber,
+              transactionalEntityManager,
+              undefined,
+              { skipFullReallocation: false },
+            );
+          } catch (reconcileErr) {
+            logStructured(
+              this.logger,
+              'warn',
+              'receipt.void.postReconcileFailed',
+              'Post-void reconciliation failed',
+              {
+                studentNumber,
+                error: reconcileErr instanceof Error ? reconcileErr.message : String(reconcileErr),
+              },
+            );
+          }
+        }
+
         logStructured(
           this.logger,
           'log',
@@ -480,14 +505,14 @@ export class ReceiptService {
       async (transactionalEntityManager) => {
         this.financialValidationService.validateReceiptBeforeSave(newReceipt);
 
-        // Reconcile finances BEFORE saving receipt (apply credit to invoices if needed)
-        // Skip full reallocation (expensive) - only needed for manual reconciliation
+        // Reconcile finances BEFORE saving receipt: full reallocation to clean existing
+        // allocations/balances so the new receipt gets correct figures.
         try {
           await this.invoiceService.reconcileStudentFinances(
             studentNumber,
             transactionalEntityManager,
             undefined,
-            { skipFullReallocation: true }, // Skip expensive reallocation during receipt saves
+            { skipFullReallocation: false }, // Full reallocation so student data is clean before new receipt
           );
         } catch (reconciliationError) {
           logStructured(
@@ -556,14 +581,14 @@ export class ReceiptService {
           throw new Error(error);
         }
 
-        // Reconcile finances AFTER saving receipt: run full reallocation so allocations
-        // stay correct (e.g. payment-before-invoice, receipt order). One student per payment.
+        // Reconcile finances AFTER allocation: lightweight only (overpayment capping,
+        // balance recalc, credit verification). Full reallocation already ran pre-save.
         try {
           await this.invoiceService.reconcileStudentFinances(
             studentNumber,
             transactionalEntityManager,
             undefined,
-            { skipFullReallocation: false }, // Full reallocation so all students stay correct
+            { skipFullReallocation: true },
           );
         } catch (reconciliationError) {
           // Don't fail the main operation if reconciliation fails, but log it
@@ -571,7 +596,7 @@ export class ReceiptService {
             this.logger,
             'warn',
             'receipt.create.postReconciliationFailed',
-            'Post-save reconciliation failed',
+            'Post-allocation reconciliation failed',
             {
               studentNumber,
               error: (reconciliationError as Error).message,
