@@ -2682,40 +2682,42 @@ export class InvoiceService {
           },
         );
 
-        // Find oldest invoice with balance
+        // Find oldest invoice with balance and a valid id (we only apply credit when we can persist an allocation)
         const invoiceWithBalance = latestInvoices.find(
-          (inv) => Number(inv.balance || 0) > 0.01,
+          (inv) =>
+            Number(inv.balance || 0) > 0.01 &&
+            inv.id != null &&
+            typeof inv.id === 'number' &&
+            inv.id > 0,
         );
 
         if (invoiceWithBalance) {
-        logStructured(
-          this.logger,
-          'log',
-          'reconciliation.applyCredit',
-          'Applying credit to oldest invoice with balance',
-          {
+          logStructured(
+            this.logger,
+            'log',
+            'reconciliation.applyCredit',
+            'Applying credit to oldest invoice with balance',
+            {
+              studentNumber,
+              creditAmount: studentCredit.amount,
+              invoiceNumber: invoiceWithBalance.invoiceNumber,
+              invoiceBalance: invoiceWithBalance.balance,
+            },
+          );
+
+          // Create array to collect credit allocations (applyStudentCreditToInvoice only adds when invoice has valid id)
+          const creditAllocationsToSave: CreditInvoiceAllocationEntity[] = [];
+
+          await this.applyStudentCreditToInvoice(
+            invoiceWithBalance,
             studentNumber,
-            creditAmount: studentCredit.amount,
-            invoiceNumber: invoiceWithBalance.invoiceNumber,
-            invoiceBalance: invoiceWithBalance.balance,
-          },
-        );
+            transactionalEntityManager,
+            creditAllocationsToSave,
+            undefined,
+          );
 
-        // Create array to collect credit allocations
-        const creditAllocationsToSave: CreditInvoiceAllocationEntity[] = [];
-
-        await this.applyStudentCreditToInvoice(
-          invoiceWithBalance,
-          studentNumber,
-          transactionalEntityManager,
-          creditAllocationsToSave,
-          undefined,
-        );
-
-        // Save all credit allocations
-        if (creditAllocationsToSave.length > 0) {
-          // Ensure all allocations have a loaded invoice reference so TypeORM persists invoiceId
-          if (invoiceWithBalance.id) {
+          // Save all credit allocations (only present when we had a valid invoice)
+          if (creditAllocationsToSave.length > 0) {
             const invoiceRef = await transactionalEntityManager.findOne(
               InvoiceEntity,
               { where: { id: invoiceWithBalance.id } },
@@ -2728,23 +2730,8 @@ export class InvoiceService {
             for (const allocation of creditAllocationsToSave) {
               allocation.invoice = invoiceRef;
             }
-          } else {
-            logStructured(
-              this.logger,
-              'error',
-              'reconciliation.creditAllocation.missingInvoiceId',
-              'Cannot save credit allocation: invoice has no ID',
-              {
-                invoiceNumber: invoiceWithBalance.invoiceNumber,
-                studentNumber,
-              },
-            );
-            throw new Error(
-              `Cannot save credit allocation: invoice ${invoiceWithBalance.invoiceNumber} has no ID`,
-            );
-          }
 
-          const totalCreditApplied = creditAllocationsToSave.reduce(
+            const totalCreditApplied = creditAllocationsToSave.reduce(
             (sum, alloc) => sum + Number(alloc.amountApplied || 0),
             0,
           );
@@ -4018,6 +4005,29 @@ export class InvoiceService {
       return 0;
     }
 
+    // Only create a credit allocation when we have a valid invoice to apply to.
+    // If there is no invoice ID, leave credit as balance (do not deduct, do not insert).
+    const hasValidInvoiceId =
+      invoice.id != null && typeof invoice.id === 'number' && invoice.id > 0;
+    if (!hasValidInvoiceId) {
+      this.logger.debug(
+        `Skipping credit application for invoice ${invoice.invoiceNumber} (no valid id) - credit remains as balance`,
+        { studentNumber },
+      );
+      return 0;
+    }
+
+    const invoiceRef = await transactionalEntityManager.findOne(
+      InvoiceEntity,
+      { where: { id: invoice.id } },
+    );
+    if (!invoiceRef) {
+      this.logger.warn(
+        `Invoice ${invoice.id} not found when applying credit, skipping allocation`,
+      );
+      return 0;
+    }
+
     const relatedReceiptId = await this.creditService.determineReceiptSourceForCredit(
       studentCredit,
       amountToApply,
@@ -4029,34 +4039,23 @@ export class InvoiceService {
       amountToApply,
       transactionalEntityManager,
       `Applied to Invoice ${invoice.invoiceNumber}`,
-      invoice.id || undefined,
+      invoice.id,
       'system',
     );
 
-    if (invoice.id) {
-      // Load invoice so TypeORM persists invoiceId (avoids null FK in credit_invoice_allocations)
-      const invoiceRef = await transactionalEntityManager.findOne(
-        InvoiceEntity,
-        { where: { id: invoice.id } },
-      );
-      if (!invoiceRef) {
-        this.logger.warn(
-          `Invoice ${invoice.id} not found when applying credit, skipping allocation`,
-        );
-        return 0;
-      }
-      const creditAllocation = transactionalEntityManager.create(
-        CreditInvoiceAllocationEntity,
-        {
-          studentCredit,
-          invoice: invoiceRef,
-          amountApplied: amountToApply,
-          relatedReceiptId: relatedReceiptId || undefined,
-          allocationDate: new Date(),
-        },
-      );
-      creditAllocationsToSave.push(creditAllocation);
-    } else if (creditAllocationsData) {
+    const creditAllocation = transactionalEntityManager.create(
+      CreditInvoiceAllocationEntity,
+      {
+        studentCredit,
+        invoice: invoiceRef,
+        amountApplied: amountToApply,
+        relatedReceiptId: relatedReceiptId || undefined,
+        allocationDate: new Date(),
+      },
+    );
+    creditAllocationsToSave.push(creditAllocation);
+
+    if (creditAllocationsData) {
       creditAllocationsData.push({
         studentCredit,
         amountApplied: amountToApply,
