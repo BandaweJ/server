@@ -652,7 +652,7 @@ export class InvoiceService {
             transactionalEntityManager,
           );
           
-          // Reload one more time to ensure we have the saved balance (still no creditAllocations - avoid TypeORM touching them on save)
+          // Reload with allocations so balance verification uses full amount paid (receipt + credit)
           const finalInvoice = await transactionalEntityManager.findOne(
             InvoiceEntity,
             {
@@ -665,6 +665,7 @@ export class InvoiceService {
                 'bills.fees',
                 'exemption',
                 'allocations',
+                'creditAllocations',
               ],
             },
           );
