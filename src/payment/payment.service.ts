@@ -412,6 +412,16 @@ export class PaymentService {
     );
   }
 
+  /**
+   * Fix an invoice whose totalBill does not include balanceBfwd (e.g. legacy data).
+   * Recomputes totalBill to include balance brought forward, updates balance/status, and reconciles the student.
+   */
+  async fixInvoiceTotalToIncludeBalanceBfwd(
+    invoiceId: number,
+  ): Promise<InvoiceEntity> {
+    return this.invoiceService.fixInvoiceTotalToIncludeBalanceBfwd(invoiceId);
+  }
+
   async getInvoiceByInvoiceNumber(invoiceNumber: string) {
     return this.invoiceService.getInvoiceByInvoiceNumber(invoiceNumber);
   }

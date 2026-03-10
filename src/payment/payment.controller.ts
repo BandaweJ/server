@@ -393,6 +393,14 @@ export class PaymentController {
     return this.paymentService.updatePayment(receiptNumber, approved, profile);
   }
 
+  @Patch('invoice/:invoiceId/fix-balance-bfwd')
+  @Roles(ROLES.reception, ROLES.auditor, ROLES.director, ROLES.dev)
+  fixInvoiceTotalToIncludeBalanceBfwd(
+    @Param('invoiceId', ParseIntPipe) invoiceId: number,
+  ) {
+    return this.paymentService.fixInvoiceTotalToIncludeBalanceBfwd(invoiceId);
+  }
+
   @Post('reconcile/:studentNumber')
   @Roles(ROLES.reception, ROLES.auditor, ROLES.director)
   reconcileStudentFinances(

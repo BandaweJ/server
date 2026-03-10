@@ -4677,6 +4677,108 @@ export class InvoiceService {
     return corrected;
   }
 
+  /**
+   * Fix an invoice whose totalBill was stored without including balanceBfwd.
+   * Use for legacy invoices (or older saves) where balanceBfwd was linked but
+   * totalBill was never updated. Recomputes totalBill = bills total + balanceBfwd.amount,
+   * then balance and status, saves, and runs reconciliation for the student.
+   * @param invoiceId - ID of the invoice to fix
+   * @returns Updated invoice entity
+   */
+  async fixInvoiceTotalToIncludeBalanceBfwd(
+    invoiceId: number,
+  ): Promise<InvoiceEntity> {
+    const tolerance = 0.01;
+
+    return this.dataSource.transaction(async (em) => {
+      const invoice = await em.findOne(InvoiceEntity, {
+        where: { id: invoiceId },
+        relations: [
+          'student',
+          'enrol',
+          'balanceBfwd',
+          'bills',
+          'bills.fees',
+          'exemption',
+        ],
+      });
+
+      if (!invoice) {
+        throw new InvoiceNotFoundException(
+          `Invoice with id ${invoiceId} not found`,
+        );
+      }
+      if (invoice.isVoided) {
+        return invoice;
+      }
+      if (!invoice.balanceBfwd) {
+        return invoice;
+      }
+
+      const bfwdAmount = Number(invoice.balanceBfwd.amount);
+      if (!(bfwdAmount > 0)) {
+        return invoice;
+      }
+
+      const currentTotal = Number(invoice.totalBill || 0);
+      const amountPaid = Number(invoice.amountPaidOnInvoice || 0);
+
+      // Expected total from bills only (what totalBill would be without bfwd)
+      let sumFromBills = 0;
+      if (invoice.bills?.length) {
+        sumFromBills = this.calculateNetBillAmount(
+          invoice.bills,
+          invoice.exemption,
+        );
+      } else {
+        sumFromBills = currentTotal;
+      }
+
+      const expectedTotalWithBfwd =
+        Math.round((sumFromBills + bfwdAmount) * 100) / 100;
+
+      if (currentTotal >= expectedTotalWithBfwd - tolerance) {
+        // totalBill already includes balanceBfwd; just ensure balance/status
+        invoice.balance = Math.max(
+          0,
+          Math.round((currentTotal - amountPaid) * 100) / 100,
+        );
+        invoice.status = this.getInvoiceStatus(invoice);
+        return em.save(InvoiceEntity, invoice);
+      }
+
+      invoice.totalBill = expectedTotalWithBfwd;
+      invoice.balance = Math.max(
+        0,
+        Math.round((expectedTotalWithBfwd - amountPaid) * 100) / 100,
+      );
+      invoice.status = this.getInvoiceStatus(invoice);
+      await em.save(InvoiceEntity, invoice);
+
+      const studentNumber = invoice.student?.studentNumber;
+      if (studentNumber) {
+        await this.reconcileStudentFinances(
+          studentNumber,
+          em,
+          undefined,
+          { skipFullReallocation: true },
+        );
+      }
+
+      const updated = await em.findOne(InvoiceEntity, {
+        where: { id: invoiceId },
+        relations: [
+          'student',
+          'enrol',
+          'balanceBfwd',
+          'bills',
+          'bills.fees',
+          'exemption',
+        ],
+      });
+      return updated ?? invoice;
+    });
+  }
 }
 
 
