@@ -28,6 +28,17 @@ export class ParentStudentAccessGuard implements CanActivate {
     const profile = request.user;
     const studentNumber = request.params?.studentNumber;
 
+    // Management / finance roles have unrestricted access to student-scoped
+    // finance/report routes. They should be able to view any student's data.
+    if (
+      profile?.role === ROLES.dev ||
+      profile?.role === ROLES.director ||
+      profile?.role === ROLES.auditor ||
+      profile?.role === ROLES.reception
+    ) {
+      return true;
+    }
+
     if (!studentNumber) {
       return true;
     }
@@ -47,8 +58,8 @@ export class ParentStudentAccessGuard implements CanActivate {
       }
     }
 
-    // 2) Teacher / dev who is also a parent: match by email to ParentsEntity
-    if (profile.role === ROLES.teacher || profile.role === ROLES.dev) {
+    // 2) Teacher who is also a parent: match by email to ParentsEntity
+    if (profile.role === ROLES.teacher) {
       const email: string | undefined = (profile as any).email;
       if (email) {
         const parent = await this.parentsRepository.findOne({
