@@ -209,6 +209,11 @@ export class InvoiceService {
       ]);
     }
 
+    // Optional balance brought forward (legacy opening balance).
+    // For new invoices we allow attaching a BalancesEntity so that the legacy
+    // amount is incorporated into the first invoice's total.
+    const dtoBalanceBfwd: BalancesEntity | undefined = invoice.balanceBfwd;
+
     logStructured(
       this.logger,
       'log',
@@ -505,6 +510,12 @@ export class InvoiceService {
               ? new Date(invoice.invoiceDueDate)
               : new Date();
 
+            // If the DTO carries a balanceBfwd and this invoice does not yet
+            // have one, attach it so its amount is included in totalBill.
+            if (dtoBalanceBfwd && !invoiceToSave.balanceBfwd) {
+              invoiceToSave.balanceBfwd = dtoBalanceBfwd;
+            }
+
             const balanceBfwdAmount = invoiceToSave.balanceBfwd
               ? Number(invoiceToSave.balanceBfwd.amount)
               : 0;
@@ -558,6 +569,13 @@ export class InvoiceService {
             invoiceToSave.student = student;
             invoiceToSave.enrol = enrol;
             invoiceToSave.bills = bills;
+
+            // Attach balanceBfwd for new invoices when supplied via DTO so
+            // the legacy opening balance is carried onto the first invoice.
+            if (dtoBalanceBfwd) {
+              invoiceToSave.balanceBfwd = dtoBalanceBfwd;
+            }
+
           // NEW INVOICE: always generate a fresh invoice number on the server
           // to avoid duplicate key violations on the unique invoiceNumber constraint.
           // We deliberately ignore any invoiceNumber coming from the client for new invoices.
@@ -569,6 +587,14 @@ export class InvoiceService {
               ? new Date(invoice.invoiceDueDate)
               : new Date();
             invoiceToSave.totalBill = calculatedNetTotalBill;
+
+            const balanceBfwdAmountForNew = invoiceToSave.balanceBfwd
+              ? Number(invoiceToSave.balanceBfwd.amount)
+              : 0;
+            if (balanceBfwdAmountForNew > 0) {
+              invoiceToSave.totalBill += balanceBfwdAmountForNew;
+            }
+
             invoiceToSave.amountPaidOnInvoice = 0;
             invoiceToSave.isVoided = false; // Explicitly set to false for new invoices
 
