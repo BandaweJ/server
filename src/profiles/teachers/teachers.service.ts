@@ -66,8 +66,8 @@ export class TeachersService {
     createTeacherDto: CreateTeacherDto,
     profile: TeachersEntity | ParentsEntity | StudentsEntity,
   ): Promise<TeachersEntity> {
-    if (profile.role !== ROLES.admin) {
-      throw new UnauthorizedException('Only admins can create new teachers');
+    if (profile.role !== ROLES.admin && profile.role !== ROLES.dev) {
+      throw new UnauthorizedException('Only admins and dev can create new teachers');
     }
 
     return await this.teachersRespository.save(createTeacherDto);

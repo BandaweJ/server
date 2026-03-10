@@ -137,10 +137,11 @@ export class StudentsService {
       profile.role !== ROLES.admin &&
       profile.role !== ROLES.reception &&
       profile.role !== ROLES.director &&
-      profile.role !== ROLES.auditor
+      profile.role !== ROLES.auditor &&
+      profile.role !== ROLES.dev
     ) {
       throw new UnauthorizedException(
-        'Only admins, reception, director, and auditor can add new students',
+        'Only admins, reception, director, auditor, and dev can add new students',
       );
     }
 
