@@ -160,8 +160,9 @@ export class EnrolmentService {
       case ROLES.parent:
       case ROLES.reception:
       case ROLES.student:
-      case ROLES.teacher: {
-        throw new UnauthorizedException('Only admins can create a new term');
+      case ROLES.teacher:
+      case ROLES.auditor: {
+        throw new UnauthorizedException('Only admins or dev can create a new term');
       }
     }
     return await this.termRepository.save(createTermDto);

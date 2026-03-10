@@ -77,9 +77,9 @@ export class TeachersService {
     id: string,
     profile: TeachersEntity | ParentsEntity | StudentsEntity,
   ): Promise<{ id: string }> {
-    if (profile.role !== ROLES.admin) {
+    if (profile.role !== ROLES.admin && profile.role !== ROLES.dev) {
       throw new UnauthorizedException(
-        'Only admins are allowed to delete teachers',
+        'Only admins and dev are allowed to delete teachers',
       );
     }
 

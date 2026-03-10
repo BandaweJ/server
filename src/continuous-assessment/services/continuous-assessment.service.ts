@@ -67,7 +67,11 @@ export class ContinuousAssessmentService {
       throw new ForbiddenException('Account not found');
     }
 
-    if (![ROLES.teacher, ROLES.hod, ROLES.admin, ROLES.director].includes(account.role as ROLES)) {
+    if (
+      ![ROLES.teacher, ROLES.hod, ROLES.admin, ROLES.director, ROLES.dev].includes(
+        account.role as ROLES,
+      )
+    ) {
       throw new ForbiddenException('You are not allowed to record assessments');
     }
 

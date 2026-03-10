@@ -79,10 +79,11 @@ export class ParentsService {
     if (
       profile.role !== ROLES.admin &&
       profile.role !== ROLES.director &&
-      profile.role !== ROLES.reception
+      profile.role !== ROLES.reception &&
+      profile.role !== ROLES.dev
     ) {
       throw new UnauthorizedException(
-        'Only admin, director, or reception can add parents',
+        'Only admin, director, reception, or dev can add parents',
       );
     }
     return await this.parentsRepository.save(createParentDto as Partial<ParentsEntity>);
@@ -92,8 +93,8 @@ export class ParentsService {
     email: string,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ): Promise<number> {
-    if (profile.role !== ROLES.admin && profile.role !== ROLES.director) {
-      throw new UnauthorizedException('Only admin or director can delete parents');
+    if (profile.role !== ROLES.admin && profile.role !== ROLES.director && profile.role !== ROLES.dev) {
+      throw new UnauthorizedException('Only admin, director, or dev can delete parents');
     }
     const parent = await this.parentsRepository.findOne({
       where: { email },
@@ -143,10 +144,11 @@ export class ParentsService {
     if (
       profile.role !== ROLES.admin &&
       profile.role !== ROLES.director &&
-      profile.role !== ROLES.reception
+      profile.role !== ROLES.reception &&
+      profile.role !== ROLES.dev
     ) {
       throw new UnauthorizedException(
-        'Only admin, director, or reception can link parents to students',
+        'Only admin, director, reception, or dev can link parents to students',
       );
     }
     const parent = await this.parentsRepository.findOne({

@@ -418,7 +418,7 @@ export class ReceiptService {
       'Receipt amount paid',
     );
 
-    const allowedRoles = [ROLES.reception, ROLES.auditor];
+    const allowedRoles = [ROLES.reception, ROLES.auditor, ROLES.dev];
     if (!allowedRoles.includes(profile.role as ROLES)) {
       throw new UnauthorizedException('You are not allowed to generate receipts');
     }

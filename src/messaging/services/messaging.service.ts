@@ -96,8 +96,12 @@ export class MessagingService {
 
     // Check permissions for school-wide messages
     if (createDto.type === ConversationType.SCHOOL_WIDE) {
-      if (account.role !== ROLES.admin && account.role !== ROLES.director) {
-        throw new ForbiddenException('Only admins and directors can create school-wide messages');
+      if (
+        account.role !== ROLES.admin &&
+        account.role !== ROLES.director &&
+        account.role !== ROLES.dev
+      ) {
+        throw new ForbiddenException('Only admins, directors, and dev can create school-wide messages');
       }
     }
 
@@ -205,9 +209,10 @@ export class MessagingService {
       account.role !== ROLES.teacher &&
       account.role !== ROLES.hod &&
       account.role !== ROLES.admin &&
-      account.role !== ROLES.director
+      account.role !== ROLES.director &&
+      account.role !== ROLES.dev
     ) {
-      throw new ForbiddenException('Only teachers and administrators can create class conversations');
+      throw new ForbiddenException('Only teachers, administrators, and dev can create class conversations');
     }
 
     // Check if conversation already exists for this class
@@ -245,8 +250,12 @@ export class MessagingService {
       throw new NotFoundException('User not found');
     }
 
-    if (account.role !== ROLES.admin && account.role !== ROLES.director) {
-      throw new ForbiddenException('Only admins and directors can create school-wide messages');
+    if (
+      account.role !== ROLES.admin &&
+      account.role !== ROLES.director &&
+      account.role !== ROLES.dev
+    ) {
+      throw new ForbiddenException('Only admins, directors, and dev can create school-wide messages');
     }
 
     // Check if school-wide conversation already exists

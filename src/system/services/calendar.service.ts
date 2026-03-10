@@ -63,7 +63,7 @@ export class CalendarService {
     let isAdmin = false;
     if (userId) {
       const account = await this.accountsRepository.findOne({ where: { id: userId } });
-      isAdmin = account?.role === 'admin' || account?.role === 'director';
+      isAdmin = account?.role === 'admin' || account?.role === 'director' || account?.role === 'dev';
     }
 
     // If not admin, filter to show only public events or events they have notifications for
@@ -101,7 +101,7 @@ export class CalendarService {
     // Check if user can view this event
     if (userId) {
       const account = await this.accountsRepository.findOne({ where: { id: userId } });
-      const isAdmin = account?.role === 'admin' || account?.role === 'director';
+      const isAdmin = account?.role === 'admin' || account?.role === 'director' || account?.role === 'dev';
       
       if (!isAdmin && !event.isPublic) {
         // Check if user has notification for this event
@@ -142,7 +142,7 @@ export class CalendarService {
     
     // Check if user is admin or the creator
     const account = await this.accountsRepository.findOne({ where: { id: userId } });
-    const isAdmin = account?.role === 'admin' || account?.role === 'director';
+    const isAdmin = account?.role === 'admin' || account?.role === 'director' || account?.role === 'dev';
     
     if (!isAdmin && event.createdById !== userId) {
       throw new ForbiddenException('Only admins or event creators can update events');
@@ -157,7 +157,7 @@ export class CalendarService {
     
     // Check if user is admin or the creator
     const account = await this.accountsRepository.findOne({ where: { id: userId } });
-    const isAdmin = account?.role === 'admin' || account?.role === 'director';
+    const isAdmin = account?.role === 'admin' || account?.role === 'director' || account?.role === 'dev';
     
     if (!isAdmin && event.createdById !== userId) {
       throw new ForbiddenException('Only admins or event creators can delete events');
