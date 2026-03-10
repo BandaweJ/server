@@ -447,7 +447,8 @@ export class InvoiceService {
           );
 
           let invoiceToSave: InvoiceEntity;
-          
+          let hadOverpaymentOnEdit = false;
+
           // If we didn't find the invoice earlier, try the more comprehensive query
           // (This handles cases where invoice.id wasn't provided but invoiceNumber was)
           if (!foundInvoice) {
@@ -560,6 +561,22 @@ export class InvoiceService {
             // Recalculate amountPaidOnInvoice from allocations (not from stored value)
             // This ensures we don't double-count credits
             invoiceToSave.amountPaidOnInvoice = receiptAllocationsTotal + creditAllocationsTotal;
+
+            // If total was reduced (e.g. bills removed), cap amount paid at totalBill, create
+            // student credit for excess, reduce allocations, then apply credit to next open invoice
+            const totalBill = Number(invoiceToSave.totalBill ?? 0);
+            const amountPaid = receiptAllocationsTotal + creditAllocationsTotal;
+            if (totalBill < amountPaid - 0.01) {
+              hadOverpaymentOnEdit = await this.handleOverpaymentOnEdit(
+                invoiceToSave,
+                student.studentNumber,
+                existingReceiptAllocations,
+                existingCreditAllocations,
+                totalBill,
+                transactionalEntityManager,
+              );
+            }
+
             this.updateInvoiceBalance(invoiceToSave, false);
             this.verifyInvoiceBalance(invoiceToSave);
             invoiceToSave.exemption = studentExemption || null;
@@ -635,7 +652,8 @@ export class InvoiceService {
             transactionalEntityManager,
             undefined,
             {
-              skipAutoCreditApplication: !isNewInvoice, // Allow auto-apply credit for new invoice only
+              // Allow auto-apply credit for new invoice or when we created credit from overpayment on edit
+              skipAutoCreditApplication: !isNewInvoice && !hadOverpaymentOnEdit,
               skipFullReallocation: true, // Lightweight only; full reallocation already ran pre-save for new invoices
             },
           );
@@ -3897,6 +3915,110 @@ export class InvoiceService {
         }
       }
     }
+  }
+
+  /**
+   * When an existing invoice is edited and totalBill is reduced below current amount paid,
+   * reduces amountPaidOnInvoice to totalBill by deallocating receipt and credit allocations,
+   * creates a student credit for the excess, and leaves credit to be applied to the next
+   * open invoice (or as balance) by the caller's post-save reconciliation.
+   * All changes are persisted in the same transaction.
+   * @returns true if overpayment was handled
+   */
+  private async handleOverpaymentOnEdit(
+    invoiceToSave: InvoiceEntity,
+    studentNumber: string,
+    existingReceiptAllocations: ReceiptInvoiceAllocationEntity[],
+    existingCreditAllocations: CreditInvoiceAllocationEntity[],
+    totalBill: number,
+    transactionalEntityManager: EntityManager,
+  ): Promise<boolean> {
+    const amountPaid =
+      existingReceiptAllocations.reduce(
+        (s, a) => s + Number(a.amountApplied ?? 0),
+        0,
+      ) +
+      existingCreditAllocations.reduce(
+        (s, a) => s + Number(a.amountApplied ?? 0),
+        0,
+      );
+    const excess = sanitizeAmount(amountPaid - totalBill);
+    if (excess <= 0.01) return false;
+
+    const invoiceNumber =
+      invoiceToSave.invoiceNumber ?? `INV-${invoiceToSave.id ?? '?'}`;
+    logStructured(
+      this.logger,
+      'log',
+      'invoice.handleOverpaymentOnEdit',
+      'Reducing amount paid to new total and creating student credit for excess',
+      {
+        invoiceNumber,
+        studentNumber,
+        totalBill,
+        amountPaid,
+        excess,
+      },
+    );
+
+    await this.creditService.createOrUpdateStudentCredit(
+      studentNumber,
+      excess,
+      transactionalEntityManager,
+      `Overpayment from invoice edit (${invoiceNumber})`,
+      undefined,
+      'system',
+    );
+
+    let freed = 0;
+    const receiptSorted = [...existingReceiptAllocations].sort(
+      (a, b) => (a.id ?? 0) - (b.id ?? 0),
+    );
+    for (const alloc of receiptSorted) {
+      const needToFree = sanitizeAmount(excess - freed);
+      if (needToFree <= 0.01) break;
+      const applied = Number(alloc.amountApplied ?? 0);
+      const toFree = Math.min(applied, needToFree);
+      if (toFree <= 0.01) continue;
+      if (toFree >= applied - 0.01) {
+        await transactionalEntityManager.remove(alloc);
+        freed = sanitizeAmount(freed + applied);
+      } else {
+        alloc.amountApplied = sanitizeAmount(applied - toFree);
+        await transactionalEntityManager.save(
+          ReceiptInvoiceAllocationEntity,
+          alloc,
+        );
+        freed = sanitizeAmount(freed + toFree);
+      }
+    }
+
+    let needToFreeFromCredit = sanitizeAmount(excess - freed);
+    if (needToFreeFromCredit > 0.01) {
+      const creditSorted = [...existingCreditAllocations].sort(
+        (a, b) => (a.id ?? 0) - (b.id ?? 0),
+      );
+      for (const alloc of creditSorted) {
+        if (needToFreeFromCredit <= 0.01) break;
+        const applied = Number(alloc.amountApplied ?? 0);
+        const toFree = Math.min(applied, needToFreeFromCredit);
+        if (toFree <= 0.01) continue;
+        if (toFree >= applied - 0.01) {
+          await transactionalEntityManager.remove(alloc);
+          needToFreeFromCredit = sanitizeAmount(needToFreeFromCredit - applied);
+        } else {
+          alloc.amountApplied = sanitizeAmount(applied - toFree);
+          await transactionalEntityManager.save(
+            CreditInvoiceAllocationEntity,
+            alloc,
+          );
+          needToFreeFromCredit = sanitizeAmount(needToFreeFromCredit - toFree);
+        }
+      }
+    }
+
+    invoiceToSave.amountPaidOnInvoice = totalBill;
+    return true;
   }
 
   /**
