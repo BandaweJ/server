@@ -66,10 +66,46 @@ export class ParentsService {
         'Only members of staff can access parent list',
       );
     }
+    // Default staff view: show first N parents ordered by surname/email.
     return await this.parentsRepository.find({
       relations: ['students'],
-      order: { email: 'ASC' },
+      order: { surname: 'ASC', email: 'ASC' },
+      take: 100,
     });
+  }
+
+  /**
+   * Search parents by surname, email, or cell (case-insensitive), limited for performance.
+   * Staff only (same as getAllParents).
+   */
+  async searchParents(
+    query: string,
+    limit: number,
+    profile: TeachersEntity | StudentsEntity | ParentsEntity,
+  ): Promise<ParentsEntity[]> {
+    if (profile.role === ROLES.parent || profile.role === ROLES.student) {
+      throw new UnauthorizedException(
+        'Only members of staff can access parent list',
+      );
+    }
+
+    const take = Math.max(1, Math.min(limit || 50, 200));
+    const qb = this.parentsRepository
+      .createQueryBuilder('parent')
+      .leftJoinAndSelect('parent.students', 'student')
+      .orderBy('parent.surname', 'ASC')
+      .addOrderBy('parent.email', 'ASC')
+      .take(take);
+
+    const trimmed = (query || '').trim().toLowerCase();
+    if (trimmed) {
+      qb.where(
+        'LOWER(parent.surname) LIKE :q OR LOWER(parent.email) LIKE :q OR LOWER(parent.cell) LIKE :q',
+        { q: `%${trimmed}%` },
+      );
+    }
+
+    return qb.getMany();
   }
 
   async createParent(

@@ -8,6 +8,7 @@ import {
   Patch,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import { CreateParentsDto } from '../dtos/createParents.dto';
 import { UpdateParentDto } from '../dtos/updateParent.dto';
@@ -32,6 +33,16 @@ export class ParentsController {
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
     return this.parentsService.getAllParents(profile);
+  }
+
+  @Get('search')
+  searchParents(
+    @Query('q') q: string = '',
+    @Query('limit') limit = '50',
+    @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
+  ) {
+    const parsedLimit = parseInt(limit, 10);
+    return this.parentsService.searchParents(q || '', parsedLimit, profile);
   }
 
   @Put(':email/students')
