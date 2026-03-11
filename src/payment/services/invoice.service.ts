@@ -3405,10 +3405,24 @@ export class InvoiceService {
       where: { student: { studentNumber }, isVoided: false },
     });
     for (const invoice of allStudentInvoices) {
-      invoice.amountPaidOnInvoice = 0;
-      invoice.balance = Number(invoice.totalBill || 0);
-      invoice.status = this.getInvoiceStatus(invoice);
-      await transactionalEntityManager.save(InvoiceEntity, invoice);
+      const newAmountPaidOnInvoice = 0;
+      const newBalance = Number(invoice.totalBill || 0);
+      const newStatus = this.getInvoiceStatus({
+        ...invoice,
+        amountPaidOnInvoice: newAmountPaidOnInvoice,
+        balance: newBalance,
+      } as InvoiceEntity);
+
+      // Use update() so TypeORM doesn't try to synchronize relations (which can null FKs)
+      await transactionalEntityManager.update(
+        InvoiceEntity,
+        { id: invoice.id },
+        {
+          amountPaidOnInvoice: newAmountPaidOnInvoice,
+          balance: newBalance,
+          status: newStatus,
+        },
+      );
     }
 
     // Zero student credit and remove receipt-credit records so credit is rebuilt only from
@@ -3491,7 +3505,6 @@ export class InvoiceService {
     // Reload after deleting allocations to get fresh data
     const invoices = await transactionalEntityManager.find(InvoiceEntity, {
       where: { student: { studentNumber }, isVoided: false },
-      relations: ['creditAllocations'],
       order: { invoiceDate: 'ASC' },
     });
 
@@ -3537,7 +3550,7 @@ export class InvoiceService {
           InvoiceEntity,
           {
             where: { id: invoice.id },
-            relations: ['allocations', 'creditAllocations'],
+            relations: ['allocations'],
           },
         );
 
@@ -3549,13 +3562,7 @@ export class InvoiceService {
         // but new allocation entities are saved only at the end, so freshInvoice.allocations
         // is still empty. Use persisted amountPaidOnInvoice (updated in prior iterations)
         // for receipt portion so we don't double-allocate to the same invoice.
-        const totalReceiptAllocated = Number(freshInvoice.amountPaidOnInvoice || 0);
-        const creditAllocations = freshInvoice.creditAllocations || [];
-        const totalCreditAllocated = creditAllocations.reduce(
-          (sum, alloc) => sum + Number(alloc.amountApplied || 0),
-          0,
-        );
-        const totalPaid = totalReceiptAllocated + totalCreditAllocated;
+        const totalPaid = Number(freshInvoice.amountPaidOnInvoice || 0);
         const invoiceBalance = Math.max(
           0,
           Number(freshInvoice.totalBill || 0) - totalPaid,
@@ -3582,12 +3589,24 @@ export class InvoiceService {
           newAllocations.push(allocation);
           remainingAmount -= amountToAllocate;
 
-          // Update invoice amounts
-          freshInvoice.amountPaidOnInvoice = totalPaid + amountToAllocate;
-          freshInvoice.balance = invoiceBalance - amountToAllocate;
-          freshInvoice.status = this.getInvoiceStatus(freshInvoice);
+          // Update invoice amounts (use update() to avoid relation synchronization)
+          const updatedAmountPaidOnInvoice = totalPaid + amountToAllocate;
+          const updatedBalance = invoiceBalance - amountToAllocate;
+          const updatedStatus = this.getInvoiceStatus({
+            ...freshInvoice,
+            amountPaidOnInvoice: updatedAmountPaidOnInvoice,
+            balance: updatedBalance,
+          } as InvoiceEntity);
 
-          await transactionalEntityManager.save(freshInvoice);
+          await transactionalEntityManager.update(
+            InvoiceEntity,
+            { id: freshInvoice.id },
+            {
+              amountPaidOnInvoice: updatedAmountPaidOnInvoice,
+              balance: updatedBalance,
+              status: updatedStatus,
+            },
+          );
         }
       }
 
@@ -3658,7 +3677,6 @@ export class InvoiceService {
         InvoiceEntity,
         {
           where: { student: { studentNumber }, isVoided: false },
-          relations: ['allocations', 'creditAllocations'],
           order: { invoiceDate: 'ASC' }, // Oldest first
         },
       );
@@ -3725,13 +3743,25 @@ export class InvoiceService {
             [studentCreditId, Number(invoiceId), amountToApply, null, new Date()],
           );
 
-          // Update invoice
-          invoice.amountPaidOnInvoice =
+          // Update invoice (use update() to avoid relation synchronization)
+          const updatedAmountPaidOnInvoice =
             Number(invoice.amountPaidOnInvoice || 0) + amountToApply;
-          invoice.balance = invoiceBalance - amountToApply;
-          invoice.status = this.getInvoiceStatus(invoice);
+          const updatedBalance = invoiceBalance - amountToApply;
+          const updatedStatus = this.getInvoiceStatus({
+            ...invoice,
+            amountPaidOnInvoice: updatedAmountPaidOnInvoice,
+            balance: updatedBalance,
+          } as InvoiceEntity);
 
-          await transactionalEntityManager.save(invoice);
+          await transactionalEntityManager.update(
+            InvoiceEntity,
+            { id: Number(invoiceId) },
+            {
+              amountPaidOnInvoice: updatedAmountPaidOnInvoice,
+              balance: updatedBalance,
+              status: updatedStatus,
+            },
+          );
 
           // Deduct from credit balance using the credit service
           await this.creditService.deductStudentCredit(
