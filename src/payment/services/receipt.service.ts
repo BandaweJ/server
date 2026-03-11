@@ -505,29 +505,6 @@ export class ReceiptService {
       async (transactionalEntityManager) => {
         this.financialValidationService.validateReceiptBeforeSave(newReceipt);
 
-        // Reconcile finances BEFORE saving receipt: full reallocation to clean existing
-        // allocations/balances so the new receipt gets correct figures.
-        try {
-          await this.invoiceService.reconcileStudentFinances(
-            studentNumber,
-            transactionalEntityManager,
-            undefined,
-            { skipFullReallocation: false }, // Full reallocation so student data is clean before new receipt
-          );
-        } catch (reconciliationError) {
-          logStructured(
-            this.logger,
-            'warn',
-            'receipt.create.preReconciliationFailed',
-            'Pre-save reconciliation failed',
-            {
-              studentNumber,
-              error: (reconciliationError as Error).message,
-            },
-          );
-          // Continue anyway - reconciliation errors shouldn't block receipt creation
-        }
-
         const savedReceipt = await transactionalEntityManager.save(newReceipt);
 
         const allocationResult = await this.allocateReceiptToInvoices(
@@ -579,29 +556,6 @@ export class ReceiptService {
             { receiptId: savedReceipt.id },
           );
           throw new Error(error);
-        }
-
-        // Reconcile finances AFTER allocation: lightweight only (overpayment capping,
-        // balance recalc, credit verification). Full reallocation already ran pre-save.
-        try {
-          await this.invoiceService.reconcileStudentFinances(
-            studentNumber,
-            transactionalEntityManager,
-            undefined,
-            { skipFullReallocation: true },
-          );
-        } catch (reconciliationError) {
-          // Don't fail the main operation if reconciliation fails, but log it
-          logStructured(
-            this.logger,
-            'warn',
-            'receipt.create.postReconciliationFailed',
-            'Post-allocation reconciliation failed',
-            {
-              studentNumber,
-              error: (reconciliationError as Error).message,
-            },
-          );
         }
 
         // Audit logging
