@@ -16,11 +16,12 @@ import { TeachersEntity } from '../profiles/entities/teachers.entity';
 import { StudentsEntity } from '../profiles/entities/students.entity';
 import { ParentsEntity } from '../profiles/entities/parents.entity';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { ParentStudentAccessGuard } from '../auth/guards/parent-student-access.guard';
 import { HasPermissions } from '../auth/decorators/has-permissions.decorator';
 import { PERMISSIONS } from '../auth/models/permissions.constants';
 
 @Controller('attendance')
-@UseGuards(AuthGuard('jwt'), PermissionsGuard)
+@UseGuards(AuthGuard('jwt'), PermissionsGuard, ParentStudentAccessGuard)
 export class AttendanceController {
   constructor(private attendanceService: AttendanceService) {}
 

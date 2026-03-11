@@ -62,7 +62,9 @@ export class ConversationEntity {
   @OneToMany(() => MessageEntity, (message) => message.conversation)
   messages: MessageEntity[];
 
-  @OneToMany(() => ConversationParticipantEntity, (participant) => participant.conversation)
+  @OneToMany(
+    () => ConversationParticipantEntity,
+    (participant) => participant.conversation,
+  )
   participants: ConversationParticipantEntity[];
 }
-

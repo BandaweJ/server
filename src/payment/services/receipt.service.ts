@@ -1523,7 +1523,7 @@ export class ReceiptService {
       const detailItemWidth = contentWidth / 3;
 
       let detailX = pageMargin + this.mmToPt(6);
-      let detailY = currentY;
+      const detailY = currentY;
       doc.fillColor('#7f8c8d').text('RECEIPT #', detailX, detailY);
       doc.font(defaultFontBold).fontSize(11).fillColor('#000');
       doc.text(receipt.receiptNumber || 'N/A', detailX, detailY + this.mmToPt(5));

@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, Logger, NotImplementedException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotImplementedException,
+  UnauthorizedException,
+} from '@nestjs/common';
 
 import { AccountsDto } from './dtos/signup.dto';
 import { ROLES } from './models/roles.enum';
@@ -129,7 +135,7 @@ export class AuthService {
         // Verify student exists before creating account
         // id from DTO should be the student number
         const st = await this.resourceById.getStudentByStudentNumber(id);
-        
+
         // account.id is already set to id (student number) on line 80
         // Verify they match
         if (account.id !== id) {
@@ -138,41 +144,50 @@ export class AuthService {
             dtoId: id,
             studentNumber: st.studentNumber,
           });
-          throw new BadRequestException('Account ID mismatch during student signup');
+          throw new BadRequestException(
+            'Account ID mismatch during student signup',
+          );
         }
-        
+
         // Verify student number matches
         if (st.studentNumber !== id) {
           this.logger.error('Student signup - Student number mismatch', {
             dtoId: id,
             studentNumber: st.studentNumber,
           });
-          throw new BadRequestException('Student number mismatch during signup');
+          throw new BadRequestException(
+            'Student number mismatch during signup',
+          );
         }
-        
+
         try {
           // Link student entity to account (this will set the foreign key)
           account.student = st;
-          
+
           this.logger.log('Student signup - Saving account to database', {
             studentNumber: id,
             username,
             accountId: account.id,
             hasStudentRelation: !!account.student,
           });
-          
+
           // Save the account to database
           const user = await this.accountsRepository.save(account);
 
           // Verify the account was saved correctly with correct ID
           if (!user || !user.id || user.id !== id) {
-            this.logger.error('Student signup - Account save verification failed', {
-              expectedId: id,
-              actualId: user?.id,
-              studentNumber: st.studentNumber,
-              username,
-            });
-            throw new NotImplementedException('Failed to create account - account ID mismatch');
+            this.logger.error(
+              'Student signup - Account save verification failed',
+              {
+                expectedId: id,
+                actualId: user?.id,
+                studentNumber: st.studentNumber,
+                username,
+              },
+            );
+            throw new NotImplementedException(
+              'Failed to create account - account ID mismatch',
+            );
           }
 
           // Verify the account actually exists in the database by querying it
@@ -182,41 +197,60 @@ export class AuthService {
           });
 
           if (!savedAccount) {
-            this.logger.error('Student signup - Account not found in database after save', {
-              accountId: user.id,
-              studentNumber: id,
-              username,
-            });
-            throw new NotImplementedException('Failed to create account - account not persisted to database');
+            this.logger.error(
+              'Student signup - Account not found in database after save',
+              {
+                accountId: user.id,
+                studentNumber: id,
+                username,
+              },
+            );
+            throw new NotImplementedException(
+              'Failed to create account - account not persisted to database',
+            );
           }
 
           // Verify the student relation was saved correctly
-          if (!savedAccount.student || savedAccount.student.studentNumber !== id) {
-            this.logger.error('Student signup - Student relation not saved correctly', {
-              accountId: user.id,
-              studentNumber: id,
-              hasStudentRelation: !!savedAccount.student,
-              studentNumberFromRelation: savedAccount.student?.studentNumber,
-            });
-            throw new NotImplementedException('Failed to create account - student relation not saved');
+          if (
+            !savedAccount.student ||
+            savedAccount.student.studentNumber !== id
+          ) {
+            this.logger.error(
+              'Student signup - Student relation not saved correctly',
+              {
+                accountId: user.id,
+                studentNumber: id,
+                hasStudentRelation: !!savedAccount.student,
+                studentNumberFromRelation: savedAccount.student?.studentNumber,
+              },
+            );
+            throw new NotImplementedException(
+              'Failed to create account - student relation not saved',
+            );
           }
 
-          this.logger.log('Student signup - Account successfully saved and verified', {
-            accountId: user.id,
-            studentNumber: id,
-            username,
-            studentRelationExists: !!savedAccount.student,
-          });
+          this.logger.log(
+            'Student signup - Account successfully saved and verified',
+            {
+              accountId: user.id,
+              studentNumber: id,
+              username,
+              studentRelationExists: !!savedAccount.student,
+            },
+          );
 
           return { response: true };
         } catch (err) {
-          if (err.code === 'ER_DUP_ENTRY' || err.code === '23505') { // PostgreSQL unique constraint violation
+          if (err.code === 'ER_DUP_ENTRY' || err.code === '23505') {
+            // PostgreSQL unique constraint violation
             this.logger.warn('Student signup - Duplicate entry', {
               studentNumber: id,
               username,
               errorCode: err.code,
             });
-            throw new BadRequestException('Username or student number already has an account');
+            throw new BadRequestException(
+              'Username or student number already has an account',
+            );
           } else {
             this.logger.error('Student signup - Error saving account', {
               studentNumber: id,
@@ -262,7 +296,11 @@ export class AuthService {
           receivedRole: role,
           validRoles: Object.values(ROLES),
         });
-        throw new BadRequestException(`Invalid role: ${role}. Valid roles are: ${Object.values(ROLES).join(', ')}`);
+        throw new BadRequestException(
+          `Invalid role: ${role}. Valid roles are: ${Object.values(ROLES).join(
+            ', ',
+          )}`,
+        );
       }
     }
   }
@@ -275,12 +313,16 @@ export class AuthService {
     signinDto: SigninDto,
     tenant?: { id: string; slug: string },
   ): Promise<{ accessToken: string; permissions: string[] }> {
-    this.logger.log('signin - Attempting signin', { username: signinDto.username });
+    this.logger.log('signin - Attempting signin', {
+      username: signinDto.username,
+    });
 
     const result = await this.validatePassword(signinDto);
 
     if (!result) {
-      this.logger.warn('signin - Invalid credentials', { username: signinDto.username });
+      this.logger.warn('signin - Invalid credentials', {
+        username: signinDto.username,
+      });
       throw new UnauthorizedException('Invalid login credentials');
     }
 
@@ -305,7 +347,9 @@ export class AuthService {
       });
 
       if (account) {
-        permissions = await this.rolesPermissionsService.getUserPermissions(account.id);
+        permissions = await this.rolesPermissionsService.getUserPermissions(
+          account.id,
+        );
       }
     } catch (error) {
       // Don't fail the login if permission fetching fails
@@ -334,7 +378,7 @@ export class AuthService {
     this.logger.debug('validatePassword - Starting validation', { username });
 
     // Load account with student relation for students (to get student number)
-    const user = await this.accountsRepository.findOne({ 
+    const user = await this.accountsRepository.findOne({
       where: { username },
       relations: ['student'],
     });
@@ -362,7 +406,9 @@ export class AuthService {
         active: user.active,
         deletedAt: user.deletedAt,
       });
-      throw new UnauthorizedException('Account has been deactivated. Please contact an administrator.');
+      throw new UnauthorizedException(
+        'Account has been deactivated. Please contact an administrator.',
+      );
     }
 
     // Validate password
@@ -408,7 +454,7 @@ export class AuthService {
               studentNumberFromRelation: user.student?.studentNumber,
             });
             throw new UnauthorizedException(
-              `Student profile not found. Please contact an administrator.`
+              `Student profile not found. Please contact an administrator.`,
             );
           }
         }
@@ -423,7 +469,7 @@ export class AuthService {
     // First get the account to get username
     const account = await this.accountsRepository.findOne({
       where: { id },
-      relations: ['student', 'teacher']
+      relations: ['student', 'teacher'],
     });
 
     if (!account) {
@@ -435,7 +481,15 @@ export class AuthService {
     if (role === ROLES.student && account.student) {
       userDetails = account.student;
     } else if (
-      [ROLES.teacher, ROLES.hod, ROLES.reception, ROLES.admin, ROLES.auditor, ROLES.director, ROLES.dev].includes(role as ROLES) &&
+      [
+        ROLES.teacher,
+        ROLES.hod,
+        ROLES.reception,
+        ROLES.admin,
+        ROLES.auditor,
+        ROLES.director,
+        ROLES.dev,
+      ].includes(role as ROLES) &&
       account.teacher
     ) {
       userDetails = account.teacher;
@@ -453,7 +507,7 @@ export class AuthService {
       ...userDetails,
       username: account.username,
       accountId: account.id,
-      role: account.role
+      role: account.role,
     };
   }
 
@@ -475,16 +529,28 @@ export class AuthService {
         try {
           if (account.role === ROLES.student && account.student) {
             userDetails = account.student;
-            name = `${account.student.name || ''} ${account.student.surname || ''}`.trim() || account.username;
+            name =
+              `${account.student.name || ''} ${
+                account.student.surname || ''
+              }`.trim() || account.username;
             email = account.student.email || null;
           } else if (
-            [ROLES.teacher, ROLES.admin, ROLES.hod, ROLES.reception, ROLES.auditor, ROLES.director, ROLES.dev].includes(
-              account.role as ROLES
-            ) &&
+            [
+              ROLES.teacher,
+              ROLES.admin,
+              ROLES.hod,
+              ROLES.reception,
+              ROLES.auditor,
+              ROLES.director,
+              ROLES.dev,
+            ].includes(account.role as ROLES) &&
             account.teacher
           ) {
             userDetails = account.teacher;
-            name = `${account.teacher.name || ''} ${account.teacher.surname || ''}`.trim() || account.username;
+            name =
+              `${account.teacher.name || ''} ${
+                account.teacher.surname || ''
+              }`.trim() || account.username;
             email = account.teacher.email || null;
           } else if (account.role === ROLES.parent) {
             const parent = await this.resourceById.getParentByEmail(account.id);
@@ -493,7 +559,10 @@ export class AuthService {
             email = null;
           }
         } catch (error) {
-          console.error(`Error fetching details for account ${account.username}:`, error);
+          console.error(
+            `Error fetching details for account ${account.username}:`,
+            error,
+          );
         }
 
         return {
@@ -503,19 +572,24 @@ export class AuthService {
           name: name,
           email: email,
           createdAt: account.createdAt,
-          status: account.active === false || account.deletedAt ? 'inactive' : 'active',
+          status:
+            account.active === false || account.deletedAt
+              ? 'inactive'
+              : 'active',
           active: account.active !== false, // Treat null/undefined as true for backward compatibility
           deletedAt: account.deletedAt || null,
         };
-      })
+      }),
     );
 
     return accountsWithDetails;
   }
 
-  async resetPassword(id: string): Promise<{ message: string; generatedPassword: string }> {
+  async resetPassword(
+    id: string,
+  ): Promise<{ message: string; generatedPassword: string }> {
     const account = await this.accountsRepository.findOne({ where: { id } });
-    
+
     if (!account) {
       throw new BadRequestException('User not found');
     }
@@ -523,12 +597,12 @@ export class AuthService {
     // Generate a random password
     const generatedPassword = Math.random().toString(36).slice(-8) + 'A1!';
     const salt = await bcrypt.genSalt();
-    
+
     account.password = await this.hashPassword(generatedPassword, salt);
     account.salt = salt;
-    
+
     await this.accountsRepository.save(account);
-    
+
     // Log the password reset activity
     try {
       await this.activityService.logActivity({
@@ -542,16 +616,19 @@ export class AuthService {
     } catch (error) {
       console.error('Failed to log password reset activity:', error);
     }
-    
+
     return {
       message: 'Password reset successfully',
-      generatedPassword: generatedPassword
+      generatedPassword: generatedPassword,
     };
   }
 
-  async setCustomPassword(id: string, newPassword: string): Promise<{ message: string }> {
+  async setCustomPassword(
+    id: string,
+    newPassword: string,
+  ): Promise<{ message: string }> {
     const account = await this.accountsRepository.findOne({ where: { id } });
-    
+
     if (!account) {
       throw new BadRequestException('User not found');
     }
@@ -560,9 +637,9 @@ export class AuthService {
     const salt = await bcrypt.genSalt();
     account.password = await this.hashPassword(newPassword, salt);
     account.salt = salt;
-    
+
     await this.accountsRepository.save(account);
-    
+
     // Log the password change activity
     try {
       await this.activityService.logActivity({
@@ -576,9 +653,9 @@ export class AuthService {
     } catch (error) {
       console.error('Failed to log password change activity:', error);
     }
-    
+
     return {
-      message: 'Password updated successfully'
+      message: 'Password updated successfully',
     };
   }
 
@@ -624,16 +701,20 @@ export class AuthService {
     await this.accountsRepository.save(account);
 
     return {
-      message: 'Account updated successfully'
+      message: 'Account updated successfully',
     };
   }
 
-  async updateProfile(id: string, role: string, updateData: any): Promise<{ message: string }> {
-    const account = await this.accountsRepository.findOne({ 
+  async updateProfile(
+    id: string,
+    role: string,
+    updateData: any,
+  ): Promise<{ message: string }> {
+    const account = await this.accountsRepository.findOne({
       where: { id },
-      relations: ['student', 'teacher']
+      relations: ['student', 'teacher'],
     });
-    
+
     if (!account) {
       throw new BadRequestException('User not found');
     }
@@ -641,7 +722,7 @@ export class AuthService {
     // Handle active status change (activate/deactivate user)
     if (updateData.active !== undefined) {
       account.active = updateData.active;
-      
+
       if (updateData.active) {
         // Reactivate: clear deletedAt and set active to true
         account.deletedAt = null;
@@ -653,16 +734,16 @@ export class AuthService {
           account.deletedAt = new Date();
         }
       }
-      
+
       await this.accountsRepository.save(account);
-      
+
       // Log the activation/deactivation activity
       try {
         await this.activityService.logActivity({
           userId: id,
           action: updateData.active ? 'USER_RESTORED' : 'USER_DELETED',
-          description: updateData.active 
-            ? `User ${account.username} was reactivated` 
+          description: updateData.active
+            ? `User ${account.username} was reactivated`
             : `User ${account.username} was deactivated`,
           resourceType: 'user',
           resourceId: id,
@@ -671,12 +752,14 @@ export class AuthService {
       } catch (error) {
         console.error('Failed to log activity:', error);
       }
-      
+
       // Remove active from updateData so it doesn't get passed to profile update
       const { active, ...profileUpdateData } = updateData;
       if (Object.keys(profileUpdateData).length === 0) {
         return {
-          message: updateData.active ? 'User reactivated successfully' : 'User deactivated successfully'
+          message: updateData.active
+            ? 'User reactivated successfully'
+            : 'User deactivated successfully',
         };
       }
       updateData = profileUpdateData;
@@ -684,13 +767,27 @@ export class AuthService {
 
     // Update profile based on role
     if (account.role === 'student' && account.student) {
-      await this.resourceById.updateStudent(account.student.studentNumber, updateData);
-    } else if (['teacher', 'admin', 'hod', 'reception', 'auditor', 'director', 'dev'].includes(account.role) && account.teacher) {
+      await this.resourceById.updateStudent(
+        account.student.studentNumber,
+        updateData,
+      );
+    } else if (
+      [
+        'teacher',
+        'admin',
+        'hod',
+        'reception',
+        'auditor',
+        'director',
+        'dev',
+      ].includes(account.role) &&
+      account.teacher
+    ) {
       await this.resourceById.updateTeacher(account.teacher.id, updateData);
     } else {
       throw new BadRequestException('Profile not found for this user');
     }
-    
+
     // Log the profile update activity
     try {
       await this.activityService.logActivity({
@@ -699,20 +796,23 @@ export class AuthService {
         description: `Profile updated for user ${account.username}`,
         resourceType: account.role,
         resourceId: id,
-        metadata: { username: account.username, updatedFields: Object.keys(updateData) },
+        metadata: {
+          username: account.username,
+          updatedFields: Object.keys(updateData),
+        },
       });
     } catch (error) {
       console.error('Failed to log profile update activity:', error);
     }
-    
+
     return {
-      message: 'Profile updated successfully'
+      message: 'Profile updated successfully',
     };
   }
 
   async deleteAccount(id: string): Promise<{ message: string }> {
     const account = await this.accountsRepository.findOne({ where: { id } });
-    
+
     if (!account) {
       throw new BadRequestException('User not found');
     }
@@ -735,10 +835,10 @@ export class AuthService {
         description: `User account ${account.username} was deleted`,
         resourceType: 'user',
         resourceId: id,
-        metadata: { 
+        metadata: {
           username: account.username,
           role: account.role,
-          deletedAt: account.deletedAt 
+          deletedAt: account.deletedAt,
         },
       });
     } catch (error) {
@@ -746,13 +846,13 @@ export class AuthService {
     }
 
     return {
-      message: 'User deleted successfully'
+      message: 'User deleted successfully',
     };
   }
 
   async restoreAccount(id: string): Promise<{ message: string }> {
     const account = await this.accountsRepository.findOne({ where: { id } });
-    
+
     if (!account) {
       throw new BadRequestException('User not found');
     }
@@ -781,11 +881,15 @@ export class AuthService {
     }
 
     return {
-      message: 'User restored successfully'
+      message: 'User restored successfully',
     };
   }
 
-  async getUserActivity(id: string, page: number = 1, limit: number = 20): Promise<any> {
+  async getUserActivity(
+    id: string,
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<any> {
     // Use the ActivityService to get real activity data
     return await this.activityService.getUserActivities(id, page, limit);
   }

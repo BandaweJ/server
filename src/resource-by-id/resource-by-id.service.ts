@@ -16,7 +16,10 @@ export class ResourceByIdService {
     private teachersRepository: Repository<TeachersEntity>,
   ) {}
 
-  async getParentByEmail(email: string, withStudents = false): Promise<ParentsEntity> {
+  async getParentByEmail(
+    email: string,
+    withStudents = false,
+  ): Promise<ParentsEntity> {
     const found = await this.parentsRepository.findOne({
       where: { email },
       relations: withStudents ? ['students'] : [],
@@ -54,7 +57,10 @@ export class ResourceByIdService {
     return found;
   }
 
-  async updateTeacher(id: string, updateData: Partial<TeachersEntity>): Promise<TeachersEntity> {
+  async updateTeacher(
+    id: string,
+    updateData: Partial<TeachersEntity>,
+  ): Promise<TeachersEntity> {
     const teacher = await this.getTeacherById(id);
     return await this.teachersRepository.save({
       ...teacher,
@@ -62,10 +68,17 @@ export class ResourceByIdService {
     });
   }
 
-  async updateStudent(studentNumber: string, updateData: Partial<StudentsEntity>): Promise<StudentsEntity> {
-    const student = await this.studentsRepository.findOne({ where: { studentNumber } });
+  async updateStudent(
+    studentNumber: string,
+    updateData: Partial<StudentsEntity>,
+  ): Promise<StudentsEntity> {
+    const student = await this.studentsRepository.findOne({
+      where: { studentNumber },
+    });
     if (!student) {
-      throw new NotFoundException(`Student with Student Number ${studentNumber} not found`);
+      throw new NotFoundException(
+        `Student with Student Number ${studentNumber} not found`,
+      );
     }
     return await this.studentsRepository.save({
       ...student,
@@ -73,7 +86,10 @@ export class ResourceByIdService {
     });
   }
 
-  async updateParent(email: string, updateData: Partial<ParentsEntity>): Promise<ParentsEntity> {
+  async updateParent(
+    email: string,
+    updateData: Partial<ParentsEntity>,
+  ): Promise<ParentsEntity> {
     const parent = await this.parentsRepository.findOne({ where: { email } });
     if (!parent) {
       throw new NotFoundException(`Parent with email ${email} not found`);

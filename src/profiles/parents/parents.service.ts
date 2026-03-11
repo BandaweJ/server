@@ -87,7 +87,9 @@ export class ParentsService {
         if (profile instanceof ParentsEntity && profile.email === email) {
           return this.resourceById.getParentByEmail(email, true);
         }
-        throw new UnauthorizedException('Only allowed to access your own record');
+        throw new UnauthorizedException(
+          'Only allowed to access your own record',
+        );
       }
       default:
         throw new UnauthorizedException('Access denied');
@@ -102,17 +104,24 @@ export class ParentsService {
         'Only members of staff can access parent list',
       );
     }
-    // Default staff view: show first N parents ordered by surname/email.
-    return await this.parentsRepository.find({
+    // Default staff view: show first N parents ordered by surname/email. Load linked students (relation stored on students.parent).
+    const parents = await this.parentsRepository.find({
       relations: ['students'],
       order: { surname: 'ASC', email: 'ASC' },
       take: 100,
+    });
+    return parents.map((p) => {
+      const students = Array.isArray(p.students)
+        ? p.students.map((s) => ({ studentNumber: s.studentNumber, name: s.name ?? undefined, surname: s.surname ?? undefined }))
+        : [];
+      return { ...p, students } as ParentsEntity;
     });
   }
 
   /**
    * Search parents by surname, email, or cell (case-insensitive), limited for performance.
    * Staff only (same as getAllParents).
+   * Loads linked students via leftJoinAndSelect; returns a plain shape (no circular ref) so the client gets parent.students[].
    */
   async searchParents(
     query: string,
@@ -141,7 +150,18 @@ export class ParentsService {
       );
     }
 
-    return qb.getMany();
+    const parents = await qb.getMany();
+    // Return plain shape with students so JSON has no circular ref (parent.students[].parent)
+    return parents.map((p) => {
+      const students = Array.isArray(p.students)
+        ? p.students.map((s) => ({
+            studentNumber: s.studentNumber,
+            name: s.name ?? undefined,
+            surname: s.surname ?? undefined,
+          }))
+        : [];
+      return { ...p, students } as ParentsEntity;
+    });
   }
 
   async createParent(
@@ -158,15 +178,23 @@ export class ParentsService {
         'Only admin, director, reception, or dev can add parents',
       );
     }
-    return await this.parentsRepository.save(createParentDto as Partial<ParentsEntity>);
+    return await this.parentsRepository.save(
+      createParentDto as Partial<ParentsEntity>,
+    );
   }
 
   async deleteParent(
     email: string,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ): Promise<number> {
-    if (profile.role !== ROLES.admin && profile.role !== ROLES.director && profile.role !== ROLES.dev) {
-      throw new UnauthorizedException('Only admin, director, or dev can delete parents');
+    if (
+      profile.role !== ROLES.admin &&
+      profile.role !== ROLES.director &&
+      profile.role !== ROLES.dev
+    ) {
+      throw new UnauthorizedException(
+        'Only admin, director, or dev can delete parents',
+      );
     }
     const parent = await this.parentsRepository.findOne({
       where: { email },
@@ -207,6 +235,7 @@ export class ParentsService {
   /**
    * Set which students are linked to this parent. Replaces existing links.
    * Only staff (admin, director, reception) can update links.
+   * Link is stored in DB: students.parent (FK to parents.email). When loading parents we use relations: ['students'].
    */
   async setLinkedStudents(
     parentEmail: string,
@@ -228,7 +257,9 @@ export class ParentsService {
       relations: ['students'],
     });
     if (!parent) {
-      throw new BadRequestException(`Parent with email ${parentEmail} not found`);
+      throw new BadRequestException(
+        `Parent with email ${parentEmail} not found`,
+      );
     }
     const currentStudents = parent.students || [];
     const newSet = new Set(studentNumbers);
@@ -245,16 +276,29 @@ export class ParentsService {
         relations: ['parent'],
       });
       if (!student) {
-        throw new BadRequestException(
-          `Student ${studentNumber} not found`,
-        );
+        throw new BadRequestException(`Student ${studentNumber} not found`);
       }
       student.parent = parent;
       await this.studentsRepository.save(student);
     }
-    return this.parentsRepository.findOne({
+    const updatedParent = await this.parentsRepository.findOne({
       where: { email: parentEmail },
       relations: ['students'],
     });
+    if (!updatedParent) {
+      throw new BadRequestException(`Parent ${parentEmail} not found after update`);
+    }
+    const students = Array.isArray(updatedParent.students)
+      ? updatedParent.students.map((s) => ({
+          studentNumber: s.studentNumber,
+          name: s.name ?? undefined,
+          surname: s.surname ?? undefined,
+        }))
+      : [];
+    // Return a plain object so JSON response has no circular reference (parent.students[].parent)
+    return {
+      ...updatedParent,
+      students,
+    } as ParentsEntity;
   }
 }

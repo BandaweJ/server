@@ -1,4 +1,12 @@
-import { IsNotEmpty, IsInt, IsEnum, IsOptional, IsString, IsBoolean, IsDateString } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsInt,
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsBoolean,
+  IsDateString,
+} from 'class-validator';
 
 export class CreateReportReleaseDto {
   @IsNotEmpty()

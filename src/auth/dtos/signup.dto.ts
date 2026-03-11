@@ -4,7 +4,10 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class AccountsDto {
   @ApiProperty({ enum: ROLES, description: 'User role' })
-  @IsEnum(ROLES, { message: 'Invalid role. Valid roles are: teacher, student, parent, admin, reception, hod, auditor, director' })
+  @IsEnum(ROLES, {
+    message:
+      'Invalid role. Valid roles are: teacher, student, parent, admin, reception, hod, auditor, director',
+  })
   role: ROLES;
 
   @ApiProperty()

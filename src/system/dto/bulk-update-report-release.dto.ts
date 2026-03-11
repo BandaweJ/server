@@ -1,4 +1,10 @@
-import { IsArray, IsNotEmpty, ValidateNested, IsOptional, IsBoolean } from 'class-validator';
+import {
+  IsArray,
+  IsNotEmpty,
+  ValidateNested,
+  IsOptional,
+  IsBoolean,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class BulkUpdateReportReleaseDto {

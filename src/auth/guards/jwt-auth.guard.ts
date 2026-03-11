@@ -1,4 +1,9 @@
-import { Injectable, ExecutionContext, UnauthorizedException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  ExecutionContext,
+  UnauthorizedException,
+  Logger,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Observable } from 'rxjs';
 import { tap, catchError } from 'rxjs/operators';
@@ -8,7 +13,9 @@ import { throwError } from 'rxjs';
 export class JwtAuthGuard extends AuthGuard('jwt') {
   private readonly logger = new Logger(JwtAuthGuard.name);
 
-  canActivate(context: ExecutionContext): boolean | Promise<boolean> | Observable<boolean> {
+  canActivate(
+    context: ExecutionContext,
+  ): boolean | Promise<boolean> | Observable<boolean> {
     // Call parent canActivate to trigger Passport JWT strategy
     return super.canActivate(context) as Promise<boolean>;
   }
@@ -17,7 +24,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     // Log authentication attempt
     const request = context.switchToHttp().getRequest();
     const authHeader = request.headers?.authorization;
-    
+
     this.logger.log('JwtAuthGuard: handleRequest called', {
       hasError: !!err,
       hasUser: !!user,
@@ -45,7 +52,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       } else if (typeof info === 'string') {
         errorMessage = info;
       }
-      
+
       this.logger.error('JwtAuthGuard: Authentication failed', {
         error: err,
         errorMessage: err?.message,
@@ -66,7 +73,9 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
         hasAuthHeader: !!authHeader,
         authHeaderPrefix: authHeader?.substring(0, 20),
       });
-      throw new UnauthorizedException('Authentication failed. Please log in again.');
+      throw new UnauthorizedException(
+        'Authentication failed. Please log in again.',
+      );
     }
 
     this.logger.debug('JwtAuthGuard: Authentication successful', {
@@ -78,4 +87,3 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     return user;
   }
 }
-

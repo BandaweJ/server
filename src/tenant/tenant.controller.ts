@@ -27,7 +27,14 @@ export class TenantController {
 
   @Get('context')
   getContext(@Req() req: Record<string, unknown>): TenantContextDto | null {
-    const tenant = req[TENANT_REQUEST_KEY] as { id: string; slug: string; name: string; settings?: Record<string, unknown> } | undefined;
+    const tenant = req[TENANT_REQUEST_KEY] as
+      | {
+          id: string;
+          slug: string;
+          name: string;
+          settings?: Record<string, unknown>;
+        }
+      | undefined;
     if (!tenant) return null;
     const settings = tenant.settings ?? {};
     return {
@@ -41,7 +48,9 @@ export class TenantController {
 
   @Get('features')
   getFeatures(@Req() req: Record<string, unknown>): Record<string, boolean> {
-    const tenant = req[TENANT_REQUEST_KEY] as { settings?: { features?: Record<string, boolean> } } | undefined;
+    const tenant = req[TENANT_REQUEST_KEY] as
+      | { settings?: { features?: Record<string, boolean> } }
+      | undefined;
     return (tenant?.settings?.features as Record<string, boolean>) ?? {};
   }
 }

@@ -3,7 +3,11 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { ROLES } from 'src/auth/models/roles.enum';
-import { OpenAIService, CommentGenerationRequest, CommentGenerationResponse } from '../services/openai.service';
+import {
+  OpenAIService,
+  CommentGenerationRequest,
+  CommentGenerationResponse,
+} from '../services/openai.service';
 
 @Controller('ai')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -24,7 +28,10 @@ export class AIController {
       };
     }
 
-    if (request.maxMark && (typeof request.maxMark !== 'number' || request.maxMark <= 0)) {
+    if (
+      request.maxMark &&
+      (typeof request.maxMark !== 'number' || request.maxMark <= 0)
+    ) {
       return {
         success: false,
         comments: [],
@@ -34,15 +41,15 @@ export class AIController {
 
     try {
       const result = await this.openaiService.generateComments(request);
-      
+
       // If OpenAI fails, provide fallback comments
       if (!result.success) {
         const fallbackComments = this.openaiService.getFallbackComments(
-          request.mark, 
+          request.mark,
           request.maxMark || 100,
-          request.subject
+          request.subject,
         );
-        
+
         return {
           success: true,
           comments: fallbackComments,
@@ -54,11 +61,11 @@ export class AIController {
     } catch (error) {
       // Final fallback
       const fallbackComments = this.openaiService.getFallbackComments(
-        request.mark, 
+        request.mark,
         request.maxMark || 100,
-        request.subject
+        request.subject,
       );
-      
+
       return {
         success: true,
         comments: fallbackComments,
@@ -67,5 +74,3 @@ export class AIController {
     }
   }
 }
-
-

@@ -43,4 +43,3 @@ export class EventNotificationEntity {
   @UpdateDateColumn()
   updatedAt: Date;
 }
-

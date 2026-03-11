@@ -60,15 +60,60 @@ function getStudentData(): { invoices: SimInvoice[]; receipts: SimReceipt[] } {
   ].sort((a, b) => a.invoiceDate.getTime() - b.invoiceDate.getTime());
 
   const receipts: SimReceipt[] = [
-    { id: 300, receiptNumber: 'REC-9BC803', amountPaid: 900, paymentDate: new Date('2025-07-10T08:51:27.217Z') },
-    { id: 301, receiptNumber: 'REC-538E2F', amountPaid: 120, paymentDate: new Date('2025-07-10T08:51:44.687Z') },
-    { id: 302, receiptNumber: 'REC-DCA0E4', amountPaid: 200, paymentDate: new Date('2025-07-10T08:52:16.493Z') },
-    { id: 303, receiptNumber: 'REC-7AFB61', amountPaid: 60, paymentDate: new Date('2025-07-10T08:51:59.986Z') },
-    { id: 1401, receiptNumber: 'REC-FC81BB', amountPaid: 960, paymentDate: new Date('2025-10-14T18:04:45.089Z') },
-    { id: 1400, receiptNumber: 'REC-0BD00C', amountPaid: 320, paymentDate: new Date('2025-10-14T18:04:18.670Z') },
-    { id: 2622, receiptNumber: 'REC-2026-0098', amountPaid: 960, paymentDate: new Date('2026-01-24T07:46:38.521Z') },
-    { id: 3568, receiptNumber: 'REC-2026-1028', amountPaid: 320, paymentDate: new Date('2026-02-25T06:45:45.093Z') },
-    { id: 3703, receiptNumber: 'REC-2026-1155', amountPaid: 10, paymentDate: new Date('2026-02-27T20:11:37.844Z') },
+    {
+      id: 300,
+      receiptNumber: 'REC-9BC803',
+      amountPaid: 900,
+      paymentDate: new Date('2025-07-10T08:51:27.217Z'),
+    },
+    {
+      id: 301,
+      receiptNumber: 'REC-538E2F',
+      amountPaid: 120,
+      paymentDate: new Date('2025-07-10T08:51:44.687Z'),
+    },
+    {
+      id: 302,
+      receiptNumber: 'REC-DCA0E4',
+      amountPaid: 200,
+      paymentDate: new Date('2025-07-10T08:52:16.493Z'),
+    },
+    {
+      id: 303,
+      receiptNumber: 'REC-7AFB61',
+      amountPaid: 60,
+      paymentDate: new Date('2025-07-10T08:51:59.986Z'),
+    },
+    {
+      id: 1401,
+      receiptNumber: 'REC-FC81BB',
+      amountPaid: 960,
+      paymentDate: new Date('2025-10-14T18:04:45.089Z'),
+    },
+    {
+      id: 1400,
+      receiptNumber: 'REC-0BD00C',
+      amountPaid: 320,
+      paymentDate: new Date('2025-10-14T18:04:18.670Z'),
+    },
+    {
+      id: 2622,
+      receiptNumber: 'REC-2026-0098',
+      amountPaid: 960,
+      paymentDate: new Date('2026-01-24T07:46:38.521Z'),
+    },
+    {
+      id: 3568,
+      receiptNumber: 'REC-2026-1028',
+      amountPaid: 320,
+      paymentDate: new Date('2026-02-25T06:45:45.093Z'),
+    },
+    {
+      id: 3703,
+      receiptNumber: 'REC-2026-1155',
+      amountPaid: 10,
+      paymentDate: new Date('2026-02-27T20:11:37.844Z'),
+    },
   ].sort((a, b) => a.paymentDate.getTime() - b.paymentDate.getTime());
 
   return { invoices, receipts };
@@ -85,7 +130,11 @@ function simulateReconciliation(
 ): { invoices: SimInvoice[]; creditCreated: number; creditRemaining: number } {
   const invMap = new Map<number, SimInvoice>();
   invoices.forEach((inv) => {
-    invMap.set(inv.id, { ...inv, amountPaidOnInvoice: 0, balance: inv.totalBill });
+    invMap.set(inv.id, {
+      ...inv,
+      amountPaidOnInvoice: 0,
+      balance: inv.totalBill,
+    });
   });
 
   let creditBalance = 0;
@@ -96,7 +145,10 @@ function simulateReconciliation(
 
     const eligible = invoices
       .filter((inv) => new Date(inv.invoiceDate).getTime() <= receiptTime)
-      .sort((a, b) => new Date(a.invoiceDate).getTime() - new Date(b.invoiceDate).getTime());
+      .sort(
+        (a, b) =>
+          new Date(a.invoiceDate).getTime() - new Date(b.invoiceDate).getTime(),
+      );
 
     for (const inv of eligible) {
       if (remaining <= TOLERANCE) break;
@@ -120,7 +172,8 @@ function simulateReconciliation(
 
   // Apply credit to oldest invoice with balance (same order as service: invoiceDate ASC)
   const invoiceList = Array.from(invMap.values()).sort(
-    (a, b) => new Date(a.invoiceDate).getTime() - new Date(b.invoiceDate).getTime(),
+    (a, b) =>
+      new Date(a.invoiceDate).getTime() - new Date(b.invoiceDate).getTime(),
   );
   let creditRemaining = creditBalance;
   for (const inv of invoiceList) {
@@ -148,12 +201,16 @@ describe('Reconciliation simulation (S2406558)', () => {
     expect(totalBilled).toBe(3850);
     expect(totalPaidReceipts).toBe(3850);
 
-    const { invoices: after, creditCreated, creditRemaining } = simulateReconciliation(
-      invoices,
-      receipts,
-    );
+    const {
+      invoices: after,
+      creditCreated,
+      creditRemaining,
+    } = simulateReconciliation(invoices, receipts);
 
-    const totalPaidOnInvoices = after.reduce((s, i) => s + i.amountPaidOnInvoice, 0);
+    const totalPaidOnInvoices = after.reduce(
+      (s, i) => s + i.amountPaidOnInvoice,
+      0,
+    );
     const totalBalance = after.reduce((s, i) => s + i.balance, 0);
     const amountOwed = Math.max(0, round2(totalBilled - totalPaidReceipts));
 
@@ -189,17 +246,21 @@ describe('Reconciliation simulation (S2406558)', () => {
   it('with inconsistent initial allocations, full reconciliation (reset + reallocate) produces correct figures', () => {
     const { invoices, receipts } = getStudentData();
     // Corrupt state: wrong amountPaidOnInvoice/balance (e.g. from bugs or legacy data)
-    const dirtyInvoices: SimInvoice[] = invoices.map((inv, i) =>
-      i === 0
-        ? { ...inv, amountPaidOnInvoice: 500, balance: 790 } // wrong
-        : { ...inv, amountPaidOnInvoice: 1280, balance: 0 }, // over-allocated
+    const dirtyInvoices: SimInvoice[] = invoices.map(
+      (inv, i) =>
+        i === 0
+          ? { ...inv, amountPaidOnInvoice: 500, balance: 790 } // wrong
+          : { ...inv, amountPaidOnInvoice: 1280, balance: 0 }, // over-allocated
     );
     const { invoices: after, creditRemaining } = simulateReconciliation(
       dirtyInvoices,
       receipts,
     );
     // Simulation resets and reallocates from scratch, so result should match clean run
-    const totalPaidOnInvoices = after.reduce((s, i) => s + i.amountPaidOnInvoice, 0);
+    const totalPaidOnInvoices = after.reduce(
+      (s, i) => s + i.amountPaidOnInvoice,
+      0,
+    );
     const totalBalance = after.reduce((s, i) => s + i.balance, 0);
     expect(round2(totalPaidOnInvoices)).toBe(3850);
     expect(round2(totalBalance)).toBe(0);
@@ -209,17 +270,51 @@ describe('Reconciliation simulation (S2406558)', () => {
   it('new invoice after historical receipts receives applied credit', () => {
     // Two invoices, receipts that pay them and leave credit
     const invoices: SimInvoice[] = [
-      { id: 1, invoiceNumber: 'INV-1', invoiceDate: new Date('2025-01-01'), totalBill: 100, amountPaidOnInvoice: 0, balance: 100 },
-      { id: 2, invoiceNumber: 'INV-2', invoiceDate: new Date('2025-02-01'), totalBill: 200, amountPaidOnInvoice: 0, balance: 200 },
+      {
+        id: 1,
+        invoiceNumber: 'INV-1',
+        invoiceDate: new Date('2025-01-01'),
+        totalBill: 100,
+        amountPaidOnInvoice: 0,
+        balance: 100,
+      },
+      {
+        id: 2,
+        invoiceNumber: 'INV-2',
+        invoiceDate: new Date('2025-02-01'),
+        totalBill: 200,
+        amountPaidOnInvoice: 0,
+        balance: 200,
+      },
     ].sort((a, b) => a.invoiceDate.getTime() - b.invoiceDate.getTime());
     const receipts: SimReceipt[] = [
-      { id: 1, receiptNumber: 'R1', amountPaid: 150, paymentDate: new Date('2025-02-15') },
-      { id: 2, receiptNumber: 'R2', amountPaid: 200, paymentDate: new Date('2025-03-01') },
+      {
+        id: 1,
+        receiptNumber: 'R1',
+        amountPaid: 150,
+        paymentDate: new Date('2025-02-15'),
+      },
+      {
+        id: 2,
+        receiptNumber: 'R2',
+        amountPaid: 200,
+        paymentDate: new Date('2025-03-01'),
+      },
     ].sort((a, b) => a.paymentDate.getTime() - b.paymentDate.getTime());
-    const { invoices: after, creditRemaining } = simulateReconciliation(invoices, receipts);
+    const { invoices: after, creditRemaining } = simulateReconciliation(
+      invoices,
+      receipts,
+    );
     expect(round2(creditRemaining)).toBe(50); // 350 paid - 300 billed = 50 credit
     // Simulate new invoice created after: apply remaining credit to it
-    const newInvoice: SimInvoice = { id: 3, invoiceNumber: 'INV-3', invoiceDate: new Date('2025-04-01'), totalBill: 80, amountPaidOnInvoice: 0, balance: 80 };
+    const newInvoice: SimInvoice = {
+      id: 3,
+      invoiceNumber: 'INV-3',
+      invoiceDate: new Date('2025-04-01'),
+      totalBill: 80,
+      amountPaidOnInvoice: 0,
+      balance: 80,
+    };
     const apply = Math.min(creditRemaining, newInvoice.balance);
     newInvoice.amountPaidOnInvoice = round2(apply);
     newInvoice.balance = round2(newInvoice.balance - apply);

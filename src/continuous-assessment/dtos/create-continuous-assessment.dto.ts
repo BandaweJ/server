@@ -44,4 +44,3 @@ export class CreateContinuousAssessmentDto {
   @MaxLength(100)
   cohort?: string;
 }
-

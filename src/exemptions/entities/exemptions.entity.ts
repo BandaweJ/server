@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 import { StudentsEntity } from 'src/profiles/entities/students.entity';
 import {
   Column,

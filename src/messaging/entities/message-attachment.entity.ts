@@ -41,4 +41,3 @@ export class MessageAttachmentEntity {
   @CreateDateColumn()
   createdAt: Date;
 }
-

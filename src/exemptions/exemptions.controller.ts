@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 import {
   Body,
   Controller,
@@ -16,8 +15,9 @@ import { UpdateExemptionDto } from './dtos/updateExemption.dto';
 import { ExemptionService } from './exemptions.service';
 import { AuthGuard } from '@nestjs/passport';
 import { ExemptionType } from './enums/exemptions-type.enum';
+import { ParentStudentAccessGuard } from 'src/auth/guards/parent-student-access.guard';
 
-@UseGuards(AuthGuard())
+@UseGuards(AuthGuard(), ParentStudentAccessGuard)
 @Controller('exemptions')
 export class ExemptionsController {
   constructor(private readonly exemptionService: ExemptionService) {}

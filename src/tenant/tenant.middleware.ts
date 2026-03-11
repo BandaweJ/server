@@ -1,4 +1,8 @@
-import { Injectable, NestMiddleware, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Injectable,
+  NestMiddleware,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { DataSource } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
@@ -35,10 +39,12 @@ export class TenantMiddleware implements NestMiddleware {
     // Single-tenant: use one schema (default tenant_default) and still set search_path
     // so request-scoped repos and system settings / dashboard read from the correct schema.
     if (this.isSingleTenant) {
-      const defaultSlug =
-        (process.env.SINGLE_TENANT_SLUG || 'default').trim().toLowerCase();
-      const defaultSchema =
-        (process.env.SINGLE_TENANT_SCHEMA || 'tenant_default').trim();
+      const defaultSlug = (process.env.SINGLE_TENANT_SLUG || 'default')
+        .trim()
+        .toLowerCase();
+      const defaultSchema = (
+        process.env.SINGLE_TENANT_SCHEMA || 'tenant_default'
+      ).trim();
 
       req[TENANT_REQUEST_KEY] = {
         id: 'single-tenant',
@@ -117,7 +123,9 @@ export class TenantMiddleware implements NestMiddleware {
     if (auth?.startsWith('Bearer ')) {
       const token = auth.slice(7);
       try {
-        const payload = this.jwtService.decode(token) as { tenantSlug?: string } | null;
+        const payload = this.jwtService.decode(token) as {
+          tenantSlug?: string;
+        } | null;
         if (payload?.tenantSlug) return payload.tenantSlug;
       } catch {
         // ignore invalid token

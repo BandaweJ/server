@@ -108,4 +108,3 @@ describe('PaymentService - reconcileClassTerm', () => {
     expect(s2!.error).toBe('boom');
   });
 });
-

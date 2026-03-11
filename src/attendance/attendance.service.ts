@@ -41,7 +41,9 @@ export class AttendanceService {
       });
 
       if (enrolments.length === 0) {
-        throw new NotFoundException('No students found for the specified class and term');
+        throw new NotFoundException(
+          'No students found for the specified class and term',
+        );
       }
 
       // Get existing attendance records for the date
@@ -57,7 +59,7 @@ export class AttendanceService {
 
       // Create a map of existing attendance
       const attendanceMap = new Map();
-      existingAttendance.forEach(attendance => {
+      existingAttendance.forEach((attendance) => {
         // Only add to map if student is loaded
         if (attendance.student?.studentNumber) {
           attendanceMap.set(attendance.student.studentNumber, attendance);
@@ -67,9 +69,11 @@ export class AttendanceService {
       // Build the result with all students and their attendance status
       // Filter out enrolments where student is not loaded
       const result = enrolments
-        .filter(enrolment => enrolment.student != null)
-        .map(enrolment => {
-          const existingRecord = attendanceMap.get(enrolment.student.studentNumber);
+        .filter((enrolment) => enrolment.student != null)
+        .map((enrolment) => {
+          const existingRecord = attendanceMap.get(
+            enrolment.student.studentNumber,
+          );
           return {
             id: existingRecord?.id || null,
             studentNumber: enrolment.student.studentNumber,
@@ -97,7 +101,8 @@ export class AttendanceService {
     markAttendanceDto: MarkAttendanceDto,
     profile: TeachersEntity | StudentsEntityType | ParentsEntity,
   ) {
-    const { studentNumber, className, termNum, year, present, date } = markAttendanceDto;
+    const { studentNumber, className, termNum, year, present, date } =
+      markAttendanceDto;
 
     // Verify the student exists
     const student = await this.studentsRepository.findOne({
@@ -184,8 +189,8 @@ export class AttendanceService {
 
     // Transform records to match AttendanceRecord interface
     const transformedRecords = attendanceRecords
-      .filter(record => record.student != null) // Filter out records without student
-      .map(record => ({
+      .filter((record) => record.student != null) // Filter out records without student
+      .map((record) => ({
         id: record.id,
         studentNumber: record.student.studentNumber,
         surname: record.student.surname,
@@ -243,8 +248,8 @@ export class AttendanceService {
 
     // Transform records to match AttendanceRecord interface
     return attendanceRecords
-      .filter(record => record.student != null) // Filter out records without student
-      .map(record => ({
+      .filter((record) => record.student != null) // Filter out records without student
+      .map((record) => ({
         id: record.id,
         studentNumber: record.student.studentNumber,
         surname: record.student.surname,
@@ -271,9 +276,12 @@ export class AttendanceService {
 
     // Calculate summary statistics
     const totalRecords = attendanceRecords.length;
-    const presentCount = attendanceRecords.filter(record => record.present).length;
+    const presentCount = attendanceRecords.filter(
+      (record) => record.present,
+    ).length;
     const absentCount = totalRecords - presentCount;
-    const attendanceRate = totalRecords > 0 ? (presentCount / totalRecords) * 100 : 0;
+    const attendanceRate =
+      totalRecords > 0 ? (presentCount / totalRecords) * 100 : 0;
 
     // Group by student
     const studentStats = attendanceRecords.reduce((acc, record) => {
@@ -297,7 +305,8 @@ export class AttendanceService {
 
     // Calculate individual attendance rates
     Object.values(studentStats).forEach((stats: any) => {
-      stats.attendanceRate = stats.totalDays > 0 ? (stats.presentDays / stats.totalDays) * 100 : 0;
+      stats.attendanceRate =
+        stats.totalDays > 0 ? (stats.presentDays / stats.totalDays) * 100 : 0;
     });
 
     return {

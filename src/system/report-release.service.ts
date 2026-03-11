@@ -19,8 +19,13 @@ export class ReportReleaseService {
     private termsRepository: Repository<TermsEntity>,
   ) {}
 
-  async create(createDto: CreateReportReleaseDto, user?: AccountsEntity): Promise<ReportReleaseSettings> {
-    this.logger.log(`Creating report release setting for term ${createDto.termNumber} ${createDto.termYear} ${createDto.examType}`);
+  async create(
+    createDto: CreateReportReleaseDto,
+    user?: AccountsEntity,
+  ): Promise<ReportReleaseSettings> {
+    this.logger.log(
+      `Creating report release setting for term ${createDto.termNumber} ${createDto.termYear} ${createDto.examType}`,
+    );
 
     // Check if setting already exists
     const existing = await this.reportReleaseRepository.findOne({
@@ -32,7 +37,9 @@ export class ReportReleaseService {
     });
 
     if (existing) {
-      throw new Error('Report release setting already exists for this exam session');
+      throw new Error(
+        'Report release setting already exists for this exam session',
+      );
     }
 
     const reportRelease = this.reportReleaseRepository.create({
@@ -70,13 +77,19 @@ export class ReportReleaseService {
     });
 
     if (!reportRelease) {
-      throw new NotFoundException(`Report release setting with ID ${id} not found`);
+      throw new NotFoundException(
+        `Report release setting with ID ${id} not found`,
+      );
     }
 
     return reportRelease;
   }
 
-  async findByExamSession(termNumber: number, termYear: number, examType: string): Promise<ReportReleaseSettings | null> {
+  async findByExamSession(
+    termNumber: number,
+    termYear: number,
+    examType: string,
+  ): Promise<ReportReleaseSettings | null> {
     return this.reportReleaseRepository.findOne({
       where: {
         termNumber,
@@ -87,7 +100,11 @@ export class ReportReleaseService {
     });
   }
 
-  async update(id: string, updateDto: UpdateReportReleaseDto, user?: AccountsEntity): Promise<ReportReleaseSettings> {
+  async update(
+    id: string,
+    updateDto: UpdateReportReleaseDto,
+    user?: AccountsEntity,
+  ): Promise<ReportReleaseSettings> {
     const reportRelease = await this.findOne(id);
 
     const wasReleased = reportRelease.isReleased;
@@ -105,26 +122,39 @@ export class ReportReleaseService {
     const updated = await this.reportReleaseRepository.save(reportRelease);
 
     // Send notification if newly released and notifications are enabled
-    if (!wasReleased && willBeReleased && updateDto.sendNotification !== false) {
+    if (
+      !wasReleased &&
+      willBeReleased &&
+      updateDto.sendNotification !== false
+    ) {
       await this.sendReleaseNotification(updated);
     }
 
     return updated;
   }
 
-  async bulkUpdate(bulkUpdateDto: BulkUpdateReportReleaseDto, user?: AccountsEntity): Promise<ReportReleaseSettings[]> {
+  async bulkUpdate(
+    bulkUpdateDto: BulkUpdateReportReleaseDto,
+    user?: AccountsEntity,
+  ): Promise<ReportReleaseSettings[]> {
     const results: ReportReleaseSettings[] = [];
 
     for (const update of bulkUpdateDto.updates) {
       try {
-        const updated = await this.update(update.id, {
-          isReleased: update.isReleased,
-          releaseNotes: update.releaseNotes,
-          sendNotification: update.sendNotification,
-        }, user);
+        const updated = await this.update(
+          update.id,
+          {
+            isReleased: update.isReleased,
+            releaseNotes: update.releaseNotes,
+            sendNotification: update.sendNotification,
+          },
+          user,
+        );
         results.push(updated);
       } catch (error) {
-        this.logger.error(`Failed to update report release ${update.id}: ${error.message}`);
+        this.logger.error(
+          `Failed to update report release ${update.id}: ${error.message}`,
+        );
         // Continue with other updates even if one fails
       }
     }
@@ -137,8 +167,16 @@ export class ReportReleaseService {
     await this.reportReleaseRepository.remove(reportRelease);
   }
 
-  async checkReleaseStatus(termNumber: number, termYear: number, examType: string): Promise<boolean> {
-    const setting = await this.findByExamSession(termNumber, termYear, examType);
+  async checkReleaseStatus(
+    termNumber: number,
+    termYear: number,
+    examType: string,
+  ): Promise<boolean> {
+    const setting = await this.findByExamSession(
+      termNumber,
+      termYear,
+      examType,
+    );
     return setting ? setting.isAvailable() : false;
   }
 
@@ -160,7 +198,10 @@ export class ReportReleaseService {
     const now = new Date();
     return this.reportReleaseRepository.find({
       where: {
-        scheduledReleaseDate: Between(now, new Date(now.getTime() + 24 * 60 * 60 * 1000)), // Next 24 hours
+        scheduledReleaseDate: Between(
+          now,
+          new Date(now.getTime() + 24 * 60 * 60 * 1000),
+        ), // Next 24 hours
         isReleased: false,
       },
       relations: ['releasedByUser'],
@@ -196,23 +237,30 @@ export class ReportReleaseService {
   }
 
   async generateExamSessionsFromTerms(): Promise<ReportReleaseSettings[]> {
-    this.logger.log('Generating report release settings from existing terms in database');
-    
+    this.logger.log(
+      'Generating report release settings from existing terms in database',
+    );
+
     // Get all terms from the database
     const terms = await this.termsRepository.find({
       order: {
         year: 'DESC',
-        num: 'ASC'
-      }
+        num: 'ASC',
+      },
     });
 
     if (!terms || terms.length === 0) {
-      this.logger.warn('No terms found in database to generate report release settings');
+      this.logger.warn(
+        'No terms found in database to generate report release settings',
+      );
       return [];
     }
 
     const createdSessions: ReportReleaseSettings[] = [];
-    const examTypes: ('Mid Term' | 'End Of Term')[] = ['Mid Term', 'End Of Term'];
+    const examTypes: ('Mid Term' | 'End Of Term')[] = [
+      'Mid Term',
+      'End Of Term',
+    ];
 
     for (const term of terms) {
       for (const examType of examTypes) {
@@ -221,8 +269,8 @@ export class ReportReleaseService {
           where: {
             termNumber: term.num,
             termYear: term.year,
-            examType
-          }
+            examType,
+          },
         });
 
         if (!existing) {
@@ -237,19 +285,27 @@ export class ReportReleaseService {
 
           const saved = await this.reportReleaseRepository.save(reportRelease);
           createdSessions.push(saved);
-          
-          this.logger.log(`Created report release setting for ${examType} Term ${term.num} ${term.year}`);
+
+          this.logger.log(
+            `Created report release setting for ${examType} Term ${term.num} ${term.year}`,
+          );
         }
       }
     }
 
-    this.logger.log(`Generated ${createdSessions.length} new report release settings from ${terms.length} terms`);
+    this.logger.log(
+      `Generated ${createdSessions.length} new report release settings from ${terms.length} terms`,
+    );
     return createdSessions;
   }
 
-  async generateExamSessions(year?: number): Promise<Partial<ReportReleaseSettings>[]> {
-    this.logger.log(`Generating exam sessions for year ${year || 'current and next year'}`);
-    
+  async generateExamSessions(
+    year?: number,
+  ): Promise<Partial<ReportReleaseSettings>[]> {
+    this.logger.log(
+      `Generating exam sessions for year ${year || 'current and next year'}`,
+    );
+
     // For backward compatibility, but prefer automatic generation from terms
     const currentYear = year || new Date().getFullYear();
     const sessions: Partial<ReportReleaseSettings>[] = [];
@@ -271,23 +327,31 @@ export class ReportReleaseService {
             examType: 'End Of Term',
             isReleased: false,
             sendNotification: true,
-          }
+          },
         );
       }
     }
 
-    this.logger.log(`Generated ${sessions.length} exam sessions for manual creation`);
+    this.logger.log(
+      `Generated ${sessions.length} exam sessions for manual creation`,
+    );
     return sessions;
   }
 
-  private async sendReleaseNotification(reportRelease: ReportReleaseSettings): Promise<void> {
-    this.logger.log(`Sending release notification for term ${reportRelease.termNumber} ${reportRelease.termYear} ${reportRelease.examType}`);
-    
+  private async sendReleaseNotification(
+    reportRelease: ReportReleaseSettings,
+  ): Promise<void> {
+    this.logger.log(
+      `Sending release notification for term ${reportRelease.termNumber} ${reportRelease.termYear} ${reportRelease.examType}`,
+    );
+
     // TODO: Implement actual notification system
     // This could integrate with your existing notification system
     // to send emails, push notifications, or in-app notifications
-    
+
     // For now, we'll just log it
-    this.logger.log(`Notification sent: Reports for ${reportRelease.examType} Term ${reportRelease.termNumber} ${reportRelease.termYear} have been released`);
+    this.logger.log(
+      `Notification sent: Reports for ${reportRelease.examType} Term ${reportRelease.termNumber} ${reportRelease.termYear} have been released`,
+    );
   }
 }

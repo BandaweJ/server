@@ -55,7 +55,11 @@ const requestScopedRepositoryProviders = isSingleTenantEnv
     }),
   ],
   controllers: [TenantController],
-  providers: [TenantService, TenantMiddleware, ...requestScopedRepositoryProviders],
+  providers: [
+    TenantService,
+    TenantMiddleware,
+    ...requestScopedRepositoryProviders,
+  ],
   exports: [TenantService, TenantMiddleware, TypeOrmModule],
 })
 export class TenantModule {}

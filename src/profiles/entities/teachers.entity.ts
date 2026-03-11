@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 import { AccountsEntity } from 'src/auth/entities/accounts.entity';
 import { TeacherCommentEntity } from 'src/marks/entities/teacher-comments.entity';
 import {

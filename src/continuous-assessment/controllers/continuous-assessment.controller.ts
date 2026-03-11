@@ -21,7 +21,10 @@ export class ContinuousAssessmentController {
   constructor(private readonly caService: ContinuousAssessmentService) {}
 
   @Post()
-  async createAssessment(@Body() dto: CreateContinuousAssessmentDto, @Req() req: any) {
+  async createAssessment(
+    @Body() dto: CreateContinuousAssessmentDto,
+    @Req() req: any,
+  ) {
     return this.caService.createAssessment(dto, req.user);
   }
 
@@ -81,7 +84,10 @@ export class ContinuousAssessmentController {
   }
 
   @Get('student/:studentId/analytics')
-  async getStudentAnalytics(@Param('studentId') studentId: string, @Req() req: any) {
+  async getStudentAnalytics(
+    @Param('studentId') studentId: string,
+    @Req() req: any,
+  ) {
     this.ensureStudentAccess(req.user, studentId);
     return this.caService.getStudentAnalytics(studentId);
   }
@@ -91,19 +97,25 @@ export class ContinuousAssessmentController {
       return;
     }
 
-    if (user.role === ROLES.student && user.studentNumber !== requestedStudentId) {
+    if (
+      user.role === ROLES.student &&
+      user.studentNumber !== requestedStudentId
+    ) {
       throw new ForbiddenException('You can only view your own assessments');
     }
 
     if (user.role === ROLES.parent) {
       const students = user.students || [];
       if (students.length > 0) {
-        const hasAccess = students.some((student: any) => student.studentNumber === requestedStudentId);
+        const hasAccess = students.some(
+          (student: any) => student.studentNumber === requestedStudentId,
+        );
         if (!hasAccess) {
-          throw new ForbiddenException('You can only view your child assessments');
+          throw new ForbiddenException(
+            'You can only view your child assessments',
+          );
         }
       }
     }
   }
 }
-

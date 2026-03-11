@@ -1987,7 +1987,7 @@ export class InvoiceService {
       .lineTo(rightColumnX + 150, infoSectionY + 18)
       .stroke();
 
-    let summaryY = infoSectionY + 30;
+    const summaryY = infoSectionY + 30;
     const summaryItemHeight = 24;
 
     const getStatusColor = (status: string): string => {

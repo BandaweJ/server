@@ -7,8 +7,14 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Not, MoreThan } from 'typeorm';
-import { ConversationEntity, ConversationType } from '../entities/conversation.entity';
-import { ConversationParticipantEntity, ParticipantRole } from '../entities/conversation-participant.entity';
+import {
+  ConversationEntity,
+  ConversationType,
+} from '../entities/conversation.entity';
+import {
+  ConversationParticipantEntity,
+  ParticipantRole,
+} from '../entities/conversation-participant.entity';
 import { MessageEntity, MessageType } from '../entities/message.entity';
 import { MessageReadEntity } from '../entities/message-read.entity';
 import { AccountsEntity } from 'src/auth/entities/accounts.entity';
@@ -65,21 +71,30 @@ export class MessagingService {
       order: { conversation: { lastMessageAt: 'DESC' } },
     });
 
-    return participants.map(p => p.conversation);
+    return participants.map((p) => p.conversation);
   }
 
-  async getConversationById(conversationId: string, userId: string): Promise<ConversationEntity> {
+  async getConversationById(
+    conversationId: string,
+    userId: string,
+  ): Promise<ConversationEntity> {
     const participant = await this.participantRepository.findOne({
       where: {
         conversationId,
         userId,
         leftAt: null,
       },
-      relations: ['conversation', 'conversation.participants', 'conversation.participants.user'],
+      relations: [
+        'conversation',
+        'conversation.participants',
+        'conversation.participants.user',
+      ],
     });
 
     if (!participant) {
-      throw new NotFoundException('Conversation not found or you are not a participant');
+      throw new NotFoundException(
+        'Conversation not found or you are not a participant',
+      );
     }
 
     return participant.conversation;
@@ -89,7 +104,9 @@ export class MessagingService {
     createDto: CreateConversationDto,
     createdById: string,
   ): Promise<ConversationEntity> {
-    const account = await this.accountsRepository.findOne({ where: { id: createdById } });
+    const account = await this.accountsRepository.findOne({
+      where: { id: createdById },
+    });
     if (!account) {
       throw new NotFoundException('User not found');
     }
@@ -101,7 +118,9 @@ export class MessagingService {
         account.role !== ROLES.director &&
         account.role !== ROLES.dev
       ) {
-        throw new ForbiddenException('Only admins, directors, and dev can create school-wide messages');
+        throw new ForbiddenException(
+          'Only admins, directors, and dev can create school-wide messages',
+        );
       }
     }
 
@@ -123,7 +142,9 @@ export class MessagingService {
       classId: createDto.classId,
     });
 
-    const savedConversation = await this.conversationRepository.save(conversation);
+    const savedConversation = await this.conversationRepository.save(
+      conversation,
+    );
 
     // Add creator as admin participant
     const creatorParticipant = this.participantRepository.create({
@@ -135,8 +156,8 @@ export class MessagingService {
 
     // Add other participants
     const participants = createDto.participantIds
-      .filter(id => id !== createdById)
-      .map(userId =>
+      .filter((id) => id !== createdById)
+      .map((userId) =>
         this.participantRepository.create({
           conversationId: savedConversation.id,
           userId,
@@ -156,7 +177,10 @@ export class MessagingService {
     return this.getConversationById(savedConversation.id, createdById);
   }
 
-  private async addClassParticipants(conversationId: string, classId: number): Promise<void> {
+  private async addClassParticipants(
+    conversationId: string,
+    classId: number,
+  ): Promise<void> {
     // Get all enrolments for this class (current term)
     const enrolments = await this.enrolRepository.find({
       where: { name: classId.toString() }, // Assuming class name matches classId
@@ -164,28 +188,30 @@ export class MessagingService {
     });
 
     const studentAccountIds = enrolments
-      .map(e => e.student?.account?.id)
-      .filter(id => id !== undefined);
+      .map((e) => e.student?.account?.id)
+      .filter((id) => id !== undefined);
 
     // Get teachers (for now, all teachers - you might want to filter by class assignment)
     const teachers = await this.accountsRepository.find({
       where: { role: In([ROLES.teacher, ROLES.hod]) },
     });
 
-    const teacherIds = teachers.map(t => t.id);
+    const teacherIds = teachers.map((t) => t.id);
 
     // Combine and add as participants
-    const allParticipantIds = [...new Set([...studentAccountIds, ...teacherIds])];
+    const allParticipantIds = [
+      ...new Set([...studentAccountIds, ...teacherIds]),
+    ];
 
     // Check existing participants to avoid duplicates
     const existing = await this.participantRepository.find({
       where: { conversationId },
     });
-    const existingIds = new Set(existing.map(p => p.userId));
+    const existingIds = new Set(existing.map((p) => p.userId));
 
     const newParticipants = allParticipantIds
-      .filter(id => !existingIds.has(id))
-      .map(userId =>
+      .filter((id) => !existingIds.has(id))
+      .map((userId) =>
         this.participantRepository.create({
           conversationId,
           userId,
@@ -198,8 +224,13 @@ export class MessagingService {
     }
   }
 
-  async createClassConversation(classId: number, createdById: string): Promise<ConversationEntity> {
-    const account = await this.accountsRepository.findOne({ where: { id: createdById } });
+  async createClassConversation(
+    classId: number,
+    createdById: string,
+  ): Promise<ConversationEntity> {
+    const account = await this.accountsRepository.findOne({
+      where: { id: createdById },
+    });
     if (!account) {
       throw new NotFoundException('User not found');
     }
@@ -212,7 +243,9 @@ export class MessagingService {
       account.role !== ROLES.director &&
       account.role !== ROLES.dev
     ) {
-      throw new ForbiddenException('Only teachers, administrators, and dev can create class conversations');
+      throw new ForbiddenException(
+        'Only teachers, administrators, and dev can create class conversations',
+      );
     }
 
     // Check if conversation already exists for this class
@@ -230,7 +263,10 @@ export class MessagingService {
       take: 1,
     });
 
-    const className = enrolments.length > 0 ? `Class ${enrolments[0].name}` : `Class ${classId}`;
+    const className =
+      enrolments.length > 0
+        ? `Class ${enrolments[0].name}`
+        : `Class ${classId}`;
 
     return this.createConversation(
       {
@@ -244,8 +280,12 @@ export class MessagingService {
     );
   }
 
-  async createSchoolWideConversation(createdById: string): Promise<ConversationEntity> {
-    const account = await this.accountsRepository.findOne({ where: { id: createdById } });
+  async createSchoolWideConversation(
+    createdById: string,
+  ): Promise<ConversationEntity> {
+    const account = await this.accountsRepository.findOne({
+      where: { id: createdById },
+    });
     if (!account) {
       throw new NotFoundException('User not found');
     }
@@ -255,7 +295,9 @@ export class MessagingService {
       account.role !== ROLES.director &&
       account.role !== ROLES.dev
     ) {
-      throw new ForbiddenException('Only admins, directors, and dev can create school-wide messages');
+      throw new ForbiddenException(
+        'Only admins, directors, and dev can create school-wide messages',
+      );
     }
 
     // Check if school-wide conversation already exists
@@ -272,7 +314,7 @@ export class MessagingService {
       where: { active: true },
     });
 
-    const allUserIds = allAccounts.map(a => a.id);
+    const allUserIds = allAccounts.map((a) => a.id);
 
     return this.createConversation(
       {
@@ -371,8 +413,11 @@ export class MessagingService {
       throw new NotFoundException('Message not found');
     }
 
-    const account = await this.accountsRepository.findOne({ where: { id: userId } });
-    const isAdmin = account?.role === ROLES.admin || account?.role === ROLES.director;
+    const account = await this.accountsRepository.findOne({
+      where: { id: userId },
+    });
+    const isAdmin =
+      account?.role === ROLES.admin || account?.role === ROLES.director;
 
     // Allow deletion if user is sender, admin, or conversation creator
     if (
@@ -414,7 +459,10 @@ export class MessagingService {
     }
   }
 
-  async getUnreadCount(conversationId: string, userId: string): Promise<number> {
+  async getUnreadCount(
+    conversationId: string,
+    userId: string,
+  ): Promise<number> {
     const participant = await this.participantRepository.findOne({
       where: { conversationId, userId },
     });
@@ -437,4 +485,3 @@ export class MessagingService {
     return count;
   }
 }
-

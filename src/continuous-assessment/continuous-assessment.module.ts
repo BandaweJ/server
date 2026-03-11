@@ -39,4 +39,3 @@ import { TermsEntity } from 'src/enrolment/entities/term.entity';
   exports: [ContinuousAssessmentService],
 })
 export class ContinuousAssessmentModule {}
-

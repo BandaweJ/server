@@ -25,7 +25,9 @@ interface AuthenticatedSocket extends Socket {
   },
   namespace: '/messaging',
 })
-export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class MessagingGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server: Server;
 
@@ -79,13 +81,17 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
           this.userSockets.delete(client.userId);
         }
       }
-      this.logger.log(`Client disconnected: ${client.id} (User: ${client.userId})`);
+      this.logger.log(
+        `Client disconnected: ${client.id} (User: ${client.userId})`,
+      );
     }
   }
 
   private extractTokenFromSocket(client: Socket): string | null {
     // Try to get token from handshake auth
-    const token = client.handshake.auth?.token || client.handshake.headers?.authorization?.replace('Bearer ', '');
+    const token =
+      client.handshake.auth?.token ||
+      client.handshake.headers?.authorization?.replace('Bearer ', '');
     return token || null;
   }
 
@@ -100,12 +106,17 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
 
     try {
       // Verify user is participant
-      await this.messagingService.getConversationById(data.conversationId, client.userId);
-      
+      await this.messagingService.getConversationById(
+        data.conversationId,
+        client.userId,
+      );
+
       // Join conversation room
       client.join(`conversation:${data.conversationId}`);
-      
-      this.logger.log(`User ${client.userId} joined conversation ${data.conversationId}`);
+
+      this.logger.log(
+        `User ${client.userId} joined conversation ${data.conversationId}`,
+      );
       return { success: true };
     } catch (error) {
       this.logger.error('Failed to join conversation', error);
@@ -119,14 +130,17 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
     @MessageBody() data: { conversationId: string },
   ) {
     client.leave(`conversation:${data.conversationId}`);
-    this.logger.log(`User ${client.userId} left conversation ${data.conversationId}`);
+    this.logger.log(
+      `User ${client.userId} left conversation ${data.conversationId}`,
+    );
     return { success: true };
   }
 
   @SubscribeMessage('send-message')
   async handleSendMessage(
     @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() data: { conversationId: string; content: string; replyToId?: string },
+    @MessageBody()
+    data: { conversationId: string; content: string; replyToId?: string },
   ) {
     if (!client.userId) {
       return { error: 'Not authenticated' };
@@ -143,7 +157,9 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
       );
 
       // Emit to all participants in the conversation
-      this.server.to(`conversation:${data.conversationId}`).emit('new-message', message);
+      this.server
+        .to(`conversation:${data.conversationId}`)
+        .emit('new-message', message);
 
       return { success: true, message };
     } catch (error) {
@@ -177,20 +193,26 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
       return;
     }
 
-    client.to(`conversation:${data.conversationId}`).emit('user-stopped-typing', {
-      userId: client.userId,
-      conversationId: data.conversationId,
-    });
+    client
+      .to(`conversation:${data.conversationId}`)
+      .emit('user-stopped-typing', {
+        userId: client.userId,
+        conversationId: data.conversationId,
+      });
   }
 
   // Method to emit message updates (called from service)
   emitMessageUpdate(conversationId: string, message: any) {
-    this.server.to(`conversation:${conversationId}`).emit('message-updated', message);
+    this.server
+      .to(`conversation:${conversationId}`)
+      .emit('message-updated', message);
   }
 
   // Method to emit message deletion
   emitMessageDeleted(conversationId: string, messageId: string) {
-    this.server.to(`conversation:${conversationId}`).emit('message-deleted', { messageId });
+    this.server
+      .to(`conversation:${conversationId}`)
+      .emit('message-deleted', { messageId });
   }
 
   // Method to emit conversation updates
@@ -198,4 +220,3 @@ export class MessagingGateway implements OnGatewayConnection, OnGatewayDisconnec
     this.server.to(`user:${userId}`).emit('conversation-updated', conversation);
   }
 }
-

@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CalendarEventEntity } from '../entities/calendar-event.entity';
@@ -45,8 +50,13 @@ export class CalendarService {
     private readonly accountsRepository: Repository<AccountsEntity>,
   ) {}
 
-  async getAllEvents(startDate?: Date, endDate?: Date, userId?: string): Promise<CalendarEventEntity[]> {
-    const queryBuilder = this.eventRepository.createQueryBuilder('event')
+  async getAllEvents(
+    startDate?: Date,
+    endDate?: Date,
+    userId?: string,
+  ): Promise<CalendarEventEntity[]> {
+    const queryBuilder = this.eventRepository
+      .createQueryBuilder('event')
       .leftJoinAndSelect('event.createdBy', 'createdBy');
 
     // Filter by date range if provided
@@ -62,8 +72,13 @@ export class CalendarService {
     // If user is provided, check if they're admin
     let isAdmin = false;
     if (userId) {
-      const account = await this.accountsRepository.findOne({ where: { id: userId } });
-      isAdmin = account?.role === 'admin' || account?.role === 'director' || account?.role === 'dev';
+      const account = await this.accountsRepository.findOne({
+        where: { id: userId },
+      });
+      isAdmin =
+        account?.role === 'admin' ||
+        account?.role === 'director' ||
+        account?.role === 'dev';
     }
 
     // If not admin, filter to show only public events or events they have notifications for
@@ -72,12 +87,15 @@ export class CalendarService {
       const userNotifications = await this.notificationRepository.find({
         where: { userId },
       });
-      const userEventIds = userNotifications.map(n => n.eventId);
-      
+      const userEventIds = userNotifications.map((n) => n.eventId);
+
       if (userEventIds.length > 0) {
-        queryBuilder.andWhere('(event.isPublic = true OR event.id IN (:...userEventIds))', {
-          userEventIds,
-        });
+        queryBuilder.andWhere(
+          '(event.isPublic = true OR event.id IN (:...userEventIds))',
+          {
+            userEventIds,
+          },
+        );
       } else {
         queryBuilder.andWhere('event.isPublic = true');
       }
@@ -88,7 +106,10 @@ export class CalendarService {
     return await queryBuilder.getMany();
   }
 
-  async getEventById(id: string, userId?: string): Promise<CalendarEventEntity> {
+  async getEventById(
+    id: string,
+    userId?: string,
+  ): Promise<CalendarEventEntity> {
     const event = await this.eventRepository.findOne({
       where: { id },
       relations: ['createdBy'],
@@ -100,15 +121,20 @@ export class CalendarService {
 
     // Check if user can view this event
     if (userId) {
-      const account = await this.accountsRepository.findOne({ where: { id: userId } });
-      const isAdmin = account?.role === 'admin' || account?.role === 'director' || account?.role === 'dev';
-      
+      const account = await this.accountsRepository.findOne({
+        where: { id: userId },
+      });
+      const isAdmin =
+        account?.role === 'admin' ||
+        account?.role === 'director' ||
+        account?.role === 'dev';
+
       if (!isAdmin && !event.isPublic) {
         // Check if user has notification for this event
         const notification = await this.notificationRepository.findOne({
           where: { eventId: id, userId },
         });
-        
+
         if (!notification) {
           throw new ForbiddenException('You do not have access to this event');
         }
@@ -118,9 +144,14 @@ export class CalendarService {
     return event;
   }
 
-  async createEvent(createDto: CreateCalendarEventDto, createdById: string): Promise<CalendarEventEntity> {
+  async createEvent(
+    createDto: CreateCalendarEventDto,
+    createdById: string,
+  ): Promise<CalendarEventEntity> {
     // Verify the account exists
-    const account = await this.accountsRepository.findOne({ where: { id: createdById } });
+    const account = await this.accountsRepository.findOne({
+      where: { id: createdById },
+    });
     if (!account) {
       throw new NotFoundException(`Account with ID "${createdById}" not found`);
     }
@@ -137,15 +168,26 @@ export class CalendarService {
     return await this.eventRepository.save(event);
   }
 
-  async updateEvent(id: string, updateDto: UpdateCalendarEventDto, userId: string): Promise<CalendarEventEntity> {
+  async updateEvent(
+    id: string,
+    updateDto: UpdateCalendarEventDto,
+    userId: string,
+  ): Promise<CalendarEventEntity> {
     const event = await this.getEventById(id, userId);
-    
+
     // Check if user is admin or the creator
-    const account = await this.accountsRepository.findOne({ where: { id: userId } });
-    const isAdmin = account?.role === 'admin' || account?.role === 'director' || account?.role === 'dev';
-    
+    const account = await this.accountsRepository.findOne({
+      where: { id: userId },
+    });
+    const isAdmin =
+      account?.role === 'admin' ||
+      account?.role === 'director' ||
+      account?.role === 'dev';
+
     if (!isAdmin && event.createdById !== userId) {
-      throw new ForbiddenException('Only admins or event creators can update events');
+      throw new ForbiddenException(
+        'Only admins or event creators can update events',
+      );
     }
 
     Object.assign(event, updateDto);
@@ -154,13 +196,20 @@ export class CalendarService {
 
   async deleteEvent(id: string, userId: string): Promise<void> {
     const event = await this.getEventById(id, userId);
-    
+
     // Check if user is admin or the creator
-    const account = await this.accountsRepository.findOne({ where: { id: userId } });
-    const isAdmin = account?.role === 'admin' || account?.role === 'director' || account?.role === 'dev';
-    
+    const account = await this.accountsRepository.findOne({
+      where: { id: userId },
+    });
+    const isAdmin =
+      account?.role === 'admin' ||
+      account?.role === 'director' ||
+      account?.role === 'dev';
+
     if (!isAdmin && event.createdById !== userId) {
-      throw new ForbiddenException('Only admins or event creators can delete events');
+      throw new ForbiddenException(
+        'Only admins or event creators can delete events',
+      );
     }
 
     await this.eventRepository.remove(event);
@@ -193,17 +242,21 @@ export class CalendarService {
     return await this.notificationRepository.save(notification);
   }
 
-  async getNotificationPreference(eventId: string, userId: string): Promise<EventNotificationEntity | null> {
+  async getNotificationPreference(
+    eventId: string,
+    userId: string,
+  ): Promise<EventNotificationEntity | null> {
     return await this.notificationRepository.findOne({
       where: { eventId, userId },
     });
   }
 
-  async getUserNotifications(userId: string): Promise<EventNotificationEntity[]> {
+  async getUserNotifications(
+    userId: string,
+  ): Promise<EventNotificationEntity[]> {
     return await this.notificationRepository.find({
       where: { userId, enabled: true },
       relations: ['event'],
     });
   }
 }
-

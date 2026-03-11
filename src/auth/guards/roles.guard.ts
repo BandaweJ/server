@@ -1,4 +1,10 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -15,10 +21,10 @@ export class RolesGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const requiredRoles = this.reflector.getAllAndOverride<ROLES[]>(
-      ROLES_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    const requiredRoles = this.reflector.getAllAndOverride<ROLES[]>(ROLES_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
     if (!requiredRoles) {
       return true;
@@ -33,26 +39,33 @@ export class RolesGuard implements CanActivate {
       // If AuthGuard failed (e.g., expired/invalid token), it should have already thrown an exception
       // If we reach here, it means AuthGuard didn't run or didn't throw properly
       // This should never happen if guards are applied correctly, but we handle it gracefully
-      
+
       const authHeader = request.headers?.authorization;
       const authHeaderPresent = !!authHeader;
-      
+
       // Log for debugging
-      console.error('RolesGuard: User not found in request. This should not happen if AuthGuard ran correctly.', {
-        url: request.url,
-        method: request.method,
-        hasAuthHeader: authHeaderPresent,
-      });
-      
+      console.error(
+        'RolesGuard: User not found in request. This should not happen if AuthGuard ran correctly.',
+        {
+          url: request.url,
+          method: request.method,
+          hasAuthHeader: authHeaderPresent,
+        },
+      );
+
       // If there's no auth header, it's definitely an auth issue
       if (!authHeaderPresent) {
-        throw new UnauthorizedException('No authentication token provided. Please log in.');
+        throw new UnauthorizedException(
+          'No authentication token provided. Please log in.',
+        );
       }
-      
+
       // If there's an auth header but no user, AuthGuard should have already rejected it
       // This indicates AuthGuard may not have run, or there's a configuration issue
       // Still throw UnauthorizedException as this is an authentication failure
-      throw new UnauthorizedException('Authentication failed. Please log in again.');
+      throw new UnauthorizedException(
+        'Authentication failed. Please log in again.',
+      );
     }
 
     let userRole: string | undefined = (user as any).role;
@@ -84,16 +97,16 @@ export class RolesGuard implements CanActivate {
     if (!normalizedRole) {
       console.error('RolesGuard: User role not found', {
         user: { id: (user as any).id, role: (user as any).role, accountId },
-        requiredRoles
+        requiredRoles,
       });
       throw new ForbiddenException('User role not found');
     }
 
-    const roleEnumValues = Object.values(ROLES).map(r => r.toLowerCase());
+    const roleEnumValues = Object.values(ROLES).map((r) => r.toLowerCase());
     if (!roleEnumValues.includes(normalizedRole)) {
       console.error('RolesGuard: Invalid role value', {
         normalizedRole,
-        validRoles: roleEnumValues
+        validRoles: roleEnumValues,
       });
       throw new ForbiddenException(`Invalid user role: ${normalizedRole}`);
     }
@@ -105,18 +118,20 @@ export class RolesGuard implements CanActivate {
     console.log('RolesGuard: Checking access', {
       userRole: normalizedRole,
       requiredRoles,
-      hasAccess: requiredRoles.some(r => r.toLowerCase() === normalizedRole),
+      hasAccess: requiredRoles.some((r) => r.toLowerCase() === normalizedRole),
       userId: (user as any).id,
-      accountId
+      accountId,
     });
 
-    const hasRequiredRole = requiredRoles.some(requiredRole =>
-      requiredRole.toLowerCase() === normalizedRole
+    const hasRequiredRole = requiredRoles.some(
+      (requiredRole) => requiredRole.toLowerCase() === normalizedRole,
     );
 
     if (!hasRequiredRole) {
       throw new ForbiddenException(
-        `Access denied. User role: ${normalizedRole}. Required roles: ${requiredRoles.join(', ')}`
+        `Access denied. User role: ${normalizedRole}. Required roles: ${requiredRoles.join(
+          ', ',
+        )}`,
       );
     }
 

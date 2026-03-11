@@ -36,4 +36,3 @@ import { EnrolEntity } from '../enrolment/entities/enrol.entity';
   exports: [MessagingService, MessagingGateway],
 })
 export class MessagingModule {}
-

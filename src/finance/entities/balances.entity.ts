@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 import { numberTransformer } from 'src/common/transformers/number.transformer';
 import { InvoiceEntity } from 'src/payment/entities/invoice.entity';
 import {

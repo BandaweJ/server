@@ -1,6 +1,17 @@
-import { Injectable, ForbiddenException, NotFoundException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, In, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
+import {
+  Repository,
+  Between,
+  In,
+  LessThanOrEqual,
+  MoreThanOrEqual,
+} from 'typeorm';
 import { ContinuousAssessmentEntity } from '../entities/continuous-assessment.entity';
 import { CreateContinuousAssessmentDto } from '../dtos/create-continuous-assessment.dto';
 import { StudentsEntity } from 'src/profiles/entities/students.entity';
@@ -60,17 +71,32 @@ export class ContinuousAssessmentService {
     dto: CreateContinuousAssessmentDto,
     user: any,
   ): Promise<ContinuousAssessmentEntity> {
-    const { studentId, classId, subjectCode, topicOrSkill, assessmentDate, assessmentType, score, maxScore } = dto;
+    const {
+      studentId,
+      classId,
+      subjectCode,
+      topicOrSkill,
+      assessmentDate,
+      assessmentType,
+      score,
+      maxScore,
+    } = dto;
 
-    const account = await this.accountsRepository.findOne({ where: { id: user.accountId } });
+    const account = await this.accountsRepository.findOne({
+      where: { id: user.accountId },
+    });
     if (!account) {
       throw new ForbiddenException('Account not found');
     }
 
     if (
-      ![ROLES.teacher, ROLES.hod, ROLES.admin, ROLES.director, ROLES.dev].includes(
-        account.role as ROLES,
-      )
+      ![
+        ROLES.teacher,
+        ROLES.hod,
+        ROLES.admin,
+        ROLES.director,
+        ROLES.dev,
+      ].includes(account.role as ROLES)
     ) {
       throw new ForbiddenException('You are not allowed to record assessments');
     }
@@ -89,10 +115,14 @@ export class ContinuousAssessmentService {
 
     let subject: SubjectsEntity | undefined;
     if (subjectCode) {
-      subject = await this.subjectsRepository.findOne({ where: { code: subjectCode } });
+      subject = await this.subjectsRepository.findOne({
+        where: { code: subjectCode },
+      });
     }
 
-    const { startOfDay, endOfDay } = this.getAssessmentDayRange(new Date(assessmentDate));
+    const { startOfDay, endOfDay } = this.getAssessmentDayRange(
+      new Date(assessmentDate),
+    );
     const existing = await this.caRepository.findOne({
       where: {
         studentId: student.studentNumber,
@@ -141,7 +171,10 @@ export class ContinuousAssessmentService {
         assessmentType: saved.assessmentType,
       });
     } catch (error) {
-      this.logger.warn('Failed to send continuous assessment notification', error);
+      this.logger.warn(
+        'Failed to send continuous assessment notification',
+        error,
+      );
     }
 
     return saved;
@@ -179,7 +212,9 @@ export class ContinuousAssessmentService {
     subjectCode?: string,
     assessmentType?: string,
   ): Promise<ClassRosterEntry[]> {
-    const classEntity = await this.classRepository.findOne({ where: { id: classId } });
+    const classEntity = await this.classRepository.findOne({
+      where: { id: classId },
+    });
     if (!classEntity) {
       throw new NotFoundException('Class not found');
     }
@@ -222,7 +257,9 @@ export class ContinuousAssessmentService {
     });
 
     return students.map((student) => {
-      const entry = existingEntries.find((e) => e.studentId === student.studentNumber);
+      const entry = existingEntries.find(
+        (e) => e.studentId === student.studentNumber,
+      );
       return {
         studentId: student.studentNumber,
         studentNumber: student.studentNumber,
@@ -282,7 +319,7 @@ export class ContinuousAssessmentService {
     const averageScore = totalScores / entries.length;
 
     const subjectMap = new Map<string, { total: number; count: number }>();
-    entries.forEach(entry => {
+    entries.forEach((entry) => {
       const subjectName = entry.subject?.name || 'General';
       const current = subjectMap.get(subjectName) || { total: 0, count: 0 };
       current.total += entry.score;
@@ -290,10 +327,12 @@ export class ContinuousAssessmentService {
       subjectMap.set(subjectName, current);
     });
 
-    const subjectAverages = Array.from(subjectMap.entries()).map(([subject, data]) => ({
-      subject,
-      average: data.total / data.count,
-    }));
+    const subjectAverages = Array.from(subjectMap.entries()).map(
+      ([subject, data]) => ({
+        subject,
+        average: data.total / data.count,
+      }),
+    );
 
     return {
       averageScore,
@@ -322,4 +361,3 @@ export class ContinuousAssessmentService {
     return term ?? null;
   }
 }
-

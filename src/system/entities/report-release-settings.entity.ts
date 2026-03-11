@@ -1,4 +1,12 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { AccountsEntity } from '../../auth/entities/accounts.entity';
 
 @Entity('report_release_settings')
@@ -48,12 +56,12 @@ export class ReportReleaseSettings {
     if (this.isReleased) {
       return true;
     }
-    
+
     // Check if scheduled release date has passed
     if (this.scheduledReleaseDate && new Date() >= this.scheduledReleaseDate) {
       return true;
     }
-    
+
     return false;
   }
 }

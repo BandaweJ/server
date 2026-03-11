@@ -77,4 +77,3 @@ export class MessageEntity {
   @OneToMany(() => MessageReadEntity, (read) => read.message)
   reads: MessageReadEntity[];
 }
-

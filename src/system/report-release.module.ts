@@ -10,7 +10,7 @@ import { AccountsEntity } from '../auth/entities/accounts.entity';
   imports: [
     TypeOrmModule.forFeature([ReportReleaseSettings]),
     TypeOrmModule.forFeature([TermsEntity]),
-    TypeOrmModule.forFeature([AccountsEntity])
+    TypeOrmModule.forFeature([AccountsEntity]),
   ],
   controllers: [ReportReleaseController],
   providers: [ReportReleaseService],

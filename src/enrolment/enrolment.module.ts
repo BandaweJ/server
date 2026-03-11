@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 import { forwardRef, Module, OnModuleInit, Logger } from '@nestjs/common';
 import { EnrolmentController } from './enrolment.controller';
 import { EnrolmentService } from './enrolment.service';

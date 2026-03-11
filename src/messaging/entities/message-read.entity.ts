@@ -33,4 +33,3 @@ export class MessageReadEntity {
   @CreateDateColumn()
   readAt: Date;
 }
-

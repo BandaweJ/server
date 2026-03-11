@@ -12,7 +12,7 @@ import { FeesNames } from 'src/finance/models/fees-names.enum';
 /**
  * Service for comprehensive validation of financial entities (invoices, receipts)
  * before they are saved to the database.
- * 
+ *
  * This service centralizes all validation logic to ensure data integrity
  * and provide consistent error messages.
  */
@@ -53,14 +53,17 @@ export class FinancialValidationService {
   /**
    * Validates an invoice before saving.
    * Throws InvoiceValidationException if validation fails.
-   * 
+   *
    * @param invoice - The invoice entity to validate
    * @throws InvoiceValidationException if validation fails
    */
   validateInvoiceBeforeSave(invoice: InvoiceEntity): void {
     // 1. Validate bills exist and have fees
     if (!invoice.bills || invoice.bills.length === 0) {
-      this.throwInvoiceValidation('Invoice must have at least one bill', invoice);
+      this.throwInvoiceValidation(
+        'Invoice must have at least one bill',
+        invoice,
+      );
     }
 
     // Validate each bill has a fee
@@ -74,7 +77,9 @@ export class FinancialValidationService {
       }
       if (!bill.fees.amount || Number(bill.fees.amount) <= 0) {
         this.throwInvoiceValidation(
-          `Bill ${bill.id || 'unknown'} must have a valid fee amount greater than zero`,
+          `Bill ${
+            bill.id || 'unknown'
+          } must have a valid fee amount greater than zero`,
           invoice,
           { billId: bill.id, feeAmount: bill.fees.amount },
         );
@@ -96,7 +101,10 @@ export class FinancialValidationService {
 
     // 3. Validate enrolment exists
     if (!invoice.enrol) {
-      this.throwInvoiceValidation('Invoice must be linked to an enrolment', invoice);
+      this.throwInvoiceValidation(
+        'Invoice must be linked to an enrolment',
+        invoice,
+      );
     }
 
     // 4. Validate dates
@@ -114,17 +122,25 @@ export class FinancialValidationService {
 
     // Invoice date cannot be in the future
     if (invoiceDate > now) {
-      this.throwInvoiceValidation('Invoice date cannot be in the future', invoice, {
-        invoiceDate: invoice.invoiceDate,
-      });
+      this.throwInvoiceValidation(
+        'Invoice date cannot be in the future',
+        invoice,
+        {
+          invoiceDate: invoice.invoiceDate,
+        },
+      );
     }
 
     // Due date cannot be before invoice date
     if (dueDate < invoiceDate) {
-      this.throwInvoiceValidation('Due date cannot be before invoice date', invoice, {
-        invoiceDate: invoice.invoiceDate,
-        invoiceDueDate: invoice.invoiceDueDate,
-      });
+      this.throwInvoiceValidation(
+        'Due date cannot be before invoice date',
+        invoice,
+        {
+          invoiceDate: invoice.invoiceDate,
+          invoiceDueDate: invoice.invoiceDueDate,
+        },
+      );
     }
 
     // 5. Validate amounts
@@ -154,9 +170,13 @@ export class FinancialValidationService {
 
     // Balance cannot be negative for active invoices
     if (balance < 0 && !invoice.isVoided) {
-      this.throwInvoiceValidation('Balance cannot be negative for active invoice', invoice, {
-        balance: invoice.balance,
-      });
+      this.throwInvoiceValidation(
+        'Balance cannot be negative for active invoice',
+        invoice,
+        {
+          balance: invoice.balance,
+        },
+      );
     }
 
     // 6. Validate invoice number
@@ -170,7 +190,10 @@ export class FinancialValidationService {
     }
 
     // 8. Validate exempted amount (if present)
-    if (invoice.exemptedAmount !== undefined && invoice.exemptedAmount !== null) {
+    if (
+      invoice.exemptedAmount !== undefined &&
+      invoice.exemptedAmount !== null
+    ) {
       const exemptedAmount = Number(invoice.exemptedAmount);
       if (isNaN(exemptedAmount) || exemptedAmount < 0) {
         this.throwInvoiceValidation(
@@ -187,9 +210,10 @@ export class FinancialValidationService {
       if (invoice.bills && invoice.bills.length > 0) {
         for (const bill of invoice.bills) {
           if (bill.fees && bill.fees.name !== FeesNames.groomingFee) {
-            const amount = typeof bill.fees.amount === 'string'
-              ? parseFloat(bill.fees.amount) || 0
-              : Number(bill.fees.amount) || 0;
+            const amount =
+              typeof bill.fees.amount === 'string'
+                ? parseFloat(bill.fees.amount) || 0
+                : Number(bill.fees.amount) || 0;
             exemptableFeesTotal += amount;
           }
         }
@@ -201,11 +225,11 @@ export class FinancialValidationService {
         this.throwInvoiceValidation(
           'Exempted amount cannot exceed exemptable fees total',
           invoice,
-          { 
-            exemptedAmount: invoice.exemptedAmount, 
+          {
+            exemptedAmount: invoice.exemptedAmount,
             exemptableFeesTotal,
             totalBill,
-            note: 'Grooming fees are not subject to exemptions'
+            note: 'Grooming fees are not subject to exemptions',
           },
         );
       }
@@ -223,7 +247,7 @@ export class FinancialValidationService {
   /**
    * Validates a receipt before saving.
    * Throws ReceiptValidationException if validation fails.
-   * 
+   *
    * @param receipt - The receipt entity to validate
    * @throws ReceiptValidationException if validation fails
    */
@@ -243,7 +267,10 @@ export class FinancialValidationService {
 
     // 2. Validate enrolment exists
     if (!receipt.enrol) {
-      this.throwReceiptValidation('Receipt must be linked to an enrolment', receipt);
+      this.throwReceiptValidation(
+        'Receipt must be linked to an enrolment',
+        receipt,
+      );
     }
 
     // 3. Validate amount
@@ -320,7 +347,10 @@ export class FinancialValidationService {
 
     // 8. Validate served by
     if (!receipt.servedBy || receipt.servedBy.trim() === '') {
-      this.throwReceiptValidation('Receipt must have a served by field (staff member)', receipt);
+      this.throwReceiptValidation(
+        'Receipt must have a served by field (staff member)',
+        receipt,
+      );
     }
 
     // 9. Validate allocations (if present)
@@ -352,7 +382,7 @@ export class FinancialValidationService {
   /**
    * Validates maximum invoice amount per term (business rule).
    * This prevents data entry errors and ensures invoices don't exceed reasonable limits.
-   * 
+   *
    * @param totalBill - The total bill amount for the invoice
    * @param termNum - The term number
    * @param year - The term year
@@ -368,12 +398,14 @@ export class FinancialValidationService {
     maxInvoiceAmountPerTerm: number = 500000,
   ): void {
     // Ensure all values are properly converted to numbers to prevent string concatenation
-    const numericTotalBill = typeof totalBill === 'string' 
-      ? parseFloat(totalBill) || 0 
-      : Number(totalBill) || 0;
-    const numericExistingTotal = typeof existingInvoicesTotal === 'string' 
-      ? parseFloat(existingInvoicesTotal) || 0 
-      : Number(existingInvoicesTotal) || 0;
+    const numericTotalBill =
+      typeof totalBill === 'string'
+        ? parseFloat(totalBill) || 0
+        : Number(totalBill) || 0;
+    const numericExistingTotal =
+      typeof existingInvoicesTotal === 'string'
+        ? parseFloat(existingInvoicesTotal) || 0
+        : Number(existingInvoicesTotal) || 0;
     const totalForTerm = numericExistingTotal + numericTotalBill;
 
     if (totalForTerm > maxInvoiceAmountPerTerm) {
@@ -397,7 +429,7 @@ export class FinancialValidationService {
   /**
    * Validates credit balance limits (business rule).
    * This prevents excessive credit accumulation which could indicate errors or fraud.
-   * 
+   *
    * @param currentCreditBalance - Current credit balance
    * @param newCreditAmount - New credit amount to add
    * @param maxCreditBalance - Maximum allowed credit balance per student (default: 100,000)
@@ -429,7 +461,7 @@ export class FinancialValidationService {
    * Validates minimum payment amount (business rule).
    * This is already checked in validateReceiptBeforeSave, but provided as a separate
    * method for use in other contexts.
-   * 
+   *
    * @param amount - The payment amount to validate
    * @param minimumAmount - Minimum allowed payment amount (default: 0.01)
    * @throws MinimumPaymentAmountException if amount is below minimum
@@ -448,4 +480,3 @@ export class FinancialValidationService {
     }
   }
 }
-

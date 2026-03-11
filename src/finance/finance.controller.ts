@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 import {
   Body,
   Controller,
@@ -17,9 +16,10 @@ import { TeachersEntity } from 'src/profiles/entities/teachers.entity';
 import { FinanceService } from './finance.service';
 import { CreateBalancesDto } from './dtos/balances.dto';
 import { CreateBillDto } from './dtos/bills.dto';
+import { ParentStudentAccessGuard } from 'src/auth/guards/parent-student-access.guard';
 
 @Controller('finance')
-@UseGuards(AuthGuard())
+@UseGuards(AuthGuard(), ParentStudentAccessGuard)
 export class FinanceController {
   constructor(private financeService: FinanceService) {}
 

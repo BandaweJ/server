@@ -72,5 +72,3 @@ export const PERMISSIONS = {
     MANAGE_PERMISSIONS: 'system.manage.permissions',
   },
 } as const;
-
-

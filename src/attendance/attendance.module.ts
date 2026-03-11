@@ -9,11 +9,7 @@ import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      AttendanceEntity,
-      StudentsEntity,
-      EnrolEntity,
-    ]),
+    TypeOrmModule.forFeature([AttendanceEntity, StudentsEntity, EnrolEntity]),
     AuthModule,
   ],
   controllers: [AttendanceController],

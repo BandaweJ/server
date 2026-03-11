@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 export enum PaymentMethods {
   cash = 'Cash',
   bankTransfer = 'Bank Transfer',

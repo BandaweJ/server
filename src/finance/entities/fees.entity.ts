@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 import { EnrolEntity } from 'src/enrolment/entities/enrol.entity';
 import { Residence } from 'src/enrolment/models/residence.model';
 import {

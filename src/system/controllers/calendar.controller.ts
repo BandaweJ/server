@@ -13,7 +13,12 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-import { CalendarService, CreateCalendarEventDto, UpdateCalendarEventDto, EventNotificationPreferenceDto } from '../services/calendar.service';
+import {
+  CalendarService,
+  CreateCalendarEventDto,
+  UpdateCalendarEventDto,
+  EventNotificationPreferenceDto,
+} from '../services/calendar.service';
 
 @Controller('system/calendar')
 @UseGuards(JwtAuthGuard)
@@ -40,7 +45,10 @@ export class CalendarController {
 
   @Post('events')
   @HttpCode(HttpStatus.CREATED)
-  async createEvent(@Body() createDto: CreateCalendarEventDto, @Req() req: any) {
+  async createEvent(
+    @Body() createDto: CreateCalendarEventDto,
+    @Req() req: any,
+  ) {
     const userId = (req.user as any)?.accountId;
     return await this.calendarService.createEvent(createDto, userId);
   }
@@ -71,7 +79,11 @@ export class CalendarController {
     @Req() req: any,
   ) {
     const userId = (req.user as any)?.accountId;
-    return await this.calendarService.setNotificationPreference(eventId, userId, preference);
+    return await this.calendarService.setNotificationPreference(
+      eventId,
+      userId,
+      preference,
+    );
   }
 
   @Get('events/:id/notifications')
@@ -80,7 +92,10 @@ export class CalendarController {
     @Req() req: any,
   ) {
     const userId = (req.user as any)?.accountId;
-    return await this.calendarService.getNotificationPreference(eventId, userId);
+    return await this.calendarService.getNotificationPreference(
+      eventId,
+      userId,
+    );
   }
 
   @Get('notifications')
@@ -89,4 +104,3 @@ export class CalendarController {
     return await this.calendarService.getUserNotifications(userId);
   }
 }
-

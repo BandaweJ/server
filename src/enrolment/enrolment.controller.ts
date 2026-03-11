@@ -21,9 +21,10 @@ import { EnrolDto } from './dtos/enrol.dto';
 import { CreateTermDto } from './dtos/create-term.dto';
 import { UpdateEnrolDto } from './dtos/update-enrol.dto';
 import { Logger } from '@nestjs/common';
+import { ParentStudentAccessGuard } from 'src/auth/guards/parent-student-access.guard';
 
 @Controller('enrolment')
-@UseGuards(AuthGuard())
+@UseGuards(AuthGuard(), ParentStudentAccessGuard)
 export class EnrolmentController {
   private readonly logger = new Logger(EnrolmentController.name);
 

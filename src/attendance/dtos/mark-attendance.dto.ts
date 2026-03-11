@@ -1,4 +1,10 @@
-import { IsBoolean, IsDateString, IsNotEmpty, IsNumber, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsNotEmpty,
+  IsNumber,
+  IsString,
+} from 'class-validator';
 
 export class MarkAttendanceDto {
   @IsString()
@@ -21,4 +27,3 @@ export class MarkAttendanceDto {
   @IsDateString()
   date: string;
 }
-

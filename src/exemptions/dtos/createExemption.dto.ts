@@ -1,8 +1,6 @@
-/* eslint-disable prettier/prettier */
 import { IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 import { ExemptionType } from '../enums/exemptions-type.enum';
 
-/* eslint-disable prettier/prettier */
 export class CreateExemptionDto {
   @IsString()
   @IsNotEmpty()

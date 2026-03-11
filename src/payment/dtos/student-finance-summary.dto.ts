@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 /**
  * Finance-only summary for a student (no academic/reports).
  * Single source for totals and balance when student views financials.

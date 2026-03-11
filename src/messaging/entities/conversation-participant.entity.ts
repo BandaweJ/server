@@ -58,4 +58,3 @@ export class ConversationParticipantEntity {
   @Column({ default: false })
   isArchived: boolean;
 }
-

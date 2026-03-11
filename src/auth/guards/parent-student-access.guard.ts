@@ -3,6 +3,7 @@ import {
   ExecutionContext,
   ForbiddenException,
   Injectable,
+  Logger,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ParentsEntity } from 'src/profiles/entities/parents.entity';
@@ -17,6 +18,8 @@ import { Repository } from 'typeorm';
  */
 @Injectable()
 export class ParentStudentAccessGuard implements CanActivate {
+  private readonly logger = new Logger(ParentStudentAccessGuard.name);
+
   constructor(
     private reflector: Reflector,
     @InjectRepository(ParentsEntity)
@@ -46,12 +49,31 @@ export class ParentStudentAccessGuard implements CanActivate {
       return true;
     }
 
-    // 1) Parent role: restrict to linked children (existing behavior)
-    if (profile.role === ROLES.parent && profile instanceof ParentsEntity) {
-      const linkedStudentNumbers = (profile.students || []).map(
+    const roleLower = (profile.role as string)?.toLowerCase?.() ?? '';
+
+    // 1) Parent role: allow only when studentNumber is one of the parent's linked children
+    if (roleLower === 'parent' && profile instanceof ParentsEntity) {
+      let linkedStudentNumbers = (profile.students || []).map(
         (s: { studentNumber: string }) => s.studentNumber,
       );
+      if (linkedStudentNumbers.length === 0) {
+        const parent = await this.parentsRepository.findOne({
+          where: { email: profile.email },
+          relations: ['students'],
+        });
+        linkedStudentNumbers = (parent?.students || []).map(
+          (s: { studentNumber: string }) => s.studentNumber,
+        );
+        if (linkedStudentNumbers.length === 0) {
+          this.logger.warn(
+            `Parent access denied: parent (email=${profile.email}) has no linked students in DB`,
+          );
+        }
+      }
       if (!linkedStudentNumbers.includes(studentNumber)) {
+        this.logger.warn(
+          `Parent access denied: parent has no linked students or requested studentNumber ${studentNumber} is not in linked list`,
+        );
         throw new ForbiddenException(
           'You can only access financial records and reports for your linked children.',
         );
@@ -59,7 +81,7 @@ export class ParentStudentAccessGuard implements CanActivate {
     }
 
     // 2) Teacher who is also a parent: match by email to ParentsEntity
-    if (profile.role === ROLES.teacher) {
+    if (roleLower === ROLES.teacher) {
       const email: string | undefined = (profile as any).email;
       if (email) {
         const parent = await this.parentsRepository.findOne({
@@ -71,6 +93,9 @@ export class ParentStudentAccessGuard implements CanActivate {
             (s: { studentNumber: string }) => s.studentNumber,
           );
           if (!linkedStudentNumbers.includes(studentNumber)) {
+            this.logger.warn(
+              `Teacher-as-parent access denied: requested studentNumber ${studentNumber} is not in linked list`,
+            );
             throw new ForbiddenException(
               'You can only access financial records and reports for your linked children.',
             );
@@ -79,8 +104,15 @@ export class ParentStudentAccessGuard implements CanActivate {
       }
     }
 
-    if (profile.role === ROLES.student && profile.studentNumber !== studentNumber) {
-      throw new ForbiddenException('You can only access your own records.');
+    // 3) Student: may only access their own student number
+    if (roleLower === 'student') {
+      const profileStudentNumber = (profile as { studentNumber?: string }).studentNumber;
+      if (profileStudentNumber !== studentNumber) {
+        this.logger.warn(
+          `Student access denied: requested studentNumber ${studentNumber} does not match profile ${profileStudentNumber}`,
+        );
+        throw new ForbiddenException('You can only access your own records.');
+      }
     }
 
     return true;

@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 import { StudentsService } from './students.service';
 import {
   Body,
@@ -18,9 +17,10 @@ import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { TeachersEntity } from '../entities/teachers.entity';
 import { StudentsEntity } from '../entities/students.entity';
 import { ParentsEntity } from '../entities/parents.entity';
+import { ParentStudentAccessGuard } from 'src/auth/guards/parent-student-access.guard';
 
 @Controller('students')
-@UseGuards(AuthGuard())
+@UseGuards(AuthGuard(), ParentStudentAccessGuard)
 export class StudentsController {
   constructor(private studentsService: StudentsService) {}
 

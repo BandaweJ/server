@@ -19,11 +19,12 @@ import { CreateMarkDto } from './dtos/create-mark.dto';
 
 import { AuthGuard } from '@nestjs/passport';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { ParentStudentAccessGuard } from '../auth/guards/parent-student-access.guard';
 import { HasPermissions } from '../auth/decorators/has-permissions.decorator';
 import { PERMISSIONS } from '../auth/models/permissions.constants';
 
 @Controller('marks')
-@UseGuards(AuthGuard(), PermissionsGuard)
+@UseGuards(AuthGuard(), PermissionsGuard, ParentStudentAccessGuard)
 export class MarksController {
   constructor(private marksService: MarksService) {}
 

@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsEnum,
@@ -13,7 +12,6 @@ import { PaymentMethods } from 'src/finance/models/payment-methods.model';
 import { StudentsEntity } from 'src/profiles/entities/students.entity';
 import { SanitizeAmount } from '../decorators/sanitize-amount.decorator';
 
-/* eslint-disable prettier/prettier */
 export class CreateReceiptDto {
   @ApiProperty()
   @IsNumber()

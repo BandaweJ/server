@@ -39,16 +39,25 @@ export class MessagingController {
 
   @Post('conversations')
   @HttpCode(HttpStatus.CREATED)
-  async createConversation(@Body() createDto: CreateConversationDto, @Req() req: any) {
+  async createConversation(
+    @Body() createDto: CreateConversationDto,
+    @Req() req: any,
+  ) {
     const userId = (req.user as any)?.accountId;
     return await this.messagingService.createConversation(createDto, userId);
   }
 
   @Post('conversations/class/:classId')
   @HttpCode(HttpStatus.CREATED)
-  async createClassConversation(@Param('classId') classId: string, @Req() req: any) {
+  async createClassConversation(
+    @Param('classId') classId: string,
+    @Req() req: any,
+  ) {
     const userId = (req.user as any)?.accountId;
-    return await this.messagingService.createClassConversation(parseInt(classId, 10), userId);
+    return await this.messagingService.createClassConversation(
+      parseInt(classId, 10),
+      userId,
+    );
   }
 
   @Post('conversations/school-wide')
@@ -68,7 +77,12 @@ export class MessagingController {
     const userId = (req.user as any)?.accountId;
     const limitNum = limit ? parseInt(limit, 10) : 50;
     const offsetNum = offset ? parseInt(offset, 10) : 0;
-    return await this.messagingService.getMessages(id, userId, limitNum, offsetNum);
+    return await this.messagingService.getMessages(
+      id,
+      userId,
+      limitNum,
+      offsetNum,
+    );
   }
 
   @Post('conversations/:id/messages')
@@ -113,4 +127,3 @@ export class MessagingController {
     return { count: await this.messagingService.getUnreadCount(id, userId) };
   }
 }
-

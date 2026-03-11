@@ -14,7 +14,7 @@ import { StudentsEntity } from 'src/profiles/entities/students.entity';
 import { BalancesEntity } from 'src/finance/entities/balances.entity';
 import { EnrolEntity } from 'src/enrolment/entities/enrol.entity';
 
-/* eslint-disable prettier/prettier */
+ 
 /** @deprecated Use CreateInvoiceDto and InvoiceEntity instead */
 export class Invoice {
   constructor(

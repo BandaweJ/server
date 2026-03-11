@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 import { SubjectInfoModel } from './subject-info.model';
 export class ReportModel {
   studentNumber: string;
@@ -19,6 +18,6 @@ export class ReportModel {
   classSize: number;
   subjectsPassed: number;
   symbols: number[];
-  // eslint-disable-next-line prettier/prettier
+
   examType?: string;
 }

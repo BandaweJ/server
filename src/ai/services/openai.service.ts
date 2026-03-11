@@ -22,9 +22,11 @@ export class OpenAIService {
 
   constructor(private configService: ConfigService) {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
-    
+
     if (!apiKey) {
-      this.logger.warn('OpenAI API key not found. Comment generation will be disabled.');
+      this.logger.warn(
+        'OpenAI API key not found. Comment generation will be disabled.',
+      );
       return;
     }
 
@@ -33,19 +35,24 @@ export class OpenAIService {
     });
   }
 
-  async generateComments(request: CommentGenerationRequest): Promise<CommentGenerationResponse> {
+  async generateComments(
+    request: CommentGenerationRequest,
+  ): Promise<CommentGenerationResponse> {
     if (!this.openai) {
       return {
         success: false,
         comments: [],
-        error: 'OpenAI service not initialized. Please check API key configuration.',
+        error:
+          'OpenAI service not initialized. Please check API key configuration.',
       };
     }
 
     try {
-      const percentage = request.maxMark ? (request.mark / request.maxMark) * 100 : request.mark;
+      const percentage = request.maxMark
+        ? (request.mark / request.maxMark) * 100
+        : request.mark;
       const performanceLevel = this.getPerformanceLevel(percentage);
-      
+
       const prompt = this.buildPrompt(request, percentage, performanceLevel);
 
       const completion = await this.openai.chat.completions.create({
@@ -53,7 +60,8 @@ export class OpenAIService {
         messages: [
           {
             role: 'system',
-            content: 'You are an experienced teacher writing brief, subject-specific, and encouraging comments for student report cards. Comments should be tailored to the subject, honest about performance, and provide specific guidance for improvement. Keep comments positive and motivating while being realistic about the student\'s current level.',
+            content:
+              "You are an experienced teacher writing brief, subject-specific, and encouraging comments for student report cards. Comments should be tailored to the subject, honest about performance, and provide specific guidance for improvement. Keep comments positive and motivating while being realistic about the student's current level.",
           },
           {
             role: 'user',
@@ -65,7 +73,7 @@ export class OpenAIService {
       });
 
       const response = completion.choices[0]?.message?.content;
-      
+
       if (!response) {
         throw new Error('No response received from OpenAI');
       }
@@ -75,29 +83,39 @@ export class OpenAIService {
 
       // If we have 3 or fewer comments after filtering, request more
       if (comments.length <= 3) {
-        this.logger.log(`Only ${comments.length} valid comments after filtering. Requesting more comments...`);
-        
-        try {
-          const additionalPrompt = this.buildAdditionalCommentsPrompt(request, percentage, performanceLevel, comments.length);
-          
-          const additionalCompletion = await this.openai.chat.completions.create({
-            model: 'gpt-3.5-turbo',
-            messages: [
-              {
-                role: 'system',
-                content: 'You are an experienced teacher writing brief, subject-specific, and encouraging comments for student report cards. Comments should be tailored to the subject, honest about performance, and provide specific guidance for improvement. Keep comments positive and motivating while being realistic about the student\'s current level.',
-              },
-              {
-                role: 'user',
-                content: additionalPrompt,
-              },
-            ],
-            max_tokens: 200,
-            temperature: 0.7,
-          });
+        this.logger.log(
+          `Only ${comments.length} valid comments after filtering. Requesting more comments...`,
+        );
 
-          const additionalResponse = additionalCompletion.choices[0]?.message?.content;
-          
+        try {
+          const additionalPrompt = this.buildAdditionalCommentsPrompt(
+            request,
+            percentage,
+            performanceLevel,
+            comments.length,
+          );
+
+          const additionalCompletion =
+            await this.openai.chat.completions.create({
+              model: 'gpt-3.5-turbo',
+              messages: [
+                {
+                  role: 'system',
+                  content:
+                    "You are an experienced teacher writing brief, subject-specific, and encouraging comments for student report cards. Comments should be tailored to the subject, honest about performance, and provide specific guidance for improvement. Keep comments positive and motivating while being realistic about the student's current level.",
+                },
+                {
+                  role: 'user',
+                  content: additionalPrompt,
+                },
+              ],
+              max_tokens: 200,
+              temperature: 0.7,
+            });
+
+          const additionalResponse =
+            additionalCompletion.choices[0]?.message?.content;
+
           if (additionalResponse) {
             const additionalComments = this.parseComments(additionalResponse);
             const beforeCount = comments.length;
@@ -106,42 +124,63 @@ export class OpenAIService {
             for (const comment of additionalComments) {
               if (combinedComments.length >= 5) break;
               // Avoid duplicates
-              if (!combinedComments.some(c => c.toLowerCase() === comment.toLowerCase())) {
+              if (
+                !combinedComments.some(
+                  (c) => c.toLowerCase() === comment.toLowerCase(),
+                )
+              ) {
                 combinedComments.push(comment);
               }
             }
             comments = combinedComments;
-            this.logger.log(`Added ${comments.length - beforeCount} more comments. Total: ${comments.length}`);
+            this.logger.log(
+              `Added ${comments.length - beforeCount} more comments. Total: ${
+                comments.length
+              }`,
+            );
           }
         } catch (error) {
-          this.logger.warn('Failed to generate additional comments, using existing ones:', error);
+          this.logger.warn(
+            'Failed to generate additional comments, using existing ones:',
+            error,
+          );
           // Continue with the comments we have
         }
       }
 
-      this.logger.log(`Generated ${comments.length} comments for mark ${request.mark}/${request.maxMark || 100}`);
+      this.logger.log(
+        `Generated ${comments.length} comments for mark ${request.mark}/${
+          request.maxMark || 100
+        }`,
+      );
 
       return {
         success: true,
         comments: comments,
       };
-
     } catch (error) {
       this.logger.error('Failed to generate comments:', error);
-      
+
       return {
         success: false,
         comments: [],
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error:
+          error instanceof Error ? error.message : 'Unknown error occurred',
       };
     }
   }
 
-  private buildPrompt(request: CommentGenerationRequest, percentage: number, performanceLevel: string): string {
+  private buildPrompt(
+    request: CommentGenerationRequest,
+    percentage: number,
+    performanceLevel: string,
+  ): string {
     const subjectName = request.subject || 'the subject';
     const subjectContext = request.subject ? ` in ${request.subject}` : '';
-    const level = request.studentLevel ? ` for ${request.studentLevel} students` : '';
-    
+    const level = request.studentLevel
+      ? ` for ${request.studentLevel} students`
+      : '';
+
     // Determine guidance based on percentage
     let guidanceInstructions = '';
     if (percentage < 50) {
@@ -153,7 +192,11 @@ export class OpenAIService {
     }
 
     return `
-Generate exactly 5 brief, subject-specific, and encouraging teacher comments for a student who scored ${request.mark}${request.maxMark ? `/${request.maxMark}` : ''} (${percentage.toFixed(1)}%)${subjectContext}${level}.
+Generate exactly 5 brief, subject-specific, and encouraging teacher comments for a student who scored ${
+      request.mark
+    }${request.maxMark ? `/${request.maxMark}` : ''} (${percentage.toFixed(
+      1,
+    )}%)${subjectContext}${level}.
 
 Performance Level: ${performanceLevel}
 ${guidanceInstructions}
@@ -190,20 +233,23 @@ Examples of good subject-specific comments (5 words max) - note they don't menti
 
   private parseComments(response: string): string[] {
     // Split by numbered list items and clean up
-    const lines = response.split('\n')
-      .map(line => line.trim())
-      .filter(line => line.length > 0)
-      .map(line => {
+    const lines = response
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .map((line) => {
         // Remove numbering (1. 2. etc.) and clean up
         return line.replace(/^\d+\.\s*/, '').trim();
       })
-      .filter(line => {
+      .filter((line) => {
         // Filter out empty lines and validate word count (should be 5 words max as per prompt)
         if (line.length === 0 || line.length > 100) {
           return false;
         }
         // Count words - if more than 5, filter it out (AI should follow instructions)
-        const wordCount = line.split(/\s+/).filter(word => word.length > 0).length;
+        const wordCount = line
+          .split(/\s+/)
+          .filter((word) => word.length > 0).length;
         return wordCount <= 5;
       });
 
@@ -215,13 +261,15 @@ Examples of good subject-specific comments (5 words max) - note they don't menti
     request: CommentGenerationRequest,
     percentage: number,
     performanceLevel: string,
-    existingCount: number
+    existingCount: number,
   ): string {
     const subjectName = request.subject || 'the subject';
     const subjectContext = request.subject ? ` in ${request.subject}` : '';
-    const level = request.studentLevel ? ` for ${request.studentLevel} students` : '';
+    const level = request.studentLevel
+      ? ` for ${request.studentLevel} students`
+      : '';
     const needed = 5 - existingCount;
-    
+
     // Determine guidance based on percentage
     let guidanceInstructions = '';
     if (percentage < 50) {
@@ -233,7 +281,11 @@ Examples of good subject-specific comments (5 words max) - note they don't menti
     }
 
     return `
-Generate exactly ${needed} more brief, subject-specific, and encouraging teacher comments for a student who scored ${request.mark}${request.maxMark ? `/${request.maxMark}` : ''} (${percentage.toFixed(1)}%)${subjectContext}${level}.
+Generate exactly ${needed} more brief, subject-specific, and encouraging teacher comments for a student who scored ${
+      request.mark
+    }${request.maxMark ? `/${request.maxMark}` : ''} (${percentage.toFixed(
+      1,
+    )}%)${subjectContext}${level}.
 
 We already have ${existingCount} comments, so generate ${needed} additional unique comments.
 
@@ -263,17 +315,21 @@ Examples of good subject-specific comments (5 words max) - note they don't menti
   }
 
   // Fallback method for when OpenAI is unavailable
-  getFallbackComments(mark: number, maxMark: number = 100, subject?: string): string[] {
+  getFallbackComments(
+    mark: number,
+    maxMark: number = 100,
+    subject?: string,
+  ): string[] {
     const percentage = (mark / maxMark) * 100;
     const subjectRef = subject ? ` in ${subject}` : '';
-    
+
     if (percentage >= 60) {
       return [
         `Well done, keep it up`,
         `Excellent work, continue improving`,
         `Great effort, well done`,
         `Outstanding work, keep going`,
-        `Well done, maintain standard`
+        `Well done, maintain standard`,
       ];
     } else if (percentage >= 50) {
       return [
@@ -281,7 +337,7 @@ Examples of good subject-specific comments (5 words max) - note they don't menti
         `Keep working hard${subjectRef}, aim higher`,
         `You can improve${subjectRef}, keep trying`,
         `Stay focused${subjectRef}, work harder`,
-        `Good effort${subjectRef}, push yourself`
+        `Good effort${subjectRef}, push yourself`,
       ];
     } else {
       return [
@@ -289,10 +345,8 @@ Examples of good subject-specific comments (5 words max) - note they don't menti
         `Focus on basics${subjectRef}, seek help`,
         `Work harder${subjectRef}, consult teachers`,
         `Study more${subjectRef}, ask for help`,
-        `Practice more${subjectRef}, stay focused`
+        `Practice more${subjectRef}, stay focused`,
       ];
     }
   }
 }
-
-

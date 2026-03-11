@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 import {
   ConflictException,
   Injectable,
@@ -24,7 +23,6 @@ import { CreateBalancesDto } from './dtos/balances.dto';
 // import { profile } from 'console';
 import { CreateBillDto } from './dtos/bills.dto';
 
-/* eslint-disable prettier/prettier */
 @Injectable()
 export class FinanceService {
   constructor(

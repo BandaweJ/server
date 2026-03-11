@@ -51,4 +51,3 @@ export class CalendarEventEntity {
   @UpdateDateColumn()
   updatedAt: Date;
 }
-
