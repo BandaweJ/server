@@ -141,6 +141,18 @@ export class RolesPermissionsService implements OnModuleInit {
     return role;
   }
 
+  /**
+   * Finds a role by its name (e.g. 'teacher', 'admin').
+   * Used when updating an account's role to keep RoleEntity in sync.
+   */
+  async findRoleByName(name: string): Promise<RoleEntity | null> {
+    const role = await this.roleRepository.findOne({
+      where: { name },
+      relations: ['permissions', 'accounts'],
+    });
+    return role ?? null;
+  }
+
   async updateRole(id: string, updateRoleDto: UpdateRoleDto): Promise<RoleEntity> {
     const role = await this.findRoleById(id);
 

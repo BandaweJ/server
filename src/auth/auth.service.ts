@@ -582,18 +582,47 @@ export class AuthService {
     };
   }
 
-  async updateAccount(id: string, updateData: { username?: string }): Promise<{ message: string }> {
-    const account = await this.accountsRepository.findOne({ where: { id } });
-    
+  async updateAccount(
+    id: string,
+    updateData: { username?: string; role?: ROLES },
+  ): Promise<{ message: string }> {
+    const account = await this.accountsRepository.findOne({
+      where: { id },
+      relations: ['roleEntity'],
+    });
+
     if (!account) {
       throw new BadRequestException('User not found');
     }
 
+    // Update username if provided
     if (updateData.username) {
       account.username = updateData.username;
-      await this.accountsRepository.save(account);
     }
-    
+
+    // Update role if provided
+    if (updateData.role) {
+      const newRole = updateData.role;
+      if (!Object.values(ROLES).includes(newRole)) {
+        throw new BadRequestException(`Invalid role: ${newRole}`);
+      }
+
+      account.role = newRole;
+      // Look up RoleEntity by name so permissions stay consistent
+      const roleEntity =
+        (await this.rolesPermissionsService.findRoleByName(newRole)) || null;
+      if (roleEntity) {
+        account.roleEntity = roleEntity;
+        account.roleId = roleEntity.id;
+      } else {
+        // Fallback: keep role string only if RoleEntity not found
+        account.roleEntity = undefined;
+        account.roleId = undefined;
+      }
+    }
+
+    await this.accountsRepository.save(account);
+
     return {
       message: 'Account updated successfully'
     };

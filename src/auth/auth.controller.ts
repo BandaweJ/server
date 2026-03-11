@@ -63,7 +63,10 @@ export class AuthController {
 
   @Patch('/:id')
   @UseGuards(AuthGuard())
-  updateAccount(@Param('id') id: string, @Body() updateData: { username?: string }) {
+  updateAccount(
+    @Param('id') id: string,
+    @Body() updateData: { username?: string; role?: ROLES },
+  ) {
     return this.authService.updateAccount(id, updateData);
   }
 
