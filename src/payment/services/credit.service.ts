@@ -682,6 +682,16 @@ export class CreditService {
   }
 
   /**
+   * Returns current credit balance for a student (read-only, no transaction).
+   */
+  async getStudentCreditBalance(studentNumber: string): Promise<number> {
+    const credit = await this.studentCreditRepository.findOne({
+      where: { studentNumber },
+    });
+    return credit ? Number(credit.amount ?? 0) : 0;
+  }
+
+  /**
    * Gets credit transaction history for a student
    * @param studentNumber - The student number
    * @param query - Optional query parameters for filtering

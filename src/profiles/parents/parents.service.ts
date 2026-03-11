@@ -24,6 +24,42 @@ export class ParentsService {
     private resourceById: ResourceByIdService,
   ) {}
 
+  /**
+   * Returns linked children (studentNumber, name, surname) for the current user.
+   * Used by parent dashboard: parent sees own linked students; teacher with same email as a parent sees that parent's linked students.
+   */
+  async getLinkedChildrenForProfile(
+    profile: TeachersEntity | StudentsEntity | ParentsEntity,
+  ): Promise<{ studentNumber: string; name: string; surname: string }[]> {
+    if (profile.role === ROLES.parent && profile instanceof ParentsEntity) {
+      const parent = await this.parentsRepository.findOne({
+        where: { email: profile.email },
+        relations: ['students'],
+      });
+      if (!parent?.students?.length) return [];
+      return parent.students.map((s) => ({
+        studentNumber: s.studentNumber,
+        name: s.name ?? '',
+        surname: s.surname ?? '',
+      }));
+    }
+    if (profile.role === ROLES.teacher) {
+      const email = (profile as TeachersEntity).email;
+      if (!email) return [];
+      const parent = await this.parentsRepository.findOne({
+        where: { email },
+        relations: ['students'],
+      });
+      if (!parent?.students?.length) return [];
+      return parent.students.map((s) => ({
+        studentNumber: s.studentNumber,
+        name: s.name ?? '',
+        surname: s.surname ?? '',
+      }));
+    }
+    return [];
+  }
+
   async getParent(
     email: string,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
