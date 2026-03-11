@@ -2575,6 +2575,37 @@ export class InvoiceService {
       { studentNumber },
     );
 
+    // Repair step: orphan credit allocations with NULL invoiceId can break reconciliation
+    // and should not exist (invoiceId is NOT NULL). Delete them so reconciliation can proceed.
+    try {
+      const deleted = await transactionalEntityManager.query(
+        `DELETE FROM credit_invoice_allocations WHERE "invoiceId" IS NULL RETURNING id`,
+      );
+      const deletedCount = Array.isArray(deleted) ? deleted.length : 0;
+      if (deletedCount > 0) {
+        logStructured(
+          this.logger,
+          'warn',
+          'reconciliation.repair.deletedOrphanCreditAllocations',
+          'Deleted orphan credit allocations with NULL invoiceId',
+          { studentNumber, deletedCount },
+        );
+      }
+    } catch (repairErr) {
+      // Don't fail reconciliation for cleanup issues; continue and let normal validation surface problems.
+      logStructured(
+        this.logger,
+        'warn',
+        'reconciliation.repair.failed',
+        'Failed to cleanup orphan credit allocations with NULL invoiceId',
+        {
+          studentNumber,
+          error:
+            repairErr instanceof Error ? repairErr.message : String(repairErr),
+        },
+      );
+    }
+
     // Step 1: Load all invoices and receipts
     const invoices = await transactionalEntityManager.find(InvoiceEntity, {
       where: { student: { studentNumber }, isVoided: false },
@@ -2802,14 +2833,41 @@ export class InvoiceService {
             }
 
             const totalCreditApplied = creditAllocationsToSave.reduce(
-            (sum, alloc) => sum + Number(alloc.amountApplied || 0),
-            0,
-          );
+              (sum, alloc) => sum + Number(alloc.amountApplied || 0),
+              0,
+            );
 
-          await transactionalEntityManager.save(
-            CreditInvoiceAllocationEntity,
-            creditAllocationsToSave,
-          );
+            // Raw INSERT: ensure invoiceId is never null (TypeORM can persist null FK with detached relations)
+            const allocationDate = new Date();
+            const cols =
+              '"studentCreditId", "invoiceId", "amountApplied", "relatedReceiptId", "allocationDate"';
+            const placeholders = creditAllocationsToSave
+              .map(
+                (_, i) =>
+                  `($${i * 5 + 1}, $${i * 5 + 2}, $${i * 5 + 3}, $${i * 5 + 4}, $${i * 5 + 5})`,
+              )
+              .join(', ');
+            const params = creditAllocationsToSave.flatMap((a) => {
+              const studentCreditId =
+                a.studentCredit?.id != null ? Number(a.studentCredit.id) : null;
+              const invoiceId = invoiceRef.id != null ? Number(invoiceRef.id) : null;
+              if (studentCreditId == null || invoiceId == null) {
+                throw new Error(
+                  `Cannot insert credit allocation: missing studentCreditId (${studentCreditId}) or invoiceId (${invoiceId}) for invoice ${invoiceWithBalance.invoiceNumber}`,
+                );
+              }
+              return [
+                studentCreditId,
+                invoiceId,
+                Number(a.amountApplied || 0),
+                a.relatedReceiptId ?? null,
+                allocationDate,
+              ];
+            });
+            await transactionalEntityManager.query(
+              `INSERT INTO credit_invoice_allocations (${cols}) VALUES ${placeholders}`,
+              params,
+            );
           logStructured(
             this.logger,
             'log',
@@ -3651,18 +3709,21 @@ export class InvoiceService {
             continue; // Skip this invoice if it has no valid ID
           }
 
-          // Set relation by id so invoiceId is never null (TypeORM can leave FK null if relation object is detached)
-          const creditAllocation = transactionalEntityManager.create(
-            CreditInvoiceAllocationEntity,
-            {
-              studentCredit: { id: studentCreditAfterAllocation.id },
-              invoice: { id: invoiceId },
-              amountApplied: amountToApply,
-              allocationDate: new Date(),
-            },
-          );
+          const studentCreditId =
+            studentCreditAfterAllocation?.id != null
+              ? Number(studentCreditAfterAllocation.id)
+              : null;
+          if (studentCreditId == null) {
+            throw new Error(
+              `Cannot apply credit during reallocation: missing studentCreditId for student ${studentNumber}`,
+            );
+          }
 
-          await transactionalEntityManager.save(creditAllocation);
+          // Raw INSERT: ensure invoiceId is never null (TypeORM can persist null FK with detached relations)
+          await transactionalEntityManager.query(
+            `INSERT INTO credit_invoice_allocations ("studentCreditId","invoiceId","amountApplied","relatedReceiptId","allocationDate") VALUES ($1,$2,$3,$4,$5)`,
+            [studentCreditId, Number(invoiceId), amountToApply, null, new Date()],
+          );
 
           // Update invoice
           invoice.amountPaidOnInvoice =
