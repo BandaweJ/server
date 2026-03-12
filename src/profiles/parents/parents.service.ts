@@ -74,7 +74,8 @@ export class ParentsService {
       case ROLES.auditor:
       case ROLES.hod:
       case ROLES.reception:
-      case ROLES.teacher: {
+      case ROLES.teacher:
+      case ROLES.dev: {
         return await this.resourceById.getParentByEmail(email, true);
       }
       case ROLES.student: {
