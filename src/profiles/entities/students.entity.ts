@@ -1,6 +1,7 @@
 import {
   Column,
   Entity,
+  JoinColumn,
   ManyToOne,
   PrimaryColumn,
   BaseEntity,
@@ -61,8 +62,12 @@ export class StudentsEntity extends BaseEntity {
   // @Column({ default: 'Boarder' })
   // residence: 'Day' | 'Boarder';
 
-  @ManyToOne(() => ParentsEntity, (parent) => parent.students)
-  parent: ParentsEntity;
+  @ManyToOne(() => ParentsEntity, (parent) => parent.students, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'parentEmail', referencedColumnName: 'email' })
+  parent: ParentsEntity | null;
 
   @OneToMany(() => EnrolEntity, (enrol) => enrol.student, {
     cascade: true,

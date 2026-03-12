@@ -3,10 +3,11 @@ import {
   NotImplementedException,
   UnauthorizedException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ParentsEntity } from '../entities/parents.entity';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { CreateParentsDto } from '../dtos/createParents.dto';
 import { UpdateParentDto } from '../dtos/updateParent.dto';
 import { ResourceByIdService } from '../../resource-by-id/resource-by-id.service';
@@ -16,7 +17,10 @@ import { ROLES } from '../../auth/models/roles.enum';
 
 @Injectable()
 export class ParentsService {
+  private readonly logger = new Logger(ParentsService.name);
+
   constructor(
+    private readonly dataSource: DataSource,
     @InjectRepository(ParentsEntity)
     private parentsRepository: Repository<ParentsEntity>,
     @InjectRepository(StudentsEntity)
@@ -252,53 +256,100 @@ export class ParentsService {
         'Only admin, director, reception, or dev can link parents to students',
       );
     }
-    const parent = await this.parentsRepository.findOne({
-      where: { email: parentEmail },
-      relations: ['students'],
-    });
-    if (!parent) {
-      throw new BadRequestException(
-        `Parent with email ${parentEmail} not found`,
-      );
-    }
-    const currentStudents = parent.students || [];
-    const newSet = new Set(studentNumbers);
+    return this.dataSource.transaction(async (em) => {
+      const parentRepo = em.getRepository(ParentsEntity);
+      const studentRepo = em.getRepository(StudentsEntity);
 
-    for (const student of currentStudents) {
-      if (!newSet.has(student.studentNumber)) {
-        student.parent = null;
-        await this.studentsRepository.save(student);
-      }
-    }
-    for (const studentNumber of newSet) {
-      const student = await this.studentsRepository.findOne({
-        where: { studentNumber },
-        relations: ['parent'],
+      const parent = await parentRepo.findOne({
+        where: { email: parentEmail },
+        relations: ['students'],
       });
-      if (!student) {
-        throw new BadRequestException(`Student ${studentNumber} not found`);
+      if (!parent) {
+        throw new BadRequestException(
+          `Parent with email ${parentEmail} not found`,
+        );
       }
-      student.parent = parent;
-      await this.studentsRepository.save(student);
-    }
-    const updatedParent = await this.parentsRepository.findOne({
-      where: { email: parentEmail },
-      relations: ['students'],
+
+      // Normalize + de-dupe input
+      const requested = (studentNumbers || [])
+        .map((sn) => (sn || '').trim())
+        .filter(Boolean);
+      const newSet = new Set(requested);
+      const currentStudents = parent.students || [];
+
+      // Validate all requested students exist before applying any changes (avoid partial updates)
+      for (const sn of newSet) {
+        const exists = await studentRepo.findOne({
+          where: { studentNumber: sn },
+          select: ['studentNumber'],
+        });
+        if (!exists) {
+          throw new BadRequestException(`Student ${sn} not found`);
+        }
+      }
+
+      // Use schema from env so we write to the same table the app reads from (avoids search_path issues)
+      const schema =
+        process.env.SINGLE_TENANT === 'true'
+          ? (process.env.SINGLE_TENANT_SCHEMA || 'tenant_default').trim()
+          : 'public';
+      const table = `"${schema}".students`;
+
+      this.logger.log(
+        `setLinkedStudents parent=${parentEmail} schema=${schema} requested=[${[
+          ...newSet,
+        ].join(', ')}] current=[${currentStudents
+          .map((s) => s.studentNumber)
+          .join(', ')}]`,
+      );
+
+      // Unlink: set parentEmail to NULL for removed students
+      for (const student of currentStudents) {
+        if (!newSet.has(student.studentNumber)) {
+          const res = await em.query(
+            `UPDATE ${table} SET "parentEmail" = $1 WHERE "studentNumber" = $2`,
+            [null, student.studentNumber],
+          );
+          this.logger.debug(
+            `Unlinked ${student.studentNumber} from ${parentEmail} (result=${JSON.stringify(
+              res,
+            )})`,
+          );
+        }
+      }
+
+      // Link: set parentEmail for requested students
+      for (const sn of newSet) {
+        const res = await em.query(
+          `UPDATE ${table} SET "parentEmail" = $1 WHERE "studentNumber" = $2`,
+          [parentEmail, sn],
+        );
+        this.logger.debug(
+          `Linked ${sn} -> ${parentEmail} (result=${JSON.stringify(res)})`,
+        );
+      }
+
+      const updatedParent = await parentRepo.findOne({
+        where: { email: parentEmail },
+        relations: ['students'],
+      });
+      if (!updatedParent) {
+        throw new BadRequestException(
+          `Parent ${parentEmail} not found after update`,
+        );
+      }
+      const students = Array.isArray(updatedParent.students)
+        ? updatedParent.students.map((s) => ({
+            studentNumber: s.studentNumber,
+            name: s.name ?? undefined,
+            surname: s.surname ?? undefined,
+          }))
+        : [];
+      // Return a plain object so JSON response has no circular reference (parent.students[].parent)
+      return {
+        ...updatedParent,
+        students,
+      } as ParentsEntity;
     });
-    if (!updatedParent) {
-      throw new BadRequestException(`Parent ${parentEmail} not found after update`);
-    }
-    const students = Array.isArray(updatedParent.students)
-      ? updatedParent.students.map((s) => ({
-          studentNumber: s.studentNumber,
-          name: s.name ?? undefined,
-          surname: s.surname ?? undefined,
-        }))
-      : [];
-    // Return a plain object so JSON response has no circular reference (parent.students[].parent)
-    return {
-      ...updatedParent,
-      students,
-    } as ParentsEntity;
   }
 }

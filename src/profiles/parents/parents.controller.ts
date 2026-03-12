@@ -18,8 +18,11 @@ import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { TeachersEntity } from '../entities/teachers.entity';
 import { StudentsEntity } from '../entities/students.entity';
 import { ParentsEntity } from '../entities/parents.entity';
+import { IsArray, IsString } from 'class-validator';
 
 export class LinkStudentsDto {
+  @IsArray()
+  @IsString({ each: true })
   studentNumbers: string[];
 }
 
@@ -53,7 +56,7 @@ export class ParentsController {
   ) {
     return this.parentsService.setLinkedStudents(
       email,
-      body.studentNumbers ?? [],
+      body?.studentNumbers ?? [],
       profile,
     );
   }
