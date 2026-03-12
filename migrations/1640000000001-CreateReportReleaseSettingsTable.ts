@@ -108,12 +108,12 @@ export class CreateReportReleaseSettingsTable1640000000001
       }),
     );
 
-    // Add foreign key constraint for releasedByUserId
+    // Add foreign key constraint for releasedByUserId (quote identifiers to preserve camelCase)
     await queryRunner.query(`
-      ALTER TABLE report_release_settings 
-      ADD CONSTRAINT FK_REPORT_RELEASE_USER 
-      FOREIGN KEY (releasedByUserId) 
-      REFERENCES accounts(id) 
+      ALTER TABLE "report_release_settings"
+      ADD CONSTRAINT "FK_REPORT_RELEASE_USER"
+      FOREIGN KEY ("releasedByUserId")
+      REFERENCES "accounts"("id")
       ON DELETE SET NULL
     `);
   }
@@ -122,3 +122,4 @@ export class CreateReportReleaseSettingsTable1640000000001
     await queryRunner.dropTable('report_release_settings');
   }
 }
+
