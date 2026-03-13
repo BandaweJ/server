@@ -3,7 +3,6 @@ import {
   IsEmail,
   IsNotEmpty,
   IsOptional,
-  IsPhoneNumber,
   IsString,
   MaxLength,
   MinLength,
@@ -38,7 +37,6 @@ export class CreateParentsDto {
 
   @ApiProperty()
   @IsString()
-  @IsPhoneNumber('ZW')
   cell: string;
 
   @ApiProperty()
