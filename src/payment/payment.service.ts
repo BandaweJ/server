@@ -372,7 +372,10 @@ export class PaymentService {
   }
 
   async getStudentInvoices(studentNumber: string): Promise<InvoiceEntity[]> {
-    return this.invoiceService.getStudentInvoices(studentNumber);
+    const invoices = await this.invoiceService.getStudentInvoices(studentNumber);
+    // Normalize balances/statuses so UI and finance summary stay in sync
+    await this.normalizeStudentInvoiceBalances(invoices);
+    return invoices;
   }
 
   /**
