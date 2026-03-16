@@ -27,6 +27,7 @@ import { Logger, OnModuleInit, MiddlewareConsumer, NestModule } from '@nestjs/co
 import { LoggingMiddleware } from './common/middleware/logging.middleware';
 import { TenantModule } from './tenant/tenant.module';
 import { TenantMiddleware } from './tenant/tenant.middleware';
+import { RequisitionsModule } from './requisitions/requisitions.module';
 
 @Module({
   imports: [
@@ -128,6 +129,7 @@ import { TenantMiddleware } from './tenant/tenant.middleware';
     ContinuousAssessmentModule,
     AIModule,
     TenantModule,
+    RequisitionsModule,
   ],
   controllers: [AppController],
   providers: [

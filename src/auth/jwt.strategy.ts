@@ -93,6 +93,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         case ROLES.teacher:
         case ROLES.admin:
         case ROLES.hod:
+        case ROLES.seniorTeacher:
+        case ROLES.deputy:
+        case ROLES.head:
         case ROLES.reception:
         case ROLES.auditor:
         case ROLES.director:

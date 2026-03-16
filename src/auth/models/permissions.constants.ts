@@ -71,4 +71,15 @@ export const PERMISSIONS = {
     MANAGE_ROLES: 'system.manage.roles',
     MANAGE_PERMISSIONS: 'system.manage.permissions',
   },
+
+  // Requisitions / Procurement Permissions
+  REQUISITIONS: {
+    CREATE: 'requisitions.create',
+    VIEW_OWN: 'requisitions.view.own',
+    VIEW_DEPARTMENT: 'requisitions.view.department',
+    VIEW_ALL: 'requisitions.view.all',
+    SIGN_DEPUTY: 'requisitions.sign.deputy',
+    SIGN_HEAD: 'requisitions.sign.head',
+    AUTHORISE: 'requisitions.authorise',
+  },
 } as const;

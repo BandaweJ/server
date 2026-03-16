@@ -10,7 +10,9 @@ import {
   Timestamp,
   OneToMany,
   PrimaryGeneratedColumn,
+  ManyToOne,
 } from 'typeorm';
+import { DepartmentEntity } from './department.entity';
 
 @Entity('teachers')
 export class TeachersEntity extends BaseEntity {
@@ -55,6 +57,15 @@ export class TeachersEntity extends BaseEntity {
 
   @Column()
   role: string;
+
+  @Column({ nullable: true })
+  departmentId?: string;
+
+  @ManyToOne(() => DepartmentEntity, (department) => department.teachers, {
+    nullable: true,
+  })
+  @JoinColumn({ name: 'departmentId' })
+  department?: DepartmentEntity;
 
   @OneToOne(() => AccountsEntity, (account) => account.teacher)
   account: AccountsEntity;

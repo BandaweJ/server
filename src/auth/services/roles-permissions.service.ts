@@ -99,6 +99,12 @@ export class RolesPermissionsService implements OnModuleInit {
       [ROLES.admin]: 'System administrator with full access to all features',
       [ROLES.director]: 'School director with comprehensive oversight',
       [ROLES.hod]: 'Head of Department with departmental management access',
+      [ROLES.seniorTeacher]:
+        'Senior teacher with elevated departmental responsibilities',
+      [ROLES.deputy]:
+        'Deputy head with cross-department oversight and approvals',
+      [ROLES.head]:
+        'Head of school with full academic and administrative oversight',
       [ROLES.teacher]: 'Teacher with access to class and student management',
       [ROLES.reception]: 'Reception staff with registration and enrollment access',
       [ROLES.auditor]: 'Auditor with read-only access to financial records',
@@ -335,6 +341,16 @@ export class RolesPermissionsService implements OnModuleInit {
       });
     });
 
+    // Requisition permissions
+    Object.entries(PERMISSIONS.REQUISITIONS).forEach(([key, name]) => {
+      permissionsToCreate.push({
+        name,
+        description: formatDescription(key, 'Requisitions'),
+        resource: 'requisitions',
+        action: key.toLowerCase(),
+      });
+    });
+
     // Create permissions that don't exist
     for (const permissionData of permissionsToCreate) {
       const existingPermission = await this.permissionRepository.findOne({
@@ -436,6 +452,7 @@ export class RolesPermissionsService implements OnModuleInit {
       ...Object.values(PERMISSIONS.ENROLMENT),
       ...Object.values(PERMISSIONS.USERS),
       ...Object.values(PERMISSIONS.SYSTEM),
+      ...Object.values(PERMISSIONS.REQUISITIONS),
     ];
   }
 
@@ -518,6 +535,7 @@ export class RolesPermissionsService implements OnModuleInit {
       ...Object.values(PERMISSIONS.ENROLMENT),
       ...Object.values(PERMISSIONS.USERS),
       ...Object.values(PERMISSIONS.SYSTEM),
+      ...Object.values(PERMISSIONS.REQUISITIONS),
     ];
 
     // Define default permissions for each role
@@ -540,6 +558,37 @@ export class RolesPermissionsService implements OnModuleInit {
         ...Object.values(PERMISSIONS.ATTENDANCE),
         PERMISSIONS.ENROLMENT.VIEW,
         PERMISSIONS.FINANCE.VIEW,
+        PERMISSIONS.REQUISITIONS.CREATE,
+        PERMISSIONS.REQUISITIONS.VIEW_DEPARTMENT,
+      ],
+      [ROLES.seniorTeacher]: [
+        ...Object.values(PERMISSIONS.MARKS),
+        ...Object.values(PERMISSIONS.REPORTS),
+        ...Object.values(PERMISSIONS.ATTENDANCE),
+        PERMISSIONS.ENROLMENT.VIEW,
+        PERMISSIONS.FINANCE.VIEW,
+        PERMISSIONS.REQUISITIONS.CREATE,
+        PERMISSIONS.REQUISITIONS.VIEW_DEPARTMENT,
+      ],
+      [ROLES.deputy]: [
+        ...Object.values(PERMISSIONS.MARKS),
+        ...Object.values(PERMISSIONS.REPORTS),
+        ...Object.values(PERMISSIONS.ATTENDANCE),
+        ...Object.values(PERMISSIONS.FINANCE),
+        PERMISSIONS.ENROLMENT.VIEW,
+        PERMISSIONS.REQUISITIONS.CREATE,
+        PERMISSIONS.REQUISITIONS.VIEW_ALL,
+        PERMISSIONS.REQUISITIONS.SIGN_DEPUTY,
+      ],
+      [ROLES.head]: [
+        ...Object.values(PERMISSIONS.MARKS),
+        ...Object.values(PERMISSIONS.REPORTS),
+        ...Object.values(PERMISSIONS.ATTENDANCE),
+        ...Object.values(PERMISSIONS.FINANCE),
+        PERMISSIONS.ENROLMENT.VIEW,
+        PERMISSIONS.REQUISITIONS.CREATE,
+        PERMISSIONS.REQUISITIONS.VIEW_ALL,
+        PERMISSIONS.REQUISITIONS.SIGN_HEAD,
       ],
       [ROLES.teacher]: [
         // Teachers get marks entry, view, and basic reporting
