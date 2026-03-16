@@ -6,6 +6,7 @@ import { RequisitionEntity } from './entities/requisition.entity';
 import { RequisitionItemEntity } from './entities/requisition-item.entity';
 import { DepartmentEntity } from 'src/profiles/entities/department.entity';
 import { TeachersEntity } from 'src/profiles/entities/teachers.entity';
+import { AuthModule } from 'src/auth/auth.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { TeachersEntity } from 'src/profiles/entities/teachers.entity';
       DepartmentEntity,
       TeachersEntity,
     ]),
+    AuthModule,
   ],
   controllers: [RequisitionsController],
   providers: [RequisitionsService],
