@@ -22,6 +22,7 @@ import { CreateTermDto } from './dtos/create-term.dto';
 import { UpdateEnrolDto } from './dtos/update-enrol.dto';
 import { Logger } from '@nestjs/common';
 import { ParentStudentAccessGuard } from 'src/auth/guards/parent-student-access.guard';
+import { StudentEnrolmentStatusDto } from './dtos/student-enrolment-status.dto';
 
 @Controller('enrolment')
 @UseGuards(AuthGuard(), ParentStudentAccessGuard)
@@ -166,6 +167,17 @@ export class EnrolmentController {
   @Get('enrol/:studentNumber')
   getCurrentEnrolment(@Param('studentNumber') studentNumber: string) {
     return this.enrolmentService.getCurrentEnrollment(studentNumber);
+  }
+
+  @Get('enrol/student/:studentNumber/status')
+  getStudentEnrolmentStatus(
+    @Param('studentNumber') studentNumber: string,
+    @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
+  ): Promise<StudentEnrolmentStatusDto> {
+    return this.enrolmentService.getStudentEnrolmentStatus(
+      studentNumber,
+      profile,
+    );
   }
 
   @Get('enrol')

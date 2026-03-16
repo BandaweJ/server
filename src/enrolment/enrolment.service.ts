@@ -35,6 +35,10 @@ import { StudentsService } from 'src/profiles/students/students.service';
 import { UpdateEnrolDto } from './dtos/update-enrol.dto';
 import { BillsEntity } from 'src/finance/entities/bills.entity';
 // import { FinanceService } from 'src/finance/finance.service';
+import {
+  StudentEnrolmentDto,
+  StudentEnrolmentStatusDto,
+} from './dtos/student-enrolment-status.dto';
 
 @Injectable()
 export class EnrolmentService {
@@ -695,9 +699,44 @@ export class EnrolmentService {
       });
       return enrolCount === 1;
     } catch (error) {
-      // console.error('Error checking newcomer status:', error);
-      // Handle the error appropriately, maybe return false or throw an exception
       return false;
     }
+  }
+
+  async getStudentEnrolmentStatus(
+    studentNumber: string,
+    profile: TeachersEntity | StudentsEntity | ParentsEntity,
+  ): Promise<StudentEnrolmentStatusDto> {
+    const enrols = await this.getEnrolmentsByStudent(studentNumber, profile);
+
+    if (!enrols || enrols.length === 0) {
+      return {
+        currentEnrolment: null,
+        lastEnrolment: null,
+        isCurrentlyEnrolled: false,
+        enrolments: [],
+      };
+    }
+
+    const enrolmentDtos = enrols.map((e) => StudentEnrolmentDto.fromEntity(e));
+
+    const sorted = [...enrolmentDtos].sort((a, b) => {
+      if (b.year !== a.year) return b.year - a.year;
+      if (b.num !== a.num) return b.num - a.num;
+      return b.id - a.id;
+    });
+    const lastEnrolment = sorted[0];
+
+    const currentEnrolEntity = await this.getCurrentEnrollment(studentNumber);
+    const currentEnrolment = currentEnrolEntity
+      ? StudentEnrolmentDto.fromEntity(currentEnrolEntity)
+      : null;
+
+    return {
+      currentEnrolment,
+      lastEnrolment,
+      isCurrentlyEnrolled: !!currentEnrolment,
+      enrolments: enrolmentDtos,
+    };
   }
 }
