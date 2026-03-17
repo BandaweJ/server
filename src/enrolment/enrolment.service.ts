@@ -35,6 +35,7 @@ import { StudentsService } from 'src/profiles/students/students.service';
 import { UpdateEnrolDto } from './dtos/update-enrol.dto';
 import { BillsEntity } from 'src/finance/entities/bills.entity';
 // import { FinanceService } from 'src/finance/finance.service';
+import { InvoiceStatus } from 'src/finance/models/invoice-status.enum';
 import {
   StudentEnrolmentDto,
   StudentEnrolmentStatusDto,
@@ -532,9 +533,16 @@ export class EnrolmentService {
       relations: ['invoice'],
     });
 
-    const nonVoidedBills = bills.filter(
-      (b) => !b.invoice || b.invoice.isVoided === false,
-    );
+    const isBillVoided = (b: BillsEntity): boolean => {
+      // Prefer explicit flag, but also treat status=Voided as voided (older data)
+      if (b.invoice?.isVoided === true) return true;
+      if ((b.invoice?.status as InvoiceStatus | undefined) === InvoiceStatus.Voided)
+        return true;
+      // Bills with no invoice should not permanently block unenrolment (legacy/orphan rows)
+      return b.invoice == null;
+    };
+
+    const nonVoidedBills = bills.filter((b) => !isBillVoided(b));
 
     if (nonVoidedBills.length > 0) {
       throw new BadRequestException(
@@ -544,7 +552,7 @@ export class EnrolmentService {
 
     // Detach bills that were linked to voided invoices so FK no longer blocks deletion
     if (bills.length > 0) {
-      const voidedBills = bills.filter((b) => b.invoice?.isVoided === true);
+      const voidedBills = bills.filter((b) => isBillVoided(b));
       if (voidedBills.length > 0) {
         voidedBills.forEach((b) => {
           b.enrol = null;
