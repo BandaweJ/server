@@ -106,10 +106,8 @@ export class PaymentService {
     }
 
     // Get account by teacher ID (account.id = teacher.id based on OneToOne relationship)
-    // Load roleEntity so we use the assigned role (roleEntity.name); account.role string may be stale when role was assigned via UI
     const account = await this.accountsRepository.findOne({
       where: { id: teacher.id },
-      relations: ['roleEntity'],
     });
 
     if (!account) {
@@ -118,35 +116,9 @@ export class PaymentService {
       );
     }
 
-    const roleNameRaw = account.roleEntity?.name ?? account.role;
-
-    // roleEntity.name is free-text (e.g. "Developer") while ROLES are strict enum values (e.g. "dev").
-    // Normalize common display names to enum values so authorization checks are reliable.
-    const normalized = String(roleNameRaw || '')
-      .trim()
-      .toLowerCase();
-
-    const roleMap: Record<string, ROLES> = {
-      admin: ROLES.admin,
-      administrator: ROLES.admin,
-      reception: ROLES.reception,
-      teacher: ROLES.teacher,
-      student: ROLES.student,
-      parent: ROLES.parent,
-      hod: ROLES.hod,
-      'head of department': ROLES.hod,
-      seniorteacher: ROLES.seniorTeacher,
-      'senior teacher': ROLES.seniorTeacher,
-      deputy: ROLES.deputy,
-      head: ROLES.head,
-      auditor: ROLES.auditor,
-      director: ROLES.director,
-      dev: ROLES.dev,
-      developer: ROLES.dev,
-      developers: ROLES.dev,
-    };
-
-    return roleMap[normalized] ?? (account.role as ROLES);
+    // Use the enum-backed role field for authorization checks.
+    // This avoids relying on roleEntity.name, which is display text and can drift.
+    return account.role;
   }
 
   /**
