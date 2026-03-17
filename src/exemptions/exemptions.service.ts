@@ -4,13 +4,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { StudentsService } from 'src/profiles/students/students.service';
 import { PaymentService } from 'src/payment/payment.service';
 import { ExemptionEntity } from './entities/exemptions.entity'; // Corrected import path for ExemptionType
 import { CreateExemptionDto } from './dtos/createExemption.dto'; // Corrected import path for DTO
 import { UpdateExemptionDto } from './dtos/updateExemption.dto';
 import { ExemptionType } from './enums/exemptions-type.enum';
+import { InvoiceEntity } from 'src/payment/entities/invoice.entity';
+import { BillsEntity } from 'src/finance/entities/bills.entity';
+import { FeesNames } from 'src/finance/models/fees-names.enum';
+import { InvoiceService } from 'src/payment/services/invoice.service';
 
 @Injectable()
 export class ExemptionService {
@@ -20,6 +24,8 @@ export class ExemptionService {
     private readonly exemptionRepository: Repository<ExemptionEntity>,
     private readonly studentsService: StudentsService,
     private readonly paymentService: PaymentService,
+    private readonly dataSource: DataSource,
+    private readonly invoiceService: InvoiceService,
   ) {}
 
   async saveExemption(
@@ -262,7 +268,7 @@ export class ExemptionService {
   /**
    * Delete exemption by ID
    */
-  async deleteExemption(id: number): Promise<void> {
+  async deleteExemption(id: number): Promise<{ id: number }> {
     const exemption = await this.exemptionRepository.findOne({
       where: { id },
       relations: ['student'],
@@ -272,6 +278,68 @@ export class ExemptionService {
       throw new NotFoundException(`Exemption with ID ${id} not found.`);
     }
 
-    await this.exemptionRepository.remove(exemption);
+    const studentNumber = exemption.student?.studentNumber;
+
+    // 1) Deactivate exemption (audit/history), 2) unlink from invoices + remove exemption bills,
+    // 3) recompute invoice totals/balances without exemption, all atomically.
+    await this.dataSource.transaction(async (em) => {
+      // Soft-delete / deactivate
+      exemption.isActive = false;
+      await em.save(ExemptionEntity, exemption);
+
+      const invoiceRepo = em.getRepository(InvoiceEntity);
+      const billsRepo = em.getRepository(BillsEntity);
+
+      const invoices = await invoiceRepo.find({
+        where: { exemption: { id: exemption.id } },
+        relations: ['bills', 'bills.fees', 'balanceBfwd'],
+      });
+
+      if (invoices.length === 0) {
+        return;
+      }
+
+      const invoiceIds: number[] = [];
+
+      for (const inv of invoices) {
+        invoiceIds.push(inv.id);
+
+        // Remove exemption bill rows (negative discount line item)
+        const exemptionBills = (inv.bills ?? []).filter(
+          (b) => b.fees?.name === FeesNames.exemption,
+        );
+        if (exemptionBills.length > 0) {
+          await billsRepo.remove(exemptionBills);
+        }
+
+        const remainingBills = (inv.bills ?? []).filter(
+          (b) => b.fees?.name !== FeesNames.exemption,
+        );
+
+        inv.bills = remainingBills;
+        inv.exemption = null;
+        inv.exemptedAmount = 0;
+
+        const billsTotal = remainingBills.reduce(
+          (sum, b) => sum + Number(b.fees?.amount ?? 0),
+          0,
+        );
+        const balanceBfwdAmount = Number(inv.balanceBfwd?.amount ?? 0);
+        inv.totalBill = Math.max(0, Math.round((billsTotal + balanceBfwdAmount) * 100) / 100);
+
+        await invoiceRepo.save(inv);
+      }
+
+      // Recompute balance/status from totalBill - amountPaidOnInvoice
+      // (single source of truth already implemented in InvoiceService).
+      await this.invoiceService.recomputeAndPersistInvoiceBalances(invoiceIds, em);
+    });
+
+    // Run reconciliation after totals are updated to repair allocations/credits.
+    if (studentNumber) {
+      await this.paymentService.reconcileStudentFinances(studentNumber);
+    }
+
+    return { id };
   }
 }

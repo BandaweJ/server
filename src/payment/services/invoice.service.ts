@@ -1252,11 +1252,13 @@ export class InvoiceService {
     });
 
     for (const invoice of invoicesToUpdate) {
-      if (studentExemption) {
-        invoice.exemption = studentExemption;
-      }
+      // Always keep invoice exemption in sync with student's current exemption (or lack thereof)
+      invoice.exemption = studentExemption ?? null;
 
       this.updateInvoiceBalance(invoice, true);
+      invoice.exemptedAmount = studentExemption
+        ? this._calculateExemptionAmount(invoice)
+        : 0;
       invoice.status = this.getInvoiceStatus(invoice);
       this.verifyInvoiceBalance(invoice);
 
