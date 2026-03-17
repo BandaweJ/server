@@ -524,16 +524,33 @@ export class EnrolmentService {
       throw new NotFoundException(`Enrolment with id ${id} not found`);
     }
 
-    const billsCount = await this.billsRepository.count({
-      // Only block unenrolment if there are bills linked to a NON-voided invoice.
-      // Voided invoices are kept for audit, so their bills may still exist.
-      where: { enrol: { id }, invoice: { isVoided: false } },
+    // We cannot delete an enrolment row while bills still reference it (FK constraint).
+    // So we only allow unenrolment if *all* linked bills belong to voided invoices,
+    // then we detach those bills from the enrolment before deleting the enrolment.
+    const bills = await this.billsRepository.find({
+      where: { enrol: { id } },
+      relations: ['invoice'],
     });
 
-    if (billsCount > 0) {
+    const nonVoidedBills = bills.filter(
+      (b) => !b.invoice || b.invoice.isVoided === false,
+    );
+
+    if (nonVoidedBills.length > 0) {
       throw new BadRequestException(
-        `Cannot unenrol: this enrolment has ${billsCount} bill(s) linked to it. Remove or void the related invoice(s) first, then try again.`,
+        `Cannot unenrol: this enrolment has ${nonVoidedBills.length} bill(s) linked to it. Remove or void the related invoice(s) first, then try again.`,
       );
+    }
+
+    // Detach bills that were linked to voided invoices so FK no longer blocks deletion
+    if (bills.length > 0) {
+      const voidedBills = bills.filter((b) => b.invoice?.isVoided === true);
+      if (voidedBills.length > 0) {
+        voidedBills.forEach((b) => {
+          b.enrol = null;
+        });
+        await this.billsRepository.save(voidedBills);
+      }
     }
 
     const result = await this.enrolmentRepository.delete(id);
