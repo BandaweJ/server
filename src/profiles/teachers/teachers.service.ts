@@ -37,9 +37,12 @@ export class TeachersService {
         );
         break;
       case ROLES.admin:
+      case ROLES.auditor:
+      case ROLES.director:
       case ROLES.hod:
       case ROLES.teacher:
       case ROLES.reception:
+      case ROLES.dev:
         return await this.resourceById.getTeacherById(id);
     }
   }
@@ -55,9 +58,12 @@ export class TeachersService {
         );
         break;
       case ROLES.admin:
+      case ROLES.auditor:
+      case ROLES.director:
       case ROLES.hod:
       case ROLES.teacher:
       case ROLES.reception:
+      case ROLES.dev:
         return await this.teachersRespository.find();
     }
   }
