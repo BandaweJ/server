@@ -9,6 +9,7 @@ import { EnrolEntity } from './entities/enrol.entity';
 import { ResourceByIdModule } from '../resource-by-id/resource-by-id.module';
 import { AttendanceEntity } from '../attendance/entities/attendance.entity';
 import { BillsEntity } from 'src/finance/entities/bills.entity';
+import { ReceiptEntity } from 'src/payment/entities/payment.entity';
 import { FinanceModule } from 'src/finance/finance.module';
 import { ProfilesModule } from 'src/profiles/profiles.module';
 import { FinanceService } from 'src/finance/finance.service';
@@ -26,6 +27,7 @@ import { FinanceService } from 'src/finance/finance.service';
       EnrolEntity,
       AttendanceEntity,
       BillsEntity,
+      ReceiptEntity,
     ]),
   ],
   controllers: [EnrolmentController],
