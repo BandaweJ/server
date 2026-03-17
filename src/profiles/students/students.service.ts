@@ -34,9 +34,12 @@ export class StudentsService {
   ): Promise<StudentsEntity> {
     switch (profile.role) {
       case ROLES.admin:
+      case ROLES.auditor:
+      case ROLES.director:
       case ROLES.hod:
       case ROLES.teacher:
-      case ROLES.reception: {
+      case ROLES.reception:
+      case ROLES.dev: {
         return await this.resourceById.getStudentByStudentNumber(studentNumber);
         break;
       }

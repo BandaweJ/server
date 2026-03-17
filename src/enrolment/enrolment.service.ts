@@ -497,18 +497,21 @@ export class EnrolmentService {
     studentNumber: string,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ): Promise<EnrolEntity[]> {
-    const student = await this.studentsService.getStudent(
-      studentNumber,
-      profile,
-    );
-    if (!student) {
-      // Handle the case where the student is not found
-      return []; // or throw an error
+    // For dev role we trust the request context and skip role-based student lookup
+    if (profile.role !== ROLES.dev) {
+      const student = await this.studentsService.getStudent(
+        studentNumber,
+        profile,
+      );
+      if (!student) {
+        // Handle the case where the student is not found
+        return []; // or throw an error
+      }
     }
 
     return this.enrolmentRepository.find({
       where: { student: { studentNumber } },
-      relations: ['student', 'fees'], // Include related entities
+      relations: ['student'],
     });
   }
 
