@@ -54,8 +54,11 @@ export class ReceiptEntity {
   @Column()
   servedBy: string;
 
-  @ManyToOne(() => EnrolEntity, (enrol) => enrol.receipts)
-  enrol: EnrolEntity;
+  @ManyToOne(() => EnrolEntity, (enrol) => enrol.receipts, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  enrol: EnrolEntity | null;
 
   // NEW: One-to-many relationship with the allocation entity
   @OneToMany(

@@ -432,11 +432,6 @@ export class ReceiptService {
       );
     }
 
-    const enrol = await this.enrolmentService.getCurrentEnrollment(studentNumber);
-    if (!enrol) {
-      throw new StudentNotEnrolledException(studentNumber);
-    }
-
     if (createReceiptDto.paymentMethod === PaymentMethods.cash) {
       const largeCashThreshold = 10000;
       if (createReceiptDto.amountPaid > largeCashThreshold) {
@@ -495,7 +490,7 @@ export class ReceiptService {
       student: student,
       receiptNumber: await this.generateReceiptNumber(),
       servedBy: profile.email,
-      enrol: enrol,
+      enrol: null,
       isVoided: false,
       voidedAt: null,
       voidedBy: null,
@@ -512,6 +507,38 @@ export class ReceiptService {
           studentNumber,
           transactionalEntityManager,
         );
+
+        // Relink receipt.enrol to the enrolment of the last invoice allocated.
+        // If multiple invoices are allocated, use the last allocation (by allocationDate then id).
+        // This allows receipting arrears for students not enrolled in the current term.
+        if (allocationResult.allocations.length > 0) {
+          const lastAllocation = [...allocationResult.allocations].sort((a, b) => {
+            const ad = a.allocationDate ? new Date(a.allocationDate).getTime() : 0;
+            const bd = b.allocationDate ? new Date(b.allocationDate).getTime() : 0;
+            if (ad !== bd) return ad - bd;
+            return (a.id ?? 0) - (b.id ?? 0);
+          })[allocationResult.allocations.length - 1];
+
+          const lastInvoiceId = lastAllocation?.invoice?.id;
+          if (lastInvoiceId) {
+            const lastInvoice = await transactionalEntityManager.findOne(InvoiceEntity, {
+              where: { id: lastInvoiceId },
+              relations: ['enrol'],
+            });
+            savedReceipt.enrol = lastInvoice?.enrol ?? null;
+          }
+        } else {
+          // Pure credit (no allocations). Link to the student's latest enrolment if available; otherwise leave null.
+          const enrols = await this.enrolmentService.getEnrolmentsByStudent(studentNumber, profile);
+          const latest = [...enrols].sort((a, b) => {
+            if (b.year !== a.year) return b.year - a.year;
+            if (b.num !== a.num) return b.num - a.num;
+            return b.id - a.id;
+          })[0];
+          savedReceipt.enrol = latest ?? null;
+        }
+
+        await transactionalEntityManager.save(savedReceipt);
 
         logStructured(
           this.logger,

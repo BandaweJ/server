@@ -13,6 +13,7 @@ import {
   LessThanOrEqual,
   MoreThan,
   MoreThanOrEqual,
+  Not,
   Repository,
 } from 'typeorm';
 import { CreateClassDto } from './dtos/create-class.dto';
@@ -36,6 +37,7 @@ import { UpdateEnrolDto } from './dtos/update-enrol.dto';
 import { BillsEntity } from 'src/finance/entities/bills.entity';
 // import { FinanceService } from 'src/finance/finance.service';
 import { InvoiceStatus } from 'src/finance/models/invoice-status.enum';
+import { ReceiptEntity } from 'src/payment/entities/payment.entity';
 import {
   StudentEnrolmentDto,
   StudentEnrolmentStatusDto,
@@ -54,6 +56,8 @@ export class EnrolmentService {
     private enrolmentRepository: Repository<EnrolEntity>,
     @InjectRepository(BillsEntity)
     private billsRepository: Repository<BillsEntity>,
+    @InjectRepository(ReceiptEntity)
+    private receiptRepository: Repository<ReceiptEntity>,
     private resourceById: ResourceByIdService,
 
     @InjectRepository(AttendanceEntity)
@@ -559,6 +563,63 @@ export class EnrolmentService {
         });
         await this.billsRepository.save(voidedBills);
       }
+    }
+
+    // Receipts also reference enrolment; relink them based on allocations (B2).
+    const receipts = await this.receiptRepository.find({
+      where: { enrol: { id } },
+      relations: [
+        'student',
+        'allocations',
+        'allocations.invoice',
+        'allocations.invoice.enrol',
+      ],
+    });
+
+    const receiptsThatCannotBeRelinked: ReceiptEntity[] = [];
+
+    for (const receipt of receipts) {
+      const allocations = receipt.allocations ?? [];
+      let targetEnrol: EnrolEntity | null = null;
+
+      if (allocations.length > 0) {
+        const lastAllocation = [...allocations].sort((a, b) => {
+          const ad = a.allocationDate ? new Date(a.allocationDate).getTime() : 0;
+          const bd = b.allocationDate ? new Date(b.allocationDate).getTime() : 0;
+          if (ad !== bd) return ad - bd;
+          return (a.id ?? 0) - (b.id ?? 0);
+        })[allocations.length - 1];
+
+        targetEnrol = (lastAllocation?.invoice?.enrol as EnrolEntity | undefined) ?? null;
+      } else {
+        // No allocations (pure credit). Link to most recent enrolment other than the one being deleted.
+        const studentNumber = receipt.student?.studentNumber;
+        if (studentNumber) {
+          targetEnrol =
+            (await this.enrolmentRepository.findOne({
+              where: { student: { studentNumber }, id: Not(id) },
+              order: { year: 'DESC', num: 'DESC', id: 'DESC' },
+            })) ?? null;
+        }
+      }
+
+      // If we can't find a different enrolment to link to, we must block deletion (FK would fail).
+      if (!targetEnrol || targetEnrol.id === id) {
+        receiptsThatCannotBeRelinked.push(receipt);
+        continue;
+      }
+
+      receipt.enrol = targetEnrol;
+    }
+
+    if (receiptsThatCannotBeRelinked.length > 0) {
+      throw new BadRequestException(
+        `Cannot unenrol: this enrolment has ${receiptsThatCannotBeRelinked.length} receipt(s) linked to it that cannot be relinked. Void or reallocate those receipts first, then try again.`,
+      );
+    }
+
+    if (receipts.length > 0) {
+      await this.receiptRepository.save(receipts);
     }
 
     const result = await this.enrolmentRepository.delete(id);

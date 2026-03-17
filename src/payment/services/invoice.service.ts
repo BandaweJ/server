@@ -3282,6 +3282,40 @@ export class InvoiceService {
           },
         );
 
+        // Relink receipt.enrol to the enrolment of the last invoice it was allocated to.
+        // This keeps receipt.term reporting consistent for "pure credit" receipts that are later applied.
+        const receiptIds = Array.from(
+          new Set(
+            allocationsToSave
+              .map((a) => a.receipt?.id)
+              .filter((id): id is number => id != null),
+          ),
+        );
+
+        for (const receiptId of receiptIds) {
+          const receipt = await transactionalEntityManager.findOne(ReceiptEntity, {
+            where: { id: receiptId },
+            relations: ['allocations', 'allocations.invoice', 'allocations.invoice.enrol'],
+          });
+
+          if (!receipt || !receipt.allocations || receipt.allocations.length === 0) {
+            continue;
+          }
+
+          const lastAllocation = [...receipt.allocations].sort((a, b) => {
+            const ad = a.allocationDate ? new Date(a.allocationDate).getTime() : 0;
+            const bd = b.allocationDate ? new Date(b.allocationDate).getTime() : 0;
+            if (ad !== bd) return ad - bd;
+            return (a.id ?? 0) - (b.id ?? 0);
+          })[receipt.allocations.length - 1];
+
+          const targetEnrol = lastAllocation?.invoice?.enrol ?? null;
+          if (targetEnrol && receipt.enrol?.id !== targetEnrol.id) {
+            receipt.enrol = targetEnrol;
+            await transactionalEntityManager.save(ReceiptEntity, receipt);
+          }
+        }
+
         // Update invoice amounts after creating allocations
         for (const allocation of allocationsToSave) {
           if (allocation.invoice?.id) {
