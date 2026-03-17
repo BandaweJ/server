@@ -482,6 +482,26 @@ export class ReceiptService {
       },
     );
 
+    // Receipt validation requires an enrolment link. For arrears payments where the student is not
+    // enrolled in the current term, attach to the latest enrolment as a temporary link.
+    // After allocation, we relink to the enrolment of the last invoice allocated (B2 rule).
+    const enrols = await this.enrolmentService.getEnrolmentsByStudent(
+      studentNumber,
+      profile,
+    );
+    const latestEnrol =
+      enrols && enrols.length > 0
+        ? [...enrols].sort((a, b) => {
+            if (b.year !== a.year) return b.year - a.year;
+            if (b.num !== a.num) return b.num - a.num;
+            return b.id - a.id;
+          })[0]
+        : null;
+
+    if (!latestEnrol) {
+      throw new StudentNotEnrolledException(studentNumber);
+    }
+
     const newReceipt = this.receiptRepository.create({
       amountPaid: createReceiptDto.amountPaid,
       description: createReceiptDto.description || `Payment of ${createReceiptDto.amountPaid} via ${createReceiptDto.paymentMethod}`,
@@ -490,7 +510,7 @@ export class ReceiptService {
       student: student,
       receiptNumber: await this.generateReceiptNumber(),
       servedBy: profile.email,
-      enrol: null,
+      enrol: latestEnrol,
       isVoided: false,
       voidedAt: null,
       voidedBy: null,
@@ -527,16 +547,7 @@ export class ReceiptService {
             });
             savedReceipt.enrol = lastInvoice?.enrol ?? null;
           }
-        } else {
-          // Pure credit (no allocations). Link to the student's latest enrolment if available; otherwise leave null.
-          const enrols = await this.enrolmentService.getEnrolmentsByStudent(studentNumber, profile);
-          const latest = [...enrols].sort((a, b) => {
-            if (b.year !== a.year) return b.year - a.year;
-            if (b.num !== a.num) return b.num - a.num;
-            return b.id - a.id;
-          })[0];
-          savedReceipt.enrol = latest ?? null;
-        }
+        } // else: pure credit, keep the temporary latest enrolment link
 
         await transactionalEntityManager.save(savedReceipt);
 
