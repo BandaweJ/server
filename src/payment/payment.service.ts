@@ -118,8 +118,35 @@ export class PaymentService {
       );
     }
 
-    const roleName = account.roleEntity?.name ?? account.role;
-    return roleName as ROLES;
+    const roleNameRaw = account.roleEntity?.name ?? account.role;
+
+    // roleEntity.name is free-text (e.g. "Developer") while ROLES are strict enum values (e.g. "dev").
+    // Normalize common display names to enum values so authorization checks are reliable.
+    const normalized = String(roleNameRaw || '')
+      .trim()
+      .toLowerCase();
+
+    const roleMap: Record<string, ROLES> = {
+      admin: ROLES.admin,
+      administrator: ROLES.admin,
+      reception: ROLES.reception,
+      teacher: ROLES.teacher,
+      student: ROLES.student,
+      parent: ROLES.parent,
+      hod: ROLES.hod,
+      'head of department': ROLES.hod,
+      seniorteacher: ROLES.seniorTeacher,
+      'senior teacher': ROLES.seniorTeacher,
+      deputy: ROLES.deputy,
+      head: ROLES.head,
+      auditor: ROLES.auditor,
+      director: ROLES.director,
+      dev: ROLES.dev,
+      developer: ROLES.dev,
+      developers: ROLES.dev,
+    };
+
+    return roleMap[normalized] ?? (account.role as ROLES);
   }
 
   /**
