@@ -525,7 +525,9 @@ export class EnrolmentService {
     }
 
     const billsCount = await this.billsRepository.count({
-      where: { enrol: { id } },
+      // Only block unenrolment if there are bills linked to a NON-voided invoice.
+      // Voided invoices are kept for audit, so their bills may still exist.
+      where: { enrol: { id }, invoice: { isVoided: false } },
     });
 
     if (billsCount > 0) {
