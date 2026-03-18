@@ -1,7 +1,7 @@
 /* eslint-disable prettier/prettier */
 import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, IsNull, Not } from 'typeorm';
 import { RoleEntity } from '../entities/role.entity';
 import { PermissionEntity } from '../entities/permission.entity';
 import { AccountsEntity } from '../entities/accounts.entity';
@@ -33,14 +33,61 @@ export class RolesPermissionsService implements OnModuleInit {
    */
   async onModuleInit(): Promise<void> {
     try {
+      // Ensure all system roles exist (even if some roles already exist).
+      await this.seedRoles();
       await this.findAllRoles();
       // Always sync permission rows from constants (creates any missing e.g. reports.download)
       await this.seedPermissions();
       await this.findAllPermissions();
       await this.seedDefaultRolePermissions();
+      await this.repairAccountRoleLinks();
     } catch (err) {
       this.logger.error('Startup role/permissions sync failed', err);
       // Don't throw: allow app to start so existing users aren't blocked
+    }
+  }
+
+  /**
+   * Repairs accounts that have a role string but a missing/invalid roleId.
+   * This can happen if role rows were deleted or never created, leaving accounts.roleId dangling.
+   */
+  private async repairAccountRoleLinks(): Promise<void> {
+    try {
+      const accounts = await this.accountsRepository.find({
+        where: [
+          { roleId: IsNull() },
+          // roleId is set but relation cannot be loaded -> fix below after load
+          { roleId: Not(IsNull()) },
+        ],
+        relations: ['roleEntity'],
+      });
+
+      let repaired = 0;
+      for (const account of accounts) {
+        const roleName = account.role;
+        if (!roleName) continue;
+
+        // If relation is present and matches, nothing to do.
+        if (account.roleEntity?.name === roleName && account.roleId === account.roleEntity.id) {
+          continue;
+        }
+
+        const role = await this.roleRepository.findOne({ where: { name: roleName } });
+        if (!role) continue;
+
+        if (account.roleId !== role.id) {
+          account.roleId = role.id;
+          account.roleEntity = role;
+          await this.accountsRepository.save(account);
+          repaired += 1;
+        }
+      }
+
+      if (repaired > 0) {
+        this.logger.log(`Repaired ${repaired} account role link(s)`);
+      }
+    } catch (err) {
+      this.logger.warn('Failed to repair account role links', err as any);
     }
   }
 
