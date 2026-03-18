@@ -54,7 +54,7 @@ export class CreateLibraryTextbooks1760790000000 implements MigrationInterface {
         "departmentId" uuid NOT NULL,
         "roomId" uuid,
         "status" "textbook_copy_status" NOT NULL DEFAULT 'available',
-        "assignedTeacherId" uuid,
+        "assignedTeacherId" character varying,
         CONSTRAINT "PK_textbook_copies_id" PRIMARY KEY ("id"),
         CONSTRAINT "UQ_textbook_copies_bookNumber" UNIQUE ("bookNumber")
       )`,
@@ -129,8 +129,8 @@ export class CreateLibraryTextbooks1760790000000 implements MigrationInterface {
         "borrowedAt" TIMESTAMP NOT NULL,
         "dueAt" TIMESTAMP NOT NULL,
         "returnedAt" TIMESTAMP,
-        "issuedByTeacherId" uuid NOT NULL,
-        "receivedByTeacherId" uuid,
+        "issuedByTeacherId" character varying NOT NULL,
+        "receivedByTeacherId" character varying,
         "notes" character varying,
         CONSTRAINT "PK_textbook_loans_id" PRIMARY KEY ("id")
       )`,
