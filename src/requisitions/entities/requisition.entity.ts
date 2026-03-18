@@ -61,6 +61,15 @@ export class RequisitionEntity extends BaseEntity {
   @Column({ type: 'timestamp', nullable: true })
   authorisedAt?: Date | null;
 
+  @ManyToOne(() => TeachersEntity, { nullable: true })
+  receivedBy?: TeachersEntity | null;
+
+  @Column({ nullable: true })
+  receivedById?: string | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  receivedAt?: Date | null;
+
   @Column({ nullable: true })
   rejectionReason?: string | null;
 

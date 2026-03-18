@@ -122,6 +122,50 @@ export class RequisitionsService {
     return qb.getMany();
   }
 
+  async getPendingReceiving(
+    profile: TeachersEntity & { role: ROLES },
+  ): Promise<RequisitionEntity[]> {
+    // Receiving is a department operational workflow; only HOD (department scoped) is expected to action it.
+    if (profile.role !== ROLES.hod) {
+      throw new ForbiddenException('Only HOD can view pending receiving list');
+    }
+
+    const teacher = await this.teachersRepository.findOne({
+      where: { id: profile.id },
+      relations: ['department'],
+    });
+    if (!teacher) {
+      throw new BadRequestException('Teacher profile not found');
+    }
+    if (!teacher.department) {
+      throw new BadRequestException(
+        'Teacher is not assigned to a department. Please update their department first.',
+      );
+    }
+
+    // Authorised requisitions that are not fully received.
+    // We treat "pending receiving" as any requisition with at least one line where receivedQuantity < quantity.
+    return this.requisitionsRepository
+      .createQueryBuilder('req')
+      .leftJoinAndSelect('req.department', 'department')
+      .leftJoinAndSelect('req.createdBy', 'createdBy')
+      .leftJoinAndSelect('req.items', 'items')
+      .where('req.departmentId = :deptId', {
+        deptId: (teacher.department as DepartmentEntity).id,
+      })
+      .andWhere('req.status = :status', { status: RequisitionStatus.Authorized })
+      .andWhere(
+        `EXISTS (
+          SELECT 1
+          FROM requisition_items ri
+          WHERE ri."requisitionId" = req.id
+            AND COALESCE(ri."receivedQuantity", 0) < COALESCE(ri."quantity", 0)
+        )`,
+      )
+      .orderBy('req.createdAt', 'DESC')
+      .getMany();
+  }
+
   async getAllRequisitions(): Promise<RequisitionEntity[]> {
     return this.requisitionsRepository.find({
       relations: [
@@ -131,6 +175,7 @@ export class RequisitionsService {
         'deputySignedBy',
         'headSignedBy',
         'authorisedBy',
+        'receivedBy',
       ],
       order: { createdAt: 'DESC' },
     });
@@ -146,6 +191,7 @@ export class RequisitionsService {
         'deputySignedBy',
         'headSignedBy',
         'authorisedBy',
+        'receivedBy',
       ],
     });
     if (!requisition) {

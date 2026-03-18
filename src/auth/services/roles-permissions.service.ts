@@ -536,6 +536,8 @@ export class RolesPermissionsService implements OnModuleInit {
       ...Object.values(PERMISSIONS.USERS),
       ...Object.values(PERMISSIONS.SYSTEM),
       ...Object.values(PERMISSIONS.REQUISITIONS),
+      ...Object.values(PERMISSIONS.INVENTORY),
+      ...Object.values(PERMISSIONS.INCIDENTS),
     ];
 
     // Define default permissions for each role
@@ -550,6 +552,10 @@ export class RolesPermissionsService implements OnModuleInit {
         ...Object.values(PERMISSIONS.ENROLMENT),
         PERMISSIONS.SYSTEM.VIEW_SETTINGS,
         PERMISSIONS.SYSTEM.VIEW_AUDIT,
+        PERMISSIONS.INVENTORY.VIEW_ALL,
+        PERMISSIONS.INCIDENTS.VIEW_ALL,
+        PERMISSIONS.INCIDENTS.ACCEPT,
+        PERMISSIONS.INCIDENTS.REJECT,
       ],
       [ROLES.hod]: [
         // HOD gets marks, reports, and attendance permissions
@@ -560,6 +566,11 @@ export class RolesPermissionsService implements OnModuleInit {
         PERMISSIONS.FINANCE.VIEW,
         PERMISSIONS.REQUISITIONS.CREATE,
         PERMISSIONS.REQUISITIONS.VIEW_DEPARTMENT,
+        PERMISSIONS.INVENTORY.VIEW_OWN_DEPARTMENT,
+        PERMISSIONS.INVENTORY.MANAGE_OWN_DEPARTMENT,
+        PERMISSIONS.INCIDENTS.CREATE,
+        PERMISSIONS.INCIDENTS.VIEW_OWN,
+        PERMISSIONS.INCIDENTS.CONFIRM_HOD,
       ],
       [ROLES.seniorTeacher]: [
         ...Object.values(PERMISSIONS.MARKS),
@@ -569,6 +580,9 @@ export class RolesPermissionsService implements OnModuleInit {
         PERMISSIONS.FINANCE.VIEW,
         PERMISSIONS.REQUISITIONS.CREATE,
         PERMISSIONS.REQUISITIONS.VIEW_DEPARTMENT,
+        PERMISSIONS.INVENTORY.VIEW_OWN_DEPARTMENT,
+        PERMISSIONS.INCIDENTS.CREATE,
+        PERMISSIONS.INCIDENTS.VIEW_OWN,
       ],
       [ROLES.deputy]: [
         ...Object.values(PERMISSIONS.MARKS),
@@ -579,6 +593,9 @@ export class RolesPermissionsService implements OnModuleInit {
         PERMISSIONS.REQUISITIONS.CREATE,
         PERMISSIONS.REQUISITIONS.VIEW_ALL,
         PERMISSIONS.REQUISITIONS.SIGN_DEPUTY,
+        PERMISSIONS.INVENTORY.VIEW_ALL,
+        PERMISSIONS.INCIDENTS.VIEW_ALL,
+        PERMISSIONS.INCIDENTS.SIGN_DEPUTY,
       ],
       [ROLES.head]: [
         ...Object.values(PERMISSIONS.MARKS),
@@ -589,6 +606,9 @@ export class RolesPermissionsService implements OnModuleInit {
         PERMISSIONS.REQUISITIONS.CREATE,
         PERMISSIONS.REQUISITIONS.VIEW_ALL,
         PERMISSIONS.REQUISITIONS.SIGN_HEAD,
+        PERMISSIONS.INVENTORY.VIEW_ALL,
+        PERMISSIONS.INCIDENTS.VIEW_ALL,
+        PERMISSIONS.INCIDENTS.SIGN_HEAD,
       ],
       [ROLES.teacher]: [
         // Teachers get marks entry, view, and basic reporting
@@ -601,6 +621,9 @@ export class RolesPermissionsService implements OnModuleInit {
         PERMISSIONS.ATTENDANCE.VIEW,
         PERMISSIONS.ATTENDANCE.MARK,
         PERMISSIONS.ENROLMENT.VIEW,
+        PERMISSIONS.INVENTORY.VIEW_OWN_DEPARTMENT,
+        PERMISSIONS.INCIDENTS.CREATE,
+        PERMISSIONS.INCIDENTS.VIEW_OWN,
       ],
       [ROLES.reception]: [
         // Reception gets enrolment and basic finance permissions
@@ -621,6 +644,10 @@ export class RolesPermissionsService implements OnModuleInit {
         PERMISSIONS.REPORTS.DOWNLOAD, // Auditor can download saved reports
         PERMISSIONS.REPORTS.EDIT_COMMENT, // Auditor can edit comments on reports
         PERMISSIONS.SYSTEM.VIEW_AUDIT,
+        PERMISSIONS.INVENTORY.VIEW_ALL,
+        PERMISSIONS.INCIDENTS.VIEW_ALL,
+        PERMISSIONS.INCIDENTS.ACCEPT,
+        PERMISSIONS.INCIDENTS.REJECT,
       ],
       [ROLES.student]: [
         // Students can view and download their own reports

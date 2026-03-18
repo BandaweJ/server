@@ -49,6 +49,8 @@ import { sanitizeAmount, sanitizeOptionalAmount } from '../utils/sanitization.ut
 import { InvoiceResponseDto } from '../dtos/invoice-response.dto';
 import { NotificationService } from '../../notifications/services/notification.service';
 import { SystemSettingsService } from 'src/system/services/system-settings.service';
+import { InvoiceChargeEntity } from '../entities/invoice-charge.entity';
+import { InvoiceChargeStatus } from '../models/invoice-charge-status.enum';
 
 @Injectable()
 export class InvoiceService {
@@ -57,6 +59,8 @@ export class InvoiceService {
   constructor(
     @InjectRepository(InvoiceEntity)
     private readonly invoiceRepository: Repository<InvoiceEntity>,
+    @InjectRepository(InvoiceChargeEntity)
+    private readonly invoiceChargesRepository: Repository<InvoiceChargeEntity>,
     @InjectRepository(ReceiptEntity)
     private readonly receiptRepository: Repository<ReceiptEntity>,
     private readonly dataSource: DataSource,
@@ -358,6 +362,27 @@ export class InvoiceService {
             studentExemption,
           );
 
+          // Variable-amount charges (e.g. approved lost/damage incidents) that must be billed
+          // on this student's invoice for the selected term.
+          const chargesRepo =
+            transactionalEntityManager.getRepository(InvoiceChargeEntity);
+          const pendingCharges = enrol
+            ? await chargesRepo.find({
+                where: {
+                  studentNumber,
+                  enrolId: enrol.id,
+                  invoiceId: IsNull(),
+                  status: InvoiceChargeStatus.PendingInvoicing,
+                  isVoided: false,
+                },
+              })
+            : [];
+
+          const pendingChargesTotal = pendingCharges.reduce(
+            (sum, c) => sum + Number(c.amount || 0),
+            0,
+          );
+
           // Check if this is an update (invoice already exists) or a new invoice
           // We need to know this BEFORE calculating existing invoices total to exclude the invoice being updated
           let foundInvoice: InvoiceEntity | null = null;
@@ -502,7 +527,7 @@ export class InvoiceService {
           if (foundInvoice) {
             invoiceToSave = foundInvoice;
 
-            invoiceToSave.totalBill = calculatedNetTotalBill;
+            invoiceToSave.totalBill = calculatedNetTotalBill + pendingChargesTotal;
             invoiceToSave.bills = bills;
             invoiceToSave.invoiceDate = invoice.invoiceDate
               ? new Date(invoice.invoiceDate)
@@ -603,7 +628,7 @@ export class InvoiceService {
             invoiceToSave.invoiceDueDate = invoice.invoiceDueDate
               ? new Date(invoice.invoiceDueDate)
               : new Date();
-            invoiceToSave.totalBill = calculatedNetTotalBill;
+            invoiceToSave.totalBill = calculatedNetTotalBill + pendingChargesTotal;
 
             const balanceBfwdAmountForNew = invoiceToSave.balanceBfwd
               ? Number(invoiceToSave.balanceBfwd.amount)
@@ -710,6 +735,7 @@ export class InvoiceService {
                 'exemption',
                 'allocations',
                 'creditAllocations',
+                'invoiceCharges',
               ],
             },
           );
@@ -908,6 +934,26 @@ export class InvoiceService {
           // Update status based on final balance (finalInvoice was loaded without creditAllocations so save won't touch allocation rows)
           finalInvoice.status = this.getInvoiceStatus(finalInvoice);
           await transactionalEntityManager.save(InvoiceEntity, finalInvoice);
+
+          // Link any pending variable charges to this invoice (industry-grade: automatic once approved).
+          if (enrol) {
+            await transactionalEntityManager
+              .getRepository(InvoiceChargeEntity)
+              .createQueryBuilder()
+              .update(InvoiceChargeEntity)
+              .set({
+                invoiceId: finalInvoice.id,
+                status: InvoiceChargeStatus.Invoiced,
+              })
+              .where('"studentNumber" = :studentNumber', { studentNumber })
+              .andWhere('"enrolId" = :enrolId', { enrolId: enrol.id })
+              .andWhere('"invoiceId" IS NULL')
+              .andWhere('"status" = :status', {
+                status: InvoiceChargeStatus.PendingInvoicing,
+              })
+              .andWhere('"isVoided" = false')
+              .execute();
+          }
 
           // Audit logging - use final invoice data
           if (performedBy) {
@@ -1296,6 +1342,7 @@ export class InvoiceService {
       .leftJoinAndSelect('invoice.bills', 'bills')
       .leftJoinAndSelect('bills.fees', 'fees')
       .leftJoinAndSelect('invoice.exemption', 'exemption')
+      .leftJoinAndSelect('invoice.invoiceCharges', 'invoiceCharges')
       .where('student.studentNumber = :studentNumber', { studentNumber })
       .andWhere('enrol.num = :num', { num })
       .andWhere('enrol.year = :year', { year })
@@ -1328,6 +1375,28 @@ export class InvoiceService {
       const response: InvoiceResponseDto = {
         invoice: activeInvoice,
       };
+
+      const pendingCharges = await this.invoiceChargesRepository.find({
+        where: {
+          studentNumber,
+          enrolId: (activeInvoice.enrol as any)?.id,
+          invoiceId: null,
+          status: InvoiceChargeStatus.PendingInvoicing,
+          isVoided: false,
+        },
+        order: { createdAt: 'DESC' },
+      });
+
+      if (pendingCharges.length) {
+        const total = pendingCharges.reduce(
+          (sum, c) => sum + Number(c.amount || 0),
+          0,
+        );
+        response.warning = response.warning ?? {
+          message: `This student has approved lost/damage charges pending invoicing: ${pendingCharges.length} item(s), total ${total.toFixed(2)}.`,
+        };
+        response.pendingCharges = pendingCharges;
+      }
       
       if (voidedInvoice) {
         response.warning = {
@@ -1389,6 +1458,30 @@ export class InvoiceService {
     const response: InvoiceResponseDto = {
       invoice: emptyInvoice,
     };
+
+    // Even if invoice isn't saved yet, show pending charges so staff sees them clearly.
+    if ((emptyInvoice.enrol as any)?.id) {
+      const pendingCharges = await this.invoiceChargesRepository.find({
+        where: {
+          studentNumber,
+          enrolId: (emptyInvoice.enrol as any).id,
+          invoiceId: null,
+          status: InvoiceChargeStatus.PendingInvoicing,
+          isVoided: false,
+        },
+        order: { createdAt: 'DESC' },
+      });
+      if (pendingCharges.length) {
+        const total = pendingCharges.reduce(
+          (sum, c) => sum + Number(c.amount || 0),
+          0,
+        );
+        response.warning = response.warning ?? {
+          message: `This student has approved lost/damage charges pending invoicing: ${pendingCharges.length} item(s), total ${total.toFixed(2)}.`,
+        };
+        response.pendingCharges = pendingCharges;
+      }
+    }
     
     if (voidedInvoice) {
       response.warning = {

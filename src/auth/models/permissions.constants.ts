@@ -82,4 +82,23 @@ export const PERMISSIONS = {
     SIGN_HEAD: 'requisitions.sign.head',
     AUTHORISE: 'requisitions.authorise',
   },
+
+  // Inventory Permissions
+  INVENTORY: {
+    VIEW_OWN_DEPARTMENT: 'inventory.view.own.department',
+    VIEW_ALL: 'inventory.view.all',
+    MANAGE_OWN_DEPARTMENT: 'inventory.manage.own.department',
+  },
+
+  // Chargeable incidents (lost/damaged items)
+  INCIDENTS: {
+    CREATE: 'incidents.create',
+    VIEW_OWN: 'incidents.view.own',
+    VIEW_ALL: 'incidents.view.all',
+    CONFIRM_HOD: 'incidents.confirm.hod',
+    SIGN_DEPUTY: 'incidents.sign.deputy',
+    SIGN_HEAD: 'incidents.sign.head',
+    ACCEPT: 'incidents.accept',
+    REJECT: 'incidents.reject',
+  },
 } as const;

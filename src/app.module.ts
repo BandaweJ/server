@@ -28,6 +28,9 @@ import { LoggingMiddleware } from './common/middleware/logging.middleware';
 import { TenantModule } from './tenant/tenant.module';
 import { TenantMiddleware } from './tenant/tenant.middleware';
 import { RequisitionsModule } from './requisitions/requisitions.module';
+import { InventoryModule } from './inventory/inventory.module';
+import { LibraryModule } from './library/library.module';
+import { IncidentsModule } from './incidents/incidents.module';
 
 @Module({
   imports: [
@@ -130,6 +133,9 @@ import { RequisitionsModule } from './requisitions/requisitions.module';
     AIModule,
     TenantModule,
     RequisitionsModule,
+    InventoryModule,
+    LibraryModule,
+    IncidentsModule,
   ],
   controllers: [AppController],
   providers: [

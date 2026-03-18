@@ -23,6 +23,9 @@ export class RequisitionItemEntity extends BaseEntity {
   @Column({ type: 'numeric', precision: 10, scale: 2, default: 1 })
   quantity: number;
 
+  @Column({ type: 'numeric', precision: 10, scale: 2, default: 0 })
+  receivedQuantity: number;
+
   @Column({ nullable: true })
   intendedUse?: string;
 }

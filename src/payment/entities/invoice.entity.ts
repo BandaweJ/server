@@ -18,6 +18,7 @@ import { InvoiceStatus } from 'src/finance/models/invoice-status.enum';
 import { ReceiptInvoiceAllocationEntity } from './receipt-invoice-allocation.entity';
 import { ExemptionEntity } from 'src/exemptions/entities/exemptions.entity';
 import { CreditInvoiceAllocationEntity } from './credit-invoice-allocation.entity'; // ADD THIS IMPORT
+import { InvoiceChargeEntity } from './invoice-charge.entity';
 
 @Entity('invoice')
 @Check(`balance >= 0 OR "isVoided" = true OR "isLegacy" = true`)
@@ -126,6 +127,9 @@ export class InvoiceEntity {
     (allocation) => allocation.invoice, // ADD THIS LINE
   )
   creditAllocations: CreditInvoiceAllocationEntity[]; // ADD THIS LINE
+
+  @OneToMany(() => InvoiceChargeEntity, (charge) => charge.invoice)
+  invoiceCharges: InvoiceChargeEntity[];
 
   // An invoice belongs to one exemption (the one applied to it)
   @ManyToOne(() => ExemptionEntity, (exemption) => exemption.invoices, {

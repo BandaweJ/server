@@ -14,6 +14,7 @@ import { EnrolmentModule } from 'src/enrolment/enrolment.module';
 import { FinanceModule } from 'src/finance/finance.module';
 import { ResourceByIdModule } from 'src/resource-by-id/resource-by-id.module';
 import { InvoiceEntity } from './entities/invoice.entity';
+import { InvoiceChargeEntity } from './entities/invoice-charge.entity';
 import { ReceiptInvoiceAllocationEntity } from './entities/receipt-invoice-allocation.entity';
 import { ExemptionEntity } from '../exemptions/entities/exemptions.entity';
 import { StudentCreditEntity } from './entities/student-credit.entity';
@@ -49,6 +50,7 @@ import { forwardRef } from '@nestjs/common';
     TypeOrmModule.forFeature([
       ReceiptEntity,
       InvoiceEntity,
+      InvoiceChargeEntity,
       ReceiptInvoiceAllocationEntity,
       StudentCreditEntity,
       CreditInvoiceAllocationEntity,

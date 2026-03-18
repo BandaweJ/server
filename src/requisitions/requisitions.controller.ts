@@ -40,6 +40,14 @@ export class RequisitionsController {
     return this.requisitionsService.getMyRequisitions(profile);
   }
 
+  @Get('pending-receiving')
+  @HasPermissions(PERMISSIONS.REQUISITIONS.VIEW_OWN)
+  getPendingReceiving(
+    @GetUser() profile: TeachersEntity & { role: ROLES },
+  ): Promise<RequisitionEntity[]> {
+    return this.requisitionsService.getPendingReceiving(profile);
+  }
+
   @Get()
   @HasPermissions(PERMISSIONS.REQUISITIONS.VIEW_ALL)
   getAll(): Promise<RequisitionEntity[]> {
