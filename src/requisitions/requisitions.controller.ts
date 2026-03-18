@@ -14,6 +14,7 @@ import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { TeachersEntity } from 'src/profiles/entities/teachers.entity';
 import { RequisitionsService } from './requisitions.service';
 import { CreateRequisitionDto } from './dtos/create-requisition.dto';
+import { RejectRequisitionDto } from './dtos/reject-requisition.dto';
 import { RequisitionEntity } from './entities/requisition.entity';
 import { ROLES } from 'src/auth/models/roles.enum';
 
@@ -45,6 +46,12 @@ export class RequisitionsController {
     return this.requisitionsService.getAllRequisitions();
   }
 
+  @Get(':id')
+  @HasPermissions(PERMISSIONS.REQUISITIONS.VIEW_ALL)
+  getOne(@Param('id') id: string): Promise<RequisitionEntity> {
+    return this.requisitionsService.getRequisitionById(id);
+  }
+
   @Post(':id/sign/deputy')
   @HasPermissions(PERMISSIONS.REQUISITIONS.SIGN_DEPUTY)
   signAsDeputy(
@@ -70,6 +77,16 @@ export class RequisitionsController {
     @GetUser() profile: TeachersEntity & { role: ROLES },
   ): Promise<RequisitionEntity> {
     return this.requisitionsService.authorise(id, profile);
+  }
+
+  @Post(':id/reject')
+  @HasPermissions(PERMISSIONS.REQUISITIONS.AUTHORISE)
+  reject(
+    @Param('id') id: string,
+    @Body() dto: RejectRequisitionDto,
+    @GetUser() profile: TeachersEntity & { role: ROLES },
+  ): Promise<RequisitionEntity> {
+    return this.requisitionsService.reject(id, profile, dto.reason);
   }
 }
 

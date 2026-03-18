@@ -40,6 +40,11 @@ export class DepartmentsController {
     return this.departmentsService.findAll();
   }
 
+  @Get(':id')
+  async getDepartment(@Param('id') id: string): Promise<DepartmentEntity> {
+    return this.departmentsService.findOne(id);
+  }
+
   @Post()
   async createDepartment(
     @Body() dto: CreateDepartmentDto,
@@ -79,6 +84,78 @@ export class DepartmentsController {
     }
     await this.departmentsService.remove(id);
     return { success: true };
+  }
+
+  @Patch(':id/hod')
+  async setHod(
+    @Param('id') id: string,
+    @Body() body: { teacherId?: string | null },
+    @GetUser() profile: Profile,
+  ): Promise<DepartmentEntity> {
+    if (!canManageDepartments(profile)) {
+      throw new ForbiddenException(
+        'Only dev, admin, or director can manage departments',
+      );
+    }
+    const teacherId =
+      body.teacherId === undefined ? null : (body.teacherId as string | null);
+    return this.departmentsService.setHod(id, teacherId);
+  }
+
+  @Post(':id/teachers')
+  async assignTeacher(
+    @Param('id') id: string,
+    @Body() body: { teacherId: string },
+    @GetUser() profile: Profile,
+  ): Promise<DepartmentEntity> {
+    if (!canManageDepartments(profile)) {
+      throw new ForbiddenException(
+        'Only dev, admin, or director can manage departments',
+      );
+    }
+    return this.departmentsService.assignTeacher(id, body.teacherId);
+  }
+
+  @Delete(':id/teachers/:teacherId')
+  async removeTeacher(
+    @Param('id') id: string,
+    @Param('teacherId') teacherId: string,
+    @GetUser() profile: Profile,
+  ): Promise<DepartmentEntity> {
+    if (!canManageDepartments(profile)) {
+      throw new ForbiddenException(
+        'Only dev, admin, or director can manage departments',
+      );
+    }
+    return this.departmentsService.removeTeacher(id, teacherId);
+  }
+
+  @Post(':id/subjects')
+  async addSubject(
+    @Param('id') id: string,
+    @Body() body: { subjectCode: string },
+    @GetUser() profile: Profile,
+  ): Promise<DepartmentEntity> {
+    if (!canManageDepartments(profile)) {
+      throw new ForbiddenException(
+        'Only dev, admin, or director can manage departments',
+      );
+    }
+    return this.departmentsService.addSubject(id, body.subjectCode);
+  }
+
+  @Delete(':id/subjects/:subjectCode')
+  async removeSubject(
+    @Param('id') id: string,
+    @Param('subjectCode') subjectCode: string,
+    @GetUser() profile: Profile,
+  ): Promise<DepartmentEntity> {
+    if (!canManageDepartments(profile)) {
+      throw new ForbiddenException(
+        'Only dev, admin, or director can manage departments',
+      );
+    }
+    return this.departmentsService.removeSubject(id, subjectCode);
   }
 }
 

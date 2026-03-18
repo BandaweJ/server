@@ -67,7 +67,7 @@ export class RequisitionsService {
     requisition.description = dto.description;
     requisition.department = teacher.department;
     requisition.createdBy = teacher;
-    requisition.status = RequisitionStatus.Submitted;
+    requisition.status = RequisitionStatus.InReviewDeputy;
 
     const items = dto.items.map((itemDto) => {
       const item = new RequisitionItemEntity();
@@ -124,9 +124,34 @@ export class RequisitionsService {
 
   async getAllRequisitions(): Promise<RequisitionEntity[]> {
     return this.requisitionsRepository.find({
-      relations: ['department', 'createdBy', 'items'],
+      relations: [
+        'department',
+        'createdBy',
+        'items',
+        'deputySignedBy',
+        'headSignedBy',
+        'authorisedBy',
+      ],
       order: { createdAt: 'DESC' },
     });
+  }
+
+  async getRequisitionById(id: string): Promise<RequisitionEntity> {
+    const requisition = await this.requisitionsRepository.findOne({
+      where: { id },
+      relations: [
+        'department',
+        'createdBy',
+        'items',
+        'deputySignedBy',
+        'headSignedBy',
+        'authorisedBy',
+      ],
+    });
+    if (!requisition) {
+      throw new BadRequestException('Requisition not found');
+    }
+    return requisition;
   }
 
   async signAsDeputy(
@@ -143,6 +168,15 @@ export class RequisitionsService {
     });
     if (!requisition) {
       throw new BadRequestException('Requisition not found');
+    }
+
+    if (
+      requisition.status !== RequisitionStatus.InReviewDeputy &&
+      requisition.status !== RequisitionStatus.Submitted
+    ) {
+      throw new BadRequestException(
+        `Cannot sign as deputy when requisition is "${requisition.status}"`,
+      );
     }
 
     if (requisition.deputySignedAt) {
@@ -179,8 +213,10 @@ export class RequisitionsService {
       throw new BadRequestException('Requisition not found');
     }
 
-    if (!requisition.deputySignedAt) {
-      throw new BadRequestException('Requisition must be signed by a deputy first');
+    if (requisition.status !== RequisitionStatus.InReviewHead) {
+      throw new BadRequestException(
+        `Cannot sign as head when requisition is "${requisition.status}"`,
+      );
     }
 
     if (requisition.headSignedAt) {
@@ -217,8 +253,10 @@ export class RequisitionsService {
       throw new BadRequestException('Requisition not found');
     }
 
-    if (!requisition.headSignedAt) {
-      throw new BadRequestException('Requisition must be signed by the head first');
+    if (requisition.status !== RequisitionStatus.AwaitingAuthorization) {
+      throw new BadRequestException(
+        `Cannot authorise when requisition is "${requisition.status}"`,
+      );
     }
 
     if (requisition.authorisedAt) {
@@ -235,6 +273,55 @@ export class RequisitionsService {
     requisition.authorisedBy = authoriser;
     requisition.authorisedAt = new Date();
     requisition.status = RequisitionStatus.Authorized;
+
+    return this.requisitionsRepository.save(requisition);
+  }
+
+  async reject(
+    id: string,
+    profile: TeachersEntity & { role: ROLES },
+    reason: string,
+  ): Promise<RequisitionEntity> {
+    if (![ROLES.auditor, ROLES.director].includes(profile.role)) {
+      throw new ForbiddenException('Only auditor or director can reject');
+    }
+
+    const requisition = await this.requisitionsRepository.findOne({
+      where: { id },
+      relations: [
+        'department',
+        'createdBy',
+        'items',
+        'deputySignedBy',
+        'headSignedBy',
+        'authorisedBy',
+      ],
+    });
+    if (!requisition) {
+      throw new BadRequestException('Requisition not found');
+    }
+
+    if (requisition.status !== RequisitionStatus.AwaitingAuthorization) {
+      throw new BadRequestException(
+        `Cannot reject when requisition is "${requisition.status}"`,
+      );
+    }
+
+    if (requisition.authorisedAt) {
+      return requisition;
+    }
+
+    const authoriser = await this.teachersRepository.findOne({
+      where: { id: profile.id },
+    });
+    if (!authoriser) {
+      throw new BadRequestException('Authoriser profile not found');
+    }
+
+    requisition.authorisedBy = authoriser;
+    requisition.authorisedAt = new Date();
+    requisition.rejectionReason = (reason || '').trim();
+    requisition.status = RequisitionStatus.Rejected;
 
     return this.requisitionsRepository.save(requisition);
   }

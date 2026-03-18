@@ -12,8 +12,10 @@ import { AuthModule } from '../auth/auth.module';
 import { Module } from '@nestjs/common';
 import { ResourceByIdModule } from '../resource-by-id/resource-by-id.module';
 import { DepartmentEntity } from './entities/department.entity';
+import { DepartmentSubjectEntity } from './entities/department-subject.entity';
 import { DepartmentsService } from './departments/departments.service';
 import { DepartmentsController } from './departments/departments.controller';
+import { SubjectsEntity } from 'src/marks/entities/subjects.entity';
 
 @Module({
   imports: [
@@ -22,6 +24,8 @@ import { DepartmentsController } from './departments/departments.controller';
       StudentsEntity,
       ParentsEntity,
       DepartmentEntity,
+      DepartmentSubjectEntity,
+      SubjectsEntity,
     ]),
     AuthModule,
     ResourceByIdModule,
