@@ -431,11 +431,13 @@ export class AuthService {
         case ROLES.teacher:
         case ROLES.dev: {
           const usr = await this.resourceById.getTeacherById(id);
-          return { username, role: usr.role, id };
+          // Always use the role from the account record for JWT payload.
+          // Profile roles can be stale/mismatched (e.g. teacher.role) and would break permission checks.
+          return { username, role: rol, id };
         }
         case ROLES.parent: {
           const usr = await this.resourceById.getParentByEmail(id);
-          return { username, role: usr.role, id };
+          return { username, role: rol, id };
         }
         case ROLES.student: {
           // For students, account.id IS the student number (set during signup from DTO)
@@ -443,7 +445,7 @@ export class AuthService {
           // So we can use account.id directly as the student number
           try {
             const usr = await this.resourceById.getStudentByStudentNumber(id);
-            return { username, role: usr.role, id };
+            return { username, role: rol, id };
           } catch (error) {
             // If student not found, log for debugging
             console.error('Student signin - student lookup failed:', {
