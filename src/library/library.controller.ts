@@ -11,6 +11,7 @@ import { CreateTextbookTitleDto } from './dtos/create-textbook-title.dto';
 import { ReceiveTextbookCopiesDto } from './dtos/receive-textbook-copies.dto';
 import { IssueTextbookLoanDto } from './dtos/issue-textbook-loan.dto';
 import { ReturnTextbookLoanDto } from './dtos/return-textbook-loan.dto';
+import { AssignTextbookCopyDto } from './dtos/assign-textbook-copy.dto';
 
 @Controller('library')
 @UseGuards(AuthGuard(), PermissionsGuard)
@@ -56,8 +57,25 @@ export class LibraryController {
     return this.libraryService.receiveCopies(profile, dto);
   }
 
-  @Post('loans/issue')
+  @Post('copies/assign')
   @HasPermissions(PERMISSIONS.INVENTORY.MANAGE_OWN_DEPARTMENT)
+  assignCopy(
+    @GetUser() profile: TeachersEntity & { role: ROLES; accountId?: string },
+    @Body() dto: AssignTextbookCopyDto,
+  ) {
+    return this.libraryService.assignCopy(profile, dto);
+  }
+
+  @Get('teachers')
+  @HasPermissions(PERMISSIONS.INVENTORY.VIEW_OWN_DEPARTMENT)
+  getDepartmentTeachers(
+    @GetUser() profile: TeachersEntity & { role: ROLES; accountId?: string },
+  ) {
+    return this.libraryService.getDepartmentTeachers(profile);
+  }
+
+  @Post('loans/issue')
+  @HasPermissions(PERMISSIONS.INVENTORY.VIEW_OWN_DEPARTMENT)
   issueLoan(
     @GetUser() profile: TeachersEntity & { role: ROLES; accountId?: string },
     @Body() dto: IssueTextbookLoanDto,
@@ -66,12 +84,29 @@ export class LibraryController {
   }
 
   @Post('loans/return')
-  @HasPermissions(PERMISSIONS.INVENTORY.MANAGE_OWN_DEPARTMENT)
+  @HasPermissions(PERMISSIONS.INVENTORY.VIEW_OWN_DEPARTMENT)
   returnLoan(
     @GetUser() profile: TeachersEntity & { role: ROLES; accountId?: string },
     @Body() dto: ReturnTextbookLoanDto,
   ) {
     return this.libraryService.returnLoan(profile, dto);
+  }
+
+  @Get('loans')
+  @HasPermissions(PERMISSIONS.INVENTORY.VIEW_OWN_DEPARTMENT)
+  getLoans(
+    @GetUser() profile: TeachersEntity & { role: ROLES; accountId?: string },
+    @Query('q') q?: string,
+    @Query('studentNumber') studentNumber?: string,
+    @Query('copyId') copyId?: string,
+    @Query('status') status?: 'open' | 'returned',
+  ) {
+    return this.libraryService.getLoans(profile, {
+      q,
+      studentNumber,
+      copyId,
+      status,
+    });
   }
 }
 

@@ -18,6 +18,7 @@ import { CreateTextbookTitleDto } from './dtos/create-textbook-title.dto';
 import { ReceiveTextbookCopiesDto } from './dtos/receive-textbook-copies.dto';
 import { IssueTextbookLoanDto } from './dtos/issue-textbook-loan.dto';
 import { ReturnTextbookLoanDto } from './dtos/return-textbook-loan.dto';
+import { AssignTextbookCopyDto } from './dtos/assign-textbook-copy.dto';
 
 @Injectable()
 export class LibraryService {
@@ -202,6 +203,45 @@ export class LibraryService {
     });
   }
 
+  async assignCopy(
+    profile: TeachersEntity & { role: ROLES },
+    dto: AssignTextbookCopyDto,
+  ) {
+    this.ensureTeacher(profile);
+    const deptId = await this.getTeacherDepartmentId(profile);
+
+    const copy = await this.copiesRepo.findOne({ where: { id: dto.copyId } });
+    if (!copy) throw new NotFoundException('Textbook copy not found');
+    if (copy.departmentId !== deptId) {
+      throw new ForbiddenException('Not allowed to assign a book from another department');
+    }
+
+    const assignedTeacherId = dto.assignedTeacherId?.trim() || null;
+    if (assignedTeacherId) {
+      const teacher = await this.teachersRepo.findOne({
+        where: { id: assignedTeacherId },
+      });
+      if (!teacher) throw new BadRequestException('Assigned teacher not found');
+      if (teacher.departmentId !== deptId) {
+        throw new ForbiddenException('Assigned teacher is not in your department');
+      }
+    }
+
+    copy.assignedTeacherId = assignedTeacherId;
+    return this.copiesRepo.save(copy);
+  }
+
+  async getDepartmentTeachers(profile: TeachersEntity & { role: ROLES }) {
+    this.ensureTeacher(profile);
+    const deptId = await this.getTeacherDepartmentId(profile);
+    return this.teachersRepo.find({
+      where: { departmentId: deptId },
+      select: ['id', 'name', 'surname', 'email'],
+      order: { name: 'ASC', surname: 'ASC' },
+      take: 200,
+    });
+  }
+
   async issueLoan(
     profile: TeachersEntity & { role: ROLES },
     dto: IssueTextbookLoanDto,
@@ -283,6 +323,54 @@ export class LibraryService {
 
       return loan;
     });
+  }
+
+  async getLoans(
+    profile: TeachersEntity & { role: ROLES },
+    params: {
+      q?: string;
+      studentNumber?: string;
+      copyId?: string;
+      status?: 'open' | 'returned';
+    },
+  ) {
+    this.ensureTeacher(profile);
+    const deptId = await this.getTeacherDepartmentId(profile);
+
+    const qb = this.loansRepo
+      .createQueryBuilder('l')
+      .leftJoinAndSelect('l.copy', 'copy')
+      .leftJoinAndSelect('copy.title', 'title')
+      .leftJoinAndSelect('copy.room', 'room')
+      .leftJoinAndSelect('l.student', 'student')
+      .leftJoinAndSelect('l.issuedBy', 'issuedBy')
+      .leftJoinAndSelect('l.receivedBy', 'receivedBy')
+      .where('copy.departmentId = :deptId', { deptId })
+      .orderBy('l.createdAt', 'DESC')
+      .take(300);
+
+    const query = (params.q || '').trim();
+    if (query) {
+      qb.andWhere(
+        '(copy.bookNumber ILIKE :q OR title.title ILIKE :q OR l.studentNumber ILIKE :q OR student.name ILIKE :q OR student.surname ILIKE :q)',
+        { q: `%${query}%` },
+      );
+    }
+    if (params.studentNumber?.trim()) {
+      qb.andWhere('l.studentNumber = :studentNumber', {
+        studentNumber: params.studentNumber.trim(),
+      });
+    }
+    if (params.copyId?.trim()) {
+      qb.andWhere('l.copyId = :copyId', { copyId: params.copyId.trim() });
+    }
+    if (params.status === 'open') {
+      qb.andWhere('l.returnedAt IS NULL');
+    } else if (params.status === 'returned') {
+      qb.andWhere('l.returnedAt IS NOT NULL');
+    }
+
+    return qb.getMany();
   }
 }
 
