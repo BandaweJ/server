@@ -676,6 +676,7 @@ export class RolesPermissionsService implements OnModuleInit {
         // Reception gets enrolment and basic finance permissions
         ...Object.values(PERMISSIONS.ENROLMENT),
         PERMISSIONS.FINANCE.VIEW,
+        PERMISSIONS.FINANCE.VIEW_REPORTS,
         PERMISSIONS.FINANCE.CREATE,
         PERMISSIONS.USERS.VIEW,
         PERMISSIONS.USERS.CREATE,
