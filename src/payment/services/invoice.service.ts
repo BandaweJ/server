@@ -507,6 +507,12 @@ export class InvoiceService {
           }
           
           isNewInvoice = !foundInvoice;
+          const resolvedBalanceBfwd = await this.resolveBalanceBfwdForInvoice(
+            dtoBalanceBfwd,
+            foundInvoice?.id,
+            studentNumber,
+            transactionalEntityManager,
+          );
 
           // Reconcile student finances BEFORE saving invoice. For new invoices run full
           // reallocation so existing data is clean; for updates use lightweight only.
@@ -540,12 +546,12 @@ export class InvoiceService {
             // Previously we only set this when invoice had no balanceBfwd, which
             // could leave a stale/zero balance linked and ignore the new amount.
             if (
-              dtoBalanceBfwd &&
+              resolvedBalanceBfwd &&
               (!invoiceToSave.balanceBfwd ||
                 Number(invoiceToSave.balanceBfwd.id) !==
-                  Number(dtoBalanceBfwd.id))
+                  Number(resolvedBalanceBfwd.id))
             ) {
-              invoiceToSave.balanceBfwd = dtoBalanceBfwd;
+              invoiceToSave.balanceBfwd = resolvedBalanceBfwd;
             }
 
             const balanceBfwdAmount = invoiceToSave.balanceBfwd
@@ -620,8 +626,8 @@ export class InvoiceService {
 
             // Attach balanceBfwd for new invoices when supplied via DTO so
             // the legacy opening balance is carried onto the first invoice.
-            if (dtoBalanceBfwd) {
-              invoiceToSave.balanceBfwd = dtoBalanceBfwd;
+            if (resolvedBalanceBfwd) {
+              invoiceToSave.balanceBfwd = resolvedBalanceBfwd;
             }
 
           // NEW INVOICE: always generate a fresh invoice number on the server
@@ -1057,6 +1063,94 @@ export class InvoiceService {
     }
 
     return finalInvoice;
+  }
+
+  /**
+   * Enforces one-to-one usage for invoice.balanceBfwd.
+   * If DTO references a balance row already linked to a different invoice,
+   * create a fresh balance row instead of reusing it (prevents REL_* unique errors).
+   */
+  private async resolveBalanceBfwdForInvoice(
+    dtoBalanceBfwd: BalancesEntity | undefined,
+    currentInvoiceId: number | undefined,
+    studentNumber: string,
+    transactionalEntityManager: EntityManager,
+  ): Promise<BalancesEntity | undefined> {
+    if (!dtoBalanceBfwd) {
+      return undefined;
+    }
+
+    const parsedAmount = Number(dtoBalanceBfwd.amount ?? 0);
+    const normalizedAmount =
+      Number.isFinite(parsedAmount) && parsedAmount > 0
+        ? sanitizeOptionalAmount(parsedAmount)
+        : 0;
+    const fallbackStudentNumber = dtoBalanceBfwd.studentNumber || studentNumber;
+    const requestedId = dtoBalanceBfwd.id ? Number(dtoBalanceBfwd.id) : undefined;
+
+    if (requestedId) {
+      const existingBalance = await transactionalEntityManager.findOne(
+        BalancesEntity,
+        {
+          where: { id: requestedId },
+          relations: ['invoice'],
+        },
+      );
+
+      if (existingBalance) {
+        const linkedInvoiceId = existingBalance.invoice?.id;
+        if (linkedInvoiceId && linkedInvoiceId !== currentInvoiceId) {
+          // Keep 1:1 relation intact by cloning for this invoice.
+          return await transactionalEntityManager.save(
+            BalancesEntity,
+            transactionalEntityManager.create(BalancesEntity, {
+              amount: normalizedAmount || Number(existingBalance.amount || 0),
+              studentNumber:
+                fallbackStudentNumber || existingBalance.studentNumber,
+            }),
+          );
+        }
+
+        let shouldSave = false;
+        if (
+          normalizedAmount > 0 &&
+          Number(existingBalance.amount) !== normalizedAmount
+        ) {
+          existingBalance.amount = normalizedAmount;
+          shouldSave = true;
+        }
+
+        const targetStudentNumber =
+          fallbackStudentNumber || existingBalance.studentNumber;
+        if (
+          targetStudentNumber &&
+          existingBalance.studentNumber !== targetStudentNumber
+        ) {
+          existingBalance.studentNumber = targetStudentNumber;
+          shouldSave = true;
+        }
+
+        if (shouldSave) {
+          return await transactionalEntityManager.save(
+            BalancesEntity,
+            existingBalance,
+          );
+        }
+        return existingBalance;
+      }
+    }
+
+    if (normalizedAmount <= 0 || !fallbackStudentNumber) {
+      return undefined;
+    }
+
+    return await transactionalEntityManager.save(
+      BalancesEntity,
+      transactionalEntityManager.create(BalancesEntity, {
+        amount: normalizedAmount,
+        studentNumber: fallbackStudentNumber,
+      }),
+    );
   }
 
   /**
