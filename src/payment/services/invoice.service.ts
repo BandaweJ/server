@@ -536,9 +536,15 @@ export class InvoiceService {
               ? new Date(invoice.invoiceDueDate)
               : new Date();
 
-            // If the DTO carries a balanceBfwd and this invoice does not yet
-            // have one, attach it so its amount is included in totalBill.
-            if (dtoBalanceBfwd && !invoiceToSave.balanceBfwd) {
+            // If DTO carries a legacy balance, always align invoice relation to it.
+            // Previously we only set this when invoice had no balanceBfwd, which
+            // could leave a stale/zero balance linked and ignore the new amount.
+            if (
+              dtoBalanceBfwd &&
+              (!invoiceToSave.balanceBfwd ||
+                Number(invoiceToSave.balanceBfwd.id) !==
+                  Number(dtoBalanceBfwd.id))
+            ) {
               invoiceToSave.balanceBfwd = dtoBalanceBfwd;
             }
 
