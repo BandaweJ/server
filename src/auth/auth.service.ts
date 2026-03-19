@@ -685,22 +685,14 @@ export class AuthService {
       if (!Object.values(ROLES).includes(newRole)) {
         throw new BadRequestException(`Invalid role: ${newRole}`);
       }
-
-      account.role = newRole;
-      // Look up RoleEntity by name so permissions stay consistent
-      const roleEntity =
-        (await this.rolesPermissionsService.findRoleByName(newRole)) || null;
-      if (roleEntity) {
-        account.roleEntity = roleEntity;
-        account.roleId = roleEntity.id;
-      } else {
-        // Fallback: keep role string only if RoleEntity not found
-        account.roleEntity = undefined;
-        account.roleId = undefined;
-      }
     }
 
     await this.accountsRepository.save(account);
+
+    if (updateData.role) {
+      // Keep account role, roleId and teacher profile role consistent.
+      await this.rolesPermissionsService.syncAccountRoleByName(id, updateData.role);
+    }
 
     return {
       message: 'Account updated successfully',

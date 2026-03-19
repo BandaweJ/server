@@ -5,6 +5,7 @@ import { Repository, In, IsNull, Not } from 'typeorm';
 import { RoleEntity } from '../entities/role.entity';
 import { PermissionEntity } from '../entities/permission.entity';
 import { AccountsEntity } from '../entities/accounts.entity';
+import { TeachersEntity } from 'src/profiles/entities/teachers.entity';
 import { CreateRoleDto } from '../dtos/create-role.dto';
 import { UpdateRoleDto } from '../dtos/update-role.dto';
 import { CreatePermissionDto } from '../dtos/create-permission.dto';
@@ -24,6 +25,8 @@ export class RolesPermissionsService implements OnModuleInit {
     private permissionRepository: Repository<PermissionEntity>,
     @InjectRepository(AccountsEntity)
     private accountsRepository: Repository<AccountsEntity>,
+    @InjectRepository(TeachersEntity)
+    private teachersRepository: Repository<TeachersEntity>,
   ) {}
 
   /**
@@ -69,6 +72,7 @@ export class RolesPermissionsService implements OnModuleInit {
 
         // If relation is present and matches, nothing to do.
         if (account.roleEntity?.name === roleName && account.roleId === account.roleEntity.id) {
+          await this.syncTeacherRoleFromAccount(account);
           continue;
         }
 
@@ -81,6 +85,7 @@ export class RolesPermissionsService implements OnModuleInit {
           await this.accountsRepository.save(account);
           repaired += 1;
         }
+        await this.syncTeacherRoleFromAccount(account);
       }
 
       if (repaired > 0) {
@@ -483,10 +488,42 @@ export class RolesPermissionsService implements OnModuleInit {
       throw new BadRequestException('Cannot assign inactive role');
     }
 
+    account.role = role.name as ROLES;
     account.roleId = role.id;
     account.roleEntity = role;
+    const saved = await this.accountsRepository.save(account);
+    await this.syncTeacherRoleFromAccount(saved);
+    return saved;
+  }
 
-    return await this.accountsRepository.save(account);
+  /**
+   * Set canonical account role by role name and synchronize linked teacher role.
+   */
+  async syncAccountRoleByName(
+    accountId: string,
+    roleName: ROLES,
+  ): Promise<AccountsEntity> {
+    const account = await this.accountsRepository.findOne({
+      where: { id: accountId },
+      relations: ['roleEntity'],
+    });
+    if (!account) {
+      throw new NotFoundException(`Account with ID "${accountId}" not found`);
+    }
+
+    const role = await this.roleRepository.findOne({ where: { name: roleName } });
+    account.role = roleName;
+    if (role) {
+      account.roleId = role.id;
+      account.roleEntity = role;
+    } else {
+      account.roleId = undefined;
+      account.roleEntity = undefined;
+    }
+
+    const saved = await this.accountsRepository.save(account);
+    await this.syncTeacherRoleFromAccount(saved);
+    return saved;
   }
 
   /** All permission names from PERMISSIONS constant (dev and admin get these) */
@@ -500,7 +537,23 @@ export class RolesPermissionsService implements OnModuleInit {
       ...Object.values(PERMISSIONS.USERS),
       ...Object.values(PERMISSIONS.SYSTEM),
       ...Object.values(PERMISSIONS.REQUISITIONS),
+      ...Object.values(PERMISSIONS.INVENTORY),
+      ...Object.values(PERMISSIONS.INCIDENTS),
     ];
+  }
+
+  /**
+   * Align teacher.profile role with account role for consistency.
+   * Account role is canonical; teacher role is kept in sync for legacy reads/UI.
+   */
+  private async syncTeacherRoleFromAccount(account: AccountsEntity): Promise<void> {
+    if (!account?.id || !account?.role) return;
+    const teacher = await this.teachersRepository.findOne({ where: { id: account.id } });
+    if (!teacher) return;
+    if (teacher.role !== account.role) {
+      teacher.role = account.role;
+      await this.teachersRepository.save(teacher);
+    }
   }
 
   // Get user permissions

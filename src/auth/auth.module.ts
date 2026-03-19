@@ -20,6 +20,7 @@ import { PermissionsGuard } from './guards/permissions.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { ParentStudentAccessGuard } from './guards/parent-student-access.guard';
 import { ParentsEntity } from 'src/profiles/entities/parents.entity';
+import { TeachersEntity } from 'src/profiles/entities/teachers.entity';
 
 @Module({
   imports: [
@@ -54,7 +55,13 @@ import { ParentsEntity } from 'src/profiles/entities/parents.entity';
       inject: [ConfigService], // Tell NestJS to inject ConfigService into useFactory
     }),
     PassportModule.register({ defaultStrategy: 'jwt' }),
-    TypeOrmModule.forFeature([AccountsEntity, RoleEntity, PermissionEntity, ParentsEntity]),
+    TypeOrmModule.forFeature([
+      AccountsEntity,
+      RoleEntity,
+      PermissionEntity,
+      ParentsEntity,
+      TeachersEntity,
+    ]),
     ResourceByIdModule,
     forwardRef(() => ActivityModule), // Use forwardRef to handle circular dependency
   ],
