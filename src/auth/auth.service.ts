@@ -265,13 +265,7 @@ export class AuthService {
         break;
       }
 
-      case ROLES.teacher:
-      case ROLES.reception:
-      case ROLES.hod:
-      case ROLES.admin:
-      case ROLES.auditor:
-      case ROLES.director:
-      case ROLES.dev: {
+      case ROLES.teacher: {
         const tr = await this.resourceById.getTeacherById(id);
 
         try {
@@ -288,6 +282,16 @@ export class AuthService {
           }
         }
         break;
+      }
+      case ROLES.reception:
+      case ROLES.hod:
+      case ROLES.admin:
+      case ROLES.auditor:
+      case ROLES.director:
+      case ROLES.dev: {
+        throw new BadRequestException(
+          `Role ${role} is not allowed for self-signup`,
+        );
       }
       default: {
         this.logger.error('signup - Unknown role', {
