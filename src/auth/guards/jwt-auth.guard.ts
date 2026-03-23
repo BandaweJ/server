@@ -21,21 +21,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   }
 
   handleRequest(err: any, user: any, info: any, context: ExecutionContext) {
-    // Log authentication attempt
     const request = context.switchToHttp().getRequest();
-    const authHeader = request.headers?.authorization;
-
-    this.logger.log('JwtAuthGuard: handleRequest called', {
-      hasError: !!err,
-      hasUser: !!user,
-      hasInfo: !!info,
-      hasAuthHeader: !!authHeader,
-      errorMessage: err?.message,
-      errorName: err?.name,
-      infoMessage: info?.message,
-      infoName: info?.name,
-      url: request.url,
-    });
 
     // If there's an error or info (like expired token), throw UnauthorizedException
     if (err || info) {
@@ -53,15 +39,9 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
         errorMessage = info;
       }
 
-      this.logger.error('JwtAuthGuard: Authentication failed', {
-        error: err,
-        errorMessage: err?.message,
-        errorName: err?.name,
-        errorStack: err?.stack,
-        info: info,
-        infoMessage: info?.message,
-        infoName: info?.name,
+      this.logger.warn('Authentication failed in JwtAuthGuard', {
         url: request.url,
+        errorMessage,
       });
       throw new UnauthorizedException(errorMessage);
     }
@@ -70,8 +50,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     if (!user) {
       this.logger.error('JwtAuthGuard: No user returned from JWT strategy', {
         url: request.url,
-        hasAuthHeader: !!authHeader,
-        authHeaderPrefix: authHeader?.substring(0, 20),
+        hasAuthHeader: !!request.headers?.authorization,
       });
       throw new UnauthorizedException(
         'Authentication failed. Please log in again.',

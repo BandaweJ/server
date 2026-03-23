@@ -357,7 +357,9 @@ export class AuthService {
       }
     } catch (error) {
       // Don't fail the login if permission fetching fails
-      console.error('Failed to fetch user permissions:', error);
+      this.logger.warn('Failed to fetch user permissions', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
 
     // Log the login activity
@@ -370,7 +372,9 @@ export class AuthService {
       });
     } catch (error) {
       // Don't fail the login if activity logging fails
-      console.error('Failed to log login activity:', error);
+      this.logger.warn('Failed to log login activity', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
 
     return { accessToken, permissions };
@@ -452,7 +456,7 @@ export class AuthService {
             return { username, role: rol, id };
           } catch (error) {
             // If student not found, log for debugging
-            console.error('Student signin - student lookup failed:', {
+            this.logger.error('Student signin - student lookup failed', {
               accountId: id,
               username,
               error: error instanceof Error ? error.message : String(error),
@@ -565,10 +569,11 @@ export class AuthService {
             email = null;
           }
         } catch (error) {
-          console.error(
-            `Error fetching details for account ${account.username}:`,
-            error,
-          );
+          this.logger.warn('Error fetching details for account', {
+            accountId: account.id,
+            username: account.username,
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
 
         return {
@@ -620,7 +625,9 @@ export class AuthService {
         metadata: { username: account.username },
       });
     } catch (error) {
-      console.error('Failed to log password reset activity:', error);
+      this.logger.warn('Failed to log password reset activity', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
 
     return {
@@ -657,7 +664,9 @@ export class AuthService {
         metadata: { username: account.username },
       });
     } catch (error) {
-      console.error('Failed to log password change activity:', error);
+      this.logger.warn('Failed to log password change activity', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
 
     return {
@@ -748,7 +757,9 @@ export class AuthService {
           metadata: { username: account.username, active: updateData.active },
         });
       } catch (error) {
-        console.error('Failed to log activity:', error);
+        this.logger.warn('Failed to log profile activation/deactivation activity', {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
 
       // Remove active from updateData so it doesn't get passed to profile update
@@ -800,7 +811,9 @@ export class AuthService {
         },
       });
     } catch (error) {
-      console.error('Failed to log profile update activity:', error);
+      this.logger.warn('Failed to log profile update activity', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
 
     return {
@@ -840,7 +853,9 @@ export class AuthService {
         },
       });
     } catch (error) {
-      console.error('Failed to log user deletion activity:', error);
+      this.logger.warn('Failed to log user deletion activity', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
 
     return {
@@ -875,7 +890,9 @@ export class AuthService {
         metadata: { username: account.username, role: account.role },
       });
     } catch (error) {
-      console.error('Failed to log user restoration activity:', error);
+      this.logger.warn('Failed to log user restoration activity', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
 
     return {
