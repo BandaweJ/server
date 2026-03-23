@@ -19,6 +19,7 @@ import { HeadCommentDto } from './dtos/head-comment.dto';
 import { TeacherCommentDto } from './dtos/teacher-comment.dto';
 import { ReportsModel } from './models/reports.model';
 import { ExamType } from 'src/marks/models/examtype.enum';
+import { GenerateRoleCommentDto } from './dtos/generate-role-comment.dto';
 import { PermissionsGuard } from 'src/auth/guards/permissions.guard';
 import { HasPermissions } from 'src/auth/decorators/has-permissions.decorator';
 import { PERMISSIONS } from 'src/auth/models/permissions.constants';
@@ -85,6 +86,15 @@ export class ReportsController {
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
     return this.reportsService.saveTeacherComment(comment, profile);
+  }
+
+  @Post('/generate-role-comment')
+  @HasPermissions(PERMISSIONS.REPORTS.EDIT_COMMENT)
+  generateRoleComment(
+    @Body() payload: GenerateRoleCommentDto,
+    @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
+  ) {
+    return this.reportsService.generateRoleComment(payload, profile);
   }
 
   @Get('/view/:name/:num/:year/:examType')

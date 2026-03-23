@@ -54,6 +54,7 @@ export class AIController {
           success: true,
           comments: fallbackComments,
           error: `OpenAI unavailable, using fallback comments: ${result.error}`,
+          source: 'fallback',
         };
       }
 
@@ -70,6 +71,7 @@ export class AIController {
         success: true,
         comments: fallbackComments,
         error: 'Service error, using fallback comments',
+        source: 'fallback',
       };
     }
   }

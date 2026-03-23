@@ -11,6 +11,7 @@ import { SystemModule } from '../system/system.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ResourceByIdModule } from '../resource-by-id/resource-by-id.module';
 import { PaymentModule } from '../payment/payment.module';
+import { AIModule } from '../ai/ai.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { PaymentModule } from '../payment/payment.module';
     NotificationsModule,
     ResourceByIdModule,
     PaymentModule,
+    AIModule,
   ],
   providers: [ReportsService],
   controllers: [ReportsController],

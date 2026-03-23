@@ -31,6 +31,11 @@ import { NotificationService } from '../notifications/services/notification.serv
 import { ResourceByIdService } from '../resource-by-id/resource-by-id.service';
 import { ReportReleaseService } from '../system/report-release.service';
 import { InvoiceService } from '../payment/services/invoice.service';
+import {
+  OpenAIService,
+  RoleCommentContext,
+} from 'src/ai/services/openai.service';
+import { GenerateRoleCommentDto } from './dtos/generate-role-comment.dto';
 // import bannerImagePath from '../assets/images/banner3.png';
 
 @Injectable()
@@ -49,6 +54,7 @@ export class ReportsService {
     private resourceById: ResourceByIdService,
     private reportReleaseService: ReportReleaseService,
     private invoiceService: InvoiceService,
+    private openAIService: OpenAIService,
   ) {}
 
   async generateReports(
@@ -1115,6 +1121,72 @@ export class ReportsService {
 
       return await this.reportsRepository.save(newReport);
     }
+  }
+
+  async generateRoleComment(
+    payload: GenerateRoleCommentDto,
+    profile: StudentsEntity | TeachersEntity | ParentsEntity,
+  ): Promise<{ success: boolean; comment: string; source: 'openai' | 'fallback'; error?: string }> {
+    if (!payload?.report?.report) {
+      throw new BadRequestException('Report payload is required');
+    }
+
+    const reportWrapper = payload.report;
+    const report = reportWrapper.report;
+    const subjects = Array.isArray(report.subjectsTable) ? report.subjectsTable : [];
+
+    if (!subjects.length) {
+      throw new BadRequestException(
+        'Cannot generate summary comment without subject results',
+      );
+    }
+
+    const sortedByMark = [...subjects].sort((a, b) => b.mark - a.mark);
+    const topSubjects = sortedByMark.slice(0, 3).map((s) => ({
+      subject: s.subjectName || s.subjectCode,
+      mark: s.mark,
+      grade: s.grade,
+    }));
+    const weakSubjects = [...sortedByMark]
+      .reverse()
+      .slice(0, 3)
+      .map((s) => ({
+        subject: s.subjectName || s.subjectCode,
+        mark: s.mark,
+        grade: s.grade,
+      }));
+    const subjectComments = subjects
+      .filter((s) => typeof s.comment === 'string' && s.comment.trim().length > 0)
+      .slice(0, 6)
+      .map((s) => ({
+        subject: s.subjectName || s.subjectCode,
+        comment: s.comment.trim(),
+      }));
+
+    const context: RoleCommentContext = {
+      role: payload.role,
+      studentName: `${report.name || ''} ${report.surname || ''}`.trim(),
+      className: report.className || reportWrapper.name,
+      examType: report.examType || reportWrapper.examType,
+      termNumber: report.termNumber || reportWrapper.num,
+      termYear: report.termYear || reportWrapper.year,
+      percentageAverage: report.percentageAverge,
+      classPosition: report.classPosition,
+      classSize: report.classSize,
+      subjectsPassed: report.subjectsPassed,
+      totalSubjects: subjects.length,
+      topSubjects,
+      weakSubjects,
+      subjectComments,
+    };
+
+    const generated = await this.openAIService.generateRoleComment(context);
+    return {
+      success: generated.success,
+      comment: generated.comment,
+      source: generated.source || 'fallback',
+      error: generated.error,
+    };
   }
 
   /**
