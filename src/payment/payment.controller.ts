@@ -422,18 +422,20 @@ export class PaymentController {
 
   /**
    * Finance dashboard summary for cards and chart (optional filters).
-   * Query params: startDate, endDate (ISO), enrolTerm (e.g. "1 2026"), transactionType (Invoice | Payment).
+   * Query params: startDate, endDate (ISO), enrolTerm (e.g. "1 2026"),
+   * termType (regular | vacation), transactionType (Invoice | Payment).
    */
   @Get('dashboard/summary')
   getFinanceDashboardSummary(
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('enrolTerm') enrolTerm?: string,
+    @Query('termType') termType?: 'regular' | 'vacation',
     @Query('transactionType') transactionType?: 'Invoice' | 'Payment',
   ) {
     const filters =
-      startDate || endDate || enrolTerm || transactionType
-        ? { startDate, endDate, enrolTerm, transactionType }
+      startDate || endDate || enrolTerm || termType || transactionType
+        ? { startDate, endDate, enrolTerm, termType, transactionType }
         : undefined;
     return this.paymentService.getFinanceDashboardSummary(filters);
   }

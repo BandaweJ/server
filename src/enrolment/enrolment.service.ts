@@ -25,6 +25,7 @@ import { ROLES } from '../auth/models/roles.enum';
 import { NotFoundException } from '@nestjs/common';
 import { CreateTermDto } from './dtos/create-term.dto';
 import { TermsEntity } from './entities/term.entity';
+import { TermType } from './models/term-type.enum';
 
 import { EnrolDto } from './dtos/enrol.dto';
 import { EnrolEntity } from './entities/enrol.entity';
@@ -174,7 +175,20 @@ export class EnrolmentService {
         throw new UnauthorizedException('Only admins or dev can create a new term');
       }
     }
-    return await this.termRepository.save(createTermDto);
+    const normalizedType = createTermDto.type || TermType.REGULAR;
+    await this.assertTermDateRules(
+      createTermDto.startDate,
+      createTermDto.endDate,
+      normalizedType,
+      createTermDto.num,
+      createTermDto.year,
+    );
+
+    return await this.termRepository.save({
+      ...createTermDto,
+      type: normalizedType,
+      label: createTermDto.label?.trim() || null,
+    });
   }
 
   async getAllTerms(): Promise<TermsEntity[]> {
@@ -190,14 +204,18 @@ export class EnrolmentService {
     }
   }
 
-  async getCurrentTerm(): Promise<TermsEntity> {
+  async getCurrentTerm(type?: TermType): Promise<TermsEntity> {
     const today = new Date();
 
+    const whereClause: any = {
+      startDate: LessThanOrEqual(today),
+      endDate: MoreThanOrEqual(today),
+    };
+    if (type) whereClause.type = type;
+
     return await this.termRepository.findOne({
-      where: {
-        startDate: LessThanOrEqual(today),
-        endDate: MoreThanOrEqual(today),
-      },
+      where: whereClause,
+      order: { year: 'DESC', num: 'DESC' },
     });
   }
 
@@ -631,8 +649,18 @@ export class EnrolmentService {
   }
 
   async addTerm(term: CreateTermDto) {
+    const normalizedType = term.type || TermType.REGULAR;
+    await this.assertTermDateRules(
+      term.startDate,
+      term.endDate,
+      normalizedType,
+      term.num,
+      term.year,
+    );
     return await this.termRepository.save({
       ...term,
+      type: normalizedType,
+      label: term.label?.trim() || null,
     });
   }
 
@@ -726,7 +754,20 @@ export class EnrolmentService {
     if (!trm) {
       throw new NotFoundException('Term not found');
     } else {
-      return await this.termRepository.save({ ...term });
+      const normalizedType = term.type || trm.type || TermType.REGULAR;
+      await this.assertTermDateRules(
+        term.startDate,
+        term.endDate,
+        normalizedType,
+        num,
+        year,
+      );
+      return await this.termRepository.save({
+        ...trm,
+        ...term,
+        type: normalizedType,
+        label: term.label?.trim() || null,
+      });
     }
   }
 
@@ -829,5 +870,41 @@ export class EnrolmentService {
       isCurrentlyEnrolled: !!currentEnrolment,
       enrolments: enrolmentDtos,
     };
+  }
+
+  private async assertTermDateRules(
+    startDate: Date,
+    endDate: Date,
+    type: TermType,
+    num: number,
+    year: number,
+  ): Promise<void> {
+    if (!startDate || !endDate) return;
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (start >= end) {
+      throw new BadRequestException('Term end date must be after start date');
+    }
+
+    // Enforce strict non-overlap for regular terms.
+    if (type !== TermType.REGULAR) return;
+
+    const regularTerms = await this.termRepository.find({
+      where: { type: TermType.REGULAR },
+    });
+
+    const hasOverlap = regularTerms.some((term) => {
+      if (term.num === num && term.year === year) return false;
+      const termStart = new Date(term.startDate);
+      const termEnd = new Date(term.endDate);
+      return start <= termEnd && end >= termStart;
+    });
+
+    if (hasOverlap) {
+      throw new BadRequestException(
+        'Regular term dates overlap an existing regular term',
+      );
+    }
   }
 }

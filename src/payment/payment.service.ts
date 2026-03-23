@@ -784,23 +784,39 @@ export class PaymentService {
 
   private toInvoiceFilters(
     f?: FinanceDashboardSummaryFilters,
-  ): { startDate?: string; endDate?: string; enrolTerm?: string } | undefined {
+  ):
+    | {
+        startDate?: string;
+        endDate?: string;
+        enrolTerm?: string;
+        termType?: 'regular' | 'vacation';
+      }
+    | undefined {
     if (!f) return undefined;
     return {
       startDate: f.startDate,
       endDate: f.endDate,
       enrolTerm: f.enrolTerm,
+      termType: f.termType,
     };
   }
 
   private toReceiptFilters(
     f?: FinanceDashboardSummaryFilters,
-  ): { startDate?: string; endDate?: string; enrolTerm?: string } | undefined {
+  ):
+    | {
+        startDate?: string;
+        endDate?: string;
+        enrolTerm?: string;
+        termType?: 'regular' | 'vacation';
+      }
+    | undefined {
     if (!f) return undefined;
     return {
       startDate: f.startDate,
       endDate: f.endDate,
       enrolTerm: f.enrolTerm,
+      termType: f.termType,
     };
   }
 

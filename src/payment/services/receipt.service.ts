@@ -56,6 +56,7 @@ import { AuditService } from './audit.service';
 import { sanitizeAmount } from '../utils/sanitization.util';
 import { NotificationService } from '../../notifications/services/notification.service';
 import { SystemSettingsService } from 'src/system/services/system-settings.service';
+import { TermsEntity } from 'src/enrolment/entities/term.entity';
 
 @Injectable()
 export class ReceiptService {
@@ -1248,6 +1249,7 @@ export class ReceiptService {
     startDate?: string;
     endDate?: string;
     enrolTerm?: string;
+    termType?: 'regular' | 'vacation';
   }): Promise<number> {
     const qb = this.receiptRepository
       .createQueryBuilder('receipt')
@@ -1266,6 +1268,7 @@ export class ReceiptService {
     startDate?: string;
     endDate?: string;
     enrolTerm?: string;
+    termType?: 'regular' | 'vacation';
   }): Promise<number> {
     const qb = this.receiptRepository
       .createQueryBuilder('receipt')
@@ -1284,6 +1287,7 @@ export class ReceiptService {
     startDate?: string;
     endDate?: string;
     enrolTerm?: string;
+    termType?: 'regular' | 'vacation';
   }): Promise<{ monthLabel: string; year: number; month: number; total: number }[]> {
     const qb = this.receiptRepository
       .createQueryBuilder('receipt')
@@ -1312,7 +1316,12 @@ export class ReceiptService {
 
   private applyDashboardFiltersToReceiptQuery(
     qb: import('typeorm').SelectQueryBuilder<ReceiptEntity>,
-    filters?: { startDate?: string; endDate?: string; enrolTerm?: string },
+    filters?: {
+      startDate?: string;
+      endDate?: string;
+      enrolTerm?: string;
+      termType?: 'regular' | 'vacation';
+    },
   ): void {
     if (!filters) return;
     if (filters.startDate) {
@@ -1335,6 +1344,15 @@ export class ReceiptService {
           { enrolNum: num, enrolYear: year },
         );
       }
+    }
+    if (filters.termType) {
+      qb.innerJoin('receipt.enrol', 'termEnrol')
+        .innerJoin(
+          TermsEntity,
+          'termPeriod',
+          'termPeriod.num = termEnrol.num AND termPeriod.year = termEnrol.year',
+        )
+        .andWhere('termPeriod.type = :termType', { termType: filters.termType });
     }
   }
 

@@ -9,6 +9,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -23,6 +24,7 @@ import { UpdateEnrolDto } from './dtos/update-enrol.dto';
 import { Logger } from '@nestjs/common';
 import { ParentStudentAccessGuard } from 'src/auth/guards/parent-student-access.guard';
 import { StudentEnrolmentStatusDto } from './dtos/student-enrolment-status.dto';
+import { TermType } from './models/term-type.enum';
 
 @Controller('enrolment')
 @UseGuards(AuthGuard(), ParentStudentAccessGuard)
@@ -96,8 +98,8 @@ export class EnrolmentController {
   }
 
   @Get('terms/current')
-  getCurrentTerm() {
-    return this.enrolmentService.getCurrentTerm();
+  getCurrentTerm(@Query('type') type?: TermType) {
+    return this.enrolmentService.getCurrentTerm(type);
   }
 
   @Post('terms')

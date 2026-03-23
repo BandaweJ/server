@@ -6,6 +6,7 @@ export interface FinanceDashboardSummaryFilters {
   startDate?: string; // ISO date
   endDate?: string;   // ISO date
   enrolTerm?: string; // e.g. "1 2026" (num + year)
+  termType?: 'regular' | 'vacation';
   transactionType?: 'Invoice' | 'Payment';
 }
 
