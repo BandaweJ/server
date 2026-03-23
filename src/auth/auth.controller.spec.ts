@@ -5,6 +5,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { ROLES } from './models/roles.enum';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
+import { HAS_ROLES_KEY } from './decorators/has-roles.decorator';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -65,5 +66,19 @@ describe('AuthController', () => {
       { user: { accountId: 'ADMIN01', role: ROLES.admin } },
     );
     expect(authServiceMock.fetchUserDetails).toHaveBeenCalledWith('S01', 'student');
+  });
+
+  it('keeps privileged role restrictions on admin-only endpoints', () => {
+    const accountListRoles = Reflect.getMetadata(
+      HAS_ROLES_KEY,
+      AuthController.prototype.getAllAccounts,
+    ) as ROLES[];
+    const deleteAccountRoles = Reflect.getMetadata(
+      HAS_ROLES_KEY,
+      AuthController.prototype.deleteAccount,
+    ) as ROLES[];
+
+    expect(accountListRoles).toEqual([ROLES.admin, ROLES.director, ROLES.dev]);
+    expect(deleteAccountRoles).toEqual([ROLES.admin, ROLES.director, ROLES.dev]);
   });
 });
