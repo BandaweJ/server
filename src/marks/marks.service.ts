@@ -114,7 +114,7 @@ export class MarksService {
       }
     }
 
-    const { num, year, name, mark, comment, subject, student, examType } =
+    const { num, year, termId, name, mark, comment, subject, student, examType } =
       createMarkDto;
 
     const found = await this.marksRepository.findOne({
@@ -122,6 +122,7 @@ export class MarksService {
       where: {
         num,
         year,
+        ...(termId ? { termId } : {}),
         name,
         examType,
         subject: { code: subject.code },
@@ -151,6 +152,7 @@ export class MarksService {
       const record = new MarksEntity();
       record.num = num;
       record.year = year;
+      record.termId = termId ?? null;
       record.name = name;
       record.mark = mark;
       record.comment = comment;
@@ -190,6 +192,7 @@ export class MarksService {
     name: string,
     examType: string,
     profile: StudentsEntity | ParentsEntity | TeachersEntity,
+    termId?: number,
   ): Promise<MarksEntity[]> {
     switch (profile.role) {
       case ROLES.parent:
@@ -203,6 +206,7 @@ export class MarksService {
         where: {
           num,
           year,
+          ...(termId ? { termId } : {}),
           name,
           examType,
         },
@@ -227,6 +231,7 @@ export class MarksService {
     subjectCode: string,
     examType: string,
     profile: StudentsEntity | ParentsEntity | TeachersEntity,
+    termId?: number,
   ): Promise<MarksEntity[]> {
     switch (profile.role) {
       case ROLES.parent:
@@ -250,6 +255,7 @@ export class MarksService {
       name,
       num,
       year,
+      termId,
     );
 
     let foundMarks: MarksEntity[] = []; //array to store the marks currently saved for the subject and class
@@ -260,6 +266,7 @@ export class MarksService {
           num,
           name,
           year,
+          ...(termId ? { termId } : {}),
           examType,
         },
         relations: ['subject', 'student'],
@@ -270,6 +277,7 @@ export class MarksService {
           num,
           name,
           year,
+          ...(termId ? { termId } : {}),
         },
         relations: ['subject', 'student'],
       });
@@ -287,6 +295,7 @@ export class MarksService {
       mark.num = num;
       mark.name = name;
       mark.year = year;
+      mark.termId = termId ?? null;
       mark.student = enrol.student;
       mark.subject = subject;
       if (examType) {
@@ -353,6 +362,7 @@ export class MarksService {
     year: number,
     name: string,
     examType: string,
+    termId?: number,
   ) {
     let marks: MarksEntity[] = [];
 
@@ -362,6 +372,7 @@ export class MarksService {
           num,
           name,
           year,
+          ...(termId ? { termId } : {}),
           examType,
         },
         relations: ['student', 'subject'],
@@ -372,6 +383,7 @@ export class MarksService {
           num,
           name,
           year,
+          ...(termId ? { termId } : {}),
         },
         relations: ['student', 'subject'],
       });
@@ -442,6 +454,7 @@ export class MarksService {
     clas: string,
     examType: string,
     profile: TeachersEntity,
+    termId?: number,
   ): Promise<any[]> {
     const marks = await this.getMarksbyClass(
       num,
@@ -449,6 +462,7 @@ export class MarksService {
       clas,
       examType,
       profile,
+      termId,
     );
 
     // Create set of subjects in class
@@ -462,6 +476,7 @@ export class MarksService {
       clas,
       num,
       year,
+      termId,
     );
 
     subjectsNames.forEach((subjectName) => {

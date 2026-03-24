@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { GetUser } from '../auth/decorators/get-user.decorator';
@@ -84,8 +85,9 @@ export class MarksController {
     @Param('num') num: number,
     @Param('year') year: number,
     @Param('name') name: string,
-    @Param('examType') examType: string,
     @GetUser() profile: StudentsEntity | ParentsEntity | TeachersEntity,
+    @Param('examType') examType: string,
+    @Query('termId') termId?: string,
   ) {
     return this.marksService.getMarksbyClass(
       num,
@@ -93,6 +95,7 @@ export class MarksController {
       name,
       examType,
       profile,
+      termId ? parseInt(termId, 10) : undefined,
     );
   }
 
@@ -102,8 +105,9 @@ export class MarksController {
     @Param('year') year: number,
     @Param('name') name: string,
     @Param('subjectCode') subjectCode: string,
-    @Param('examType') examType: string,
     @GetUser() profile: StudentsEntity | ParentsEntity | TeachersEntity,
+    @Param('examType') examType: string,
+    @Query('termId') termId?: string,
   ) {
     // console.log(num, name, year, subjectCode);
     return this.marksService.getSubjectMarksInClass(
@@ -113,6 +117,7 @@ export class MarksController {
       subjectCode,
       examType,
       profile,
+      termId ? parseInt(termId, 10) : undefined,
     );
   }
 
@@ -150,9 +155,16 @@ export class MarksController {
     @Param('year') year: number,
     @Param('name') name: string,
     @Param('examType') examType: string,
+    @Query('termId') termId?: string,
   ) {
     // console.log(num, name, year);
-    return this.marksService.getPerfomanceData(num, year, name, examType);
+    return this.marksService.getPerfomanceData(
+      num,
+      year,
+      name,
+      examType,
+      termId ? parseInt(termId, 10) : undefined,
+    );
   }
 
 
@@ -161,8 +173,9 @@ export class MarksController {
     @Param('clas') clas: string,
     @Param('num') num: number,
     @Param('year') year: number,
-    @Param('examType') examType: string,
     @GetUser() profile: TeachersEntity,
+    @Param('examType') examType: string,
+    @Query('termId') termId?: string,
   ) {
     // console.log('In controller');
     return this.marksService.fetchMarksProgress(
@@ -171,6 +184,7 @@ export class MarksController {
       clas,
       examType,
       profile,
+      termId ? parseInt(termId, 10) : undefined,
     );
   }
 }

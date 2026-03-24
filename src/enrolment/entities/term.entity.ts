@@ -1,12 +1,16 @@
-import { Column, Entity, PrimaryColumn } from 'typeorm';
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { TermType } from '../models/term-type.enum';
+import { EnrolEntity } from './enrol.entity';
 
 @Entity('terms')
 export class TermsEntity {
-  @PrimaryColumn()
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column()
   num: number;
 
-  @PrimaryColumn()
+  @Column()
   year: number;
 
   @Column()
@@ -24,4 +28,7 @@ export class TermsEntity {
 
   @Column({ type: 'varchar', length: 120, nullable: true })
   label?: string | null;
+
+  @OneToMany(() => EnrolEntity, (enrol) => enrol.term)
+  enrolments: EnrolEntity[];
 }

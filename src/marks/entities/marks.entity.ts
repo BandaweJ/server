@@ -19,6 +19,9 @@ export class MarksEntity {
   @Column()
   year: number;
 
+  @Column({ nullable: true })
+  termId?: number | null;
+
   @Column()
   name: string;
 

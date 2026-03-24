@@ -194,7 +194,9 @@ export class EnrolmentService {
   async getAllTerms(): Promise<TermsEntity[]> {
     this.logger.log('getAllTerms() - Starting to fetch terms from database');
     try {
-      const terms = await this.termRepository.find();
+      const terms = await this.termRepository.find({
+        order: { id: 'DESC' },
+      });
       this.logger.log(`getAllTerms() - Successfully fetched ${terms.length} terms from database`);
       return terms;
     } catch (error) {
@@ -220,16 +222,24 @@ export class EnrolmentService {
   }
 
   async getOneTerm(num: number, year: number): Promise<TermsEntity> {
-    const term = await this.termRepository.findOne({
-      where: {
-        num,
-        year,
-      },
-    });
-    if (!term) {
+    const terms = await this.termRepository.find({ where: { num, year } });
+    if (!terms.length) {
       throw new NotFoundException(
         `Term with number: ${num} and year: ${year} not found`,
       );
+    }
+    if (terms.length > 1) {
+      throw new BadRequestException(
+        'Multiple terms found for this num/year. Query by term id instead.',
+      );
+    }
+    return terms[0];
+  }
+
+  async getOneTermById(id: number): Promise<TermsEntity> {
+    const term = await this.termRepository.findOne({ where: { id } });
+    if (!term) {
+      throw new NotFoundException(`Term with id ${id} not found`);
     }
     return term;
   }
@@ -250,11 +260,46 @@ export class EnrolmentService {
       }
     }
 
-    const term = await this.getOneTerm(num, year);
+    const terms = await this.termRepository.find({ where: { num, year } });
+    if (!terms.length) {
+      throw new NotFoundException(
+        `Term with number: ${num} and year: ${year} not found`,
+      );
+    }
+    if (terms.length > 1) {
+      throw new BadRequestException(
+        'Multiple terms found for this num/year. Delete by term id instead.',
+      );
+    }
+    return this.deleteTermById(terms[0].id, profile);
+  }
 
-    const result = await this.termRepository.remove(term);
+  async deleteTermById(
+    id: number,
+    profile: TeachersEntity | ParentsEntity | StudentsEntity,
+  ): Promise<number> {
+    switch (profile.role) {
+      case ROLES.hod:
+      case ROLES.parent:
+      case ROLES.reception:
+      case ROLES.student:
+      case ROLES.teacher: {
+        throw new UnauthorizedException('Only admins allowed to delete Terms');
+      }
+    }
 
-    return result && 1;
+    const term = await this.getOneTermById(id);
+    const linkedEnrolments = await this.enrolmentRepository.count({
+      where: { termId: id },
+    });
+    if (linkedEnrolments > 0) {
+      throw new BadRequestException(
+        `Cannot delete term ${id}: it is linked to ${linkedEnrolments} enrolment record(s).`,
+      );
+    }
+
+    await this.termRepository.remove(term);
+    return 1;
   }
 
   //Enrolmnt
@@ -273,7 +318,7 @@ export class EnrolmentService {
     updateEnrolDto: UpdateEnrolDto,
     _profile: TeachersEntity,
   ): Promise<EnrolEntity> {
-    const { id, student, name, num, year, residence } = updateEnrolDto;
+    const { id, student, name, num, year, residence, termId } = updateEnrolDto as UpdateEnrolDto & { termId?: number };
 
     let enrol: EnrolEntity | null = null;
 
@@ -306,6 +351,13 @@ export class EnrolmentService {
 
     if (name !== undefined) enrol.name = name;
     if (residence !== undefined) enrol.residence = residence;
+    if (termId !== undefined && termId !== null) {
+      const term = await this.getOneTermById(termId);
+      enrol.termId = term.id;
+      enrol.num = term.num;
+      enrol.year = term.year;
+      enrol.term = term;
+    }
 
     return await this.enrolmentRepository.save(enrol);
   }
@@ -328,12 +380,31 @@ export class EnrolmentService {
     const enrolEntities: EnrolEntity[] = [];
 
     for (const enrolDto of enrolDtos) {
-      const { name, num, year, residence, student } = enrolDto;
+      const { name, num, year, residence, student, termId } = enrolDto as EnrolDto & { termId?: number };
+      let resolvedNum = num;
+      let resolvedYear = year;
+      let resolvedTermId: number | null = termId ?? null;
+      let resolvedTerm: TermsEntity | null = null;
+
+      if (termId != null) {
+        resolvedTerm = await this.getOneTermById(termId);
+        resolvedNum = resolvedTerm.num;
+        resolvedYear = resolvedTerm.year;
+        resolvedTermId = resolvedTerm.id;
+      } else if (num != null && year != null) {
+        const foundTerm = await this.termRepository.findOne({ where: { num, year } });
+        if (foundTerm) {
+          resolvedTerm = foundTerm;
+          resolvedTermId = foundTerm.id;
+        }
+      }
 
       const enrolEntity = await this.enrolmentRepository.create({
         name,
-        num,
-        year,
+        num: resolvedNum,
+        year: resolvedYear,
+        termId: resolvedTermId,
+        term: resolvedTerm,
         residence,
         student,
       });
@@ -341,8 +412,9 @@ export class EnrolmentService {
       const existingEnrol = await this.enrolmentRepository.findOne({
         where: {
           name,
-          num,
-          year,
+          num: resolvedNum,
+          year: resolvedYear,
+          termId: resolvedTermId,
           student: {
             studentNumber: student.studentNumber,
           },
@@ -432,12 +504,12 @@ export class EnrolmentService {
     studentNumber: string,
     num: number,
     year: number,
+    termId?: number,
   ): Promise<EnrolEntity> {
     const enroledStudent = await this.enrolmentRepository.findOne({
       where: {
         student: { studentNumber },
-        num,
-        year,
+        ...(termId ? { termId } : { num, year }),
       },
       relations: ['student'],
     });
@@ -458,12 +530,12 @@ export class EnrolmentService {
     name: string,
     num: number,
     year: number,
+    termId?: number,
   ): Promise<EnrolEntity[]> {
     return await this.enrolmentRepository.find({
       where: {
         name,
-        num,
-        year,
+        ...(termId ? { termId } : { num, year }),
       },
       relations: ['student'],
     });
@@ -472,11 +544,11 @@ export class EnrolmentService {
   async getTotalEnrolmentByTerm(
     num: number,
     year: number,
+    termId?: number,
   ): Promise<StudentsSummary> {
     const enrols: EnrolEntity[] = await this.enrolmentRepository.find({
       where: {
-        num,
-        year,
+        ...(termId ? { termId } : { num, year }),
       },
       relations: ['student'],
     });
@@ -506,11 +578,14 @@ export class EnrolmentService {
     return summary;
   }
 
-  async getEnrolmentByTerm(num: number, year: number): Promise<EnrolEntity[]> {
+  async getEnrolmentByTerm(
+    num: number,
+    year: number,
+    termId?: number,
+  ): Promise<EnrolEntity[]> {
     return await this.enrolmentRepository.find({
       where: {
-        num,
-        year,
+        ...(termId ? { termId } : { num, year }),
       },
       relations: ['student'],
     });
@@ -746,10 +821,19 @@ export class EnrolmentService {
   }
 
   async editTerm(term: CreateTermDto) {
-    const { num, year } = term;
-    const trm = await this.termRepository.findOne({
-      where: { num, year },
-    });
+    const { id, num, year } = term;
+    let trm: TermsEntity | null = null;
+    if (id != null) {
+      trm = await this.termRepository.findOne({ where: { id } });
+    } else {
+      const matches = await this.termRepository.find({ where: { num, year } });
+      if (matches.length > 1) {
+        throw new BadRequestException(
+          'Multiple terms found for this num/year. Update by term id instead.',
+        );
+      }
+      trm = matches[0] ?? null;
+    }
 
     if (!trm) {
       throw new NotFoundException('Term not found');

@@ -44,4 +44,9 @@ export class CreateMarkDto {
   @ApiProperty()
   @IsOptional()
   id?: number;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsNumber()
+  termId?: number;
 }

@@ -62,6 +62,7 @@ export class ReportsService {
     num: number,
     year: number,
     examType: string,
+    termId: number | undefined,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ): Promise<ReportsModel[]> {
     // 1) Fetch enrolment for the class
@@ -69,6 +70,7 @@ export class ReportsService {
       name,
       num,
       year,
+      termId,
     );
 
     if (!classList || classList.length === 0) {
@@ -82,6 +84,7 @@ export class ReportsService {
       name,
       examType,
       profile,
+      termId,
     );
 
     if (!marks || marks.length === 0) {
@@ -133,6 +136,7 @@ export class ReportsService {
       num,
       year,
       examType,
+      termId,
       profile,
     );
     this.mergeSavedReportsMetadata(reps, savedReports);
@@ -724,6 +728,7 @@ export class ReportsService {
     name: string, // e.g., Class Name like 'Form 1 Green'
     reports: ReportsModel[], // Array of report data objects
     examType: ExamType,
+    termId: number | undefined,
     profile: TeachersEntity | StudentsEntity | ParentsEntity, // The user performing the action
   ): Promise<ReportsEntity[]> {
     // Return the saved/updated TypeORM entities
@@ -753,6 +758,7 @@ export class ReportsService {
           name,
           num,
           year,
+          ...(termId ? { termId } : {}),
           examType,
           studentNumber: In(studentNumbers), // Use TypeORM's 'In' operator
         },
@@ -790,6 +796,7 @@ export class ReportsService {
           name,
           num,
           year,
+          termId: termId ?? null,
           examType,
           studentNumber: inputReport.studentNumber,
           report: inputReport.report, // Assign the full report data from input
@@ -940,7 +947,7 @@ export class ReportsService {
     }
 
     // Validate required fields for report identification
-    const { name, num, year, studentNumber, examType } = comment.report;
+    const { name, num, year, termId, studentNumber, examType } = comment.report as ReportsModel;
     if (!name || !num || !year || !studentNumber) {
       throw new BadRequestException(
         'Missing required fields: name, num, year, and studentNumber are required to identify the report.'
@@ -962,6 +969,7 @@ export class ReportsService {
         name,
         num,
         year,
+        ...(termId ? { termId } : {}),
         studentNumber,
       };
       if (examType) {
@@ -1003,6 +1011,7 @@ export class ReportsService {
         name,
         num,
         year,
+        termId: termId ?? null,
         studentNumber,
         examType: examType || null,
         report: {
@@ -1048,7 +1057,7 @@ export class ReportsService {
     }
 
     // Validate required fields for report identification
-    const { name, num, year, studentNumber, examType } = comment.report;
+    const { name, num, year, termId, studentNumber, examType } = comment.report as ReportsModel;
     if (!name || !num || !year || !studentNumber) {
       throw new BadRequestException(
         'Missing required fields: name, num, year, and studentNumber are required to identify the report.'
@@ -1070,6 +1079,7 @@ export class ReportsService {
         name,
         num,
         year,
+        ...(termId ? { termId } : {}),
         studentNumber,
       };
       if (examType) {
@@ -1111,6 +1121,7 @@ export class ReportsService {
         name,
         num,
         year,
+        termId: termId ?? null,
         studentNumber,
         examType: examType || null,
         report: {
@@ -1235,6 +1246,7 @@ export class ReportsService {
     num: number,
     year: number,
     examType: string,
+    termId: number | undefined,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ): Promise<any[]> {
     let reports;
@@ -1245,6 +1257,7 @@ export class ReportsService {
           name,
           num,
           year,
+          ...(termId ? { termId } : {}),
           examType,
         },
       });
@@ -1254,6 +1267,7 @@ export class ReportsService {
           name,
           num,
           year,
+          ...(termId ? { termId } : {}),
         },
       });
 
@@ -1270,6 +1284,7 @@ export class ReportsService {
     year,
     examType,
     studentNumber,
+    termId,
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
     // Validate that students can only download their own reports
@@ -1311,6 +1326,7 @@ export class ReportsService {
         name,
         num,
         year,
+        ...(termId ? { termId } : {}),
         studentNumber,
         examType,
       },

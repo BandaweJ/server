@@ -202,12 +202,15 @@ export class FinanceService {
     });
   }
 
-  async getBillsByEnrolment(num: number, year: number): Promise<BillsEntity[]> {
+  async getBillsByEnrolment(
+    num: number,
+    year: number,
+    termId?: number,
+  ): Promise<BillsEntity[]> {
     return await this.billsRepository.find({
       where: {
         enrol: {
-          num,
-          year,
+          ...(termId ? { termId } : { num, year }),
         },
       },
       relations: ['fees'],
@@ -218,13 +221,13 @@ export class FinanceService {
     studentNumber: string,
     num: number,
     year: number,
+    termId?: number,
   ) {
     return await this.billsRepository.find({
       where: {
         student: { studentNumber },
         enrol: {
-          num,
-          year,
+          ...(termId ? { termId } : { num, year }),
         },
       },
       relations: ['fees', 'enrol', 'student'],
@@ -242,8 +245,12 @@ export class FinanceService {
     });
   }
 
-  async getTotalBillByTerm(num: number, year: number): Promise<number> {
-    const termBills = await this.getBillsByEnrolment(num, year);
+  async getTotalBillByTerm(
+    num: number,
+    year: number,
+    termId?: number,
+  ): Promise<number> {
+    const termBills = await this.getBillsByEnrolment(num, year, termId);
 
     if (!termBills || termBills.length === 0) {
       return 0; // Return 0 if there are no bills for the term.
@@ -279,16 +286,18 @@ export class FinanceService {
   async findStudentsNotBilledForTerm(
     num: number,
     year: number,
+    termId?: number,
   ): Promise<EnrolEntity[]> {
     // 1. Find all enrolments for the given term.
     const enrolments = await this.enrolmentService.getEnrolmentByTerm(
       num,
       year,
+      termId,
     );
 
     //2. Get all bills for the term
     const bills = await this.billsRepository.find({
-      where: { enrol: { num, year } },
+      where: { enrol: termId ? { termId } : { num, year } },
       relations: ['enrol', 'student'],
     });
 

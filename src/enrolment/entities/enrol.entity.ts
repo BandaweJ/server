@@ -12,6 +12,7 @@ import { Residence } from '../models/residence.model';
 import { BillsEntity } from 'src/finance/entities/bills.entity';
 import { InvoiceEntity } from 'src/payment/entities/invoice.entity';
 import { ReceiptEntity } from 'src/payment/entities/payment.entity';
+import { TermsEntity } from './term.entity';
 
 @Entity('enrol')
 export class EnrolEntity {
@@ -27,11 +28,17 @@ export class EnrolEntity {
   @Column()
   year: number;
 
+  @Column({ nullable: true })
+  termId?: number | null;
+
   @Column({ default: 'Boarder' })
   residence: Residence;
 
   @ManyToOne(() => StudentsEntity, (student) => student.enrols)
   student: StudentsEntity;
+
+  @ManyToOne(() => TermsEntity, (term) => term.enrolments, { nullable: true })
+  term?: TermsEntity | null;
 
   @OneToMany(() => BillsEntity, (bill) => bill.enrol)
   bills: BillsEntity[];

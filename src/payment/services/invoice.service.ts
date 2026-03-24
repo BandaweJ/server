@@ -1619,26 +1619,36 @@ export class InvoiceService {
     studentNumber: string,
     num: number,
     year: number,
+    termId?: number,
   ): Promise<number | null> {
-    const invoice = await this.invoiceRepository
+    const qb = this.invoiceRepository
       .createQueryBuilder('invoice')
       .innerJoin('invoice.student', 'student')
       .innerJoin('invoice.enrol', 'enrol')
       .where('student.studentNumber = :studentNumber', { studentNumber })
-      .andWhere('enrol.num = :num', { num })
-      .andWhere('enrol.year = :year', { year })
       .andWhere('(invoice.isVoided = false OR invoice.isVoided IS NULL)')
-      .select('invoice.balance', 'balance')
-      .getRawOne<{ balance: string }>();
-    if (!invoice) return null;
-    const balance = Number(invoice.balance);
+      .select('invoice.balance', 'balance');
+    if (termId) {
+      qb.andWhere('enrol.termId = :termId', { termId });
+    } else {
+      qb.andWhere('enrol.num = :num', { num }).andWhere('enrol.year = :year', {
+        year,
+      });
+    }
+    const invoiceFromQuery = await qb.getRawOne<{ balance: string }>();
+    if (!invoiceFromQuery) return null;
+    const balance = Number(invoiceFromQuery.balance);
     return Number.isFinite(balance) ? balance : null;
   }
 
-  async getTermInvoices(num: number, year: number): Promise<InvoiceEntity[]> {
+  async getTermInvoices(
+    num: number,
+    year: number,
+    termId?: number,
+  ): Promise<InvoiceEntity[]> {
     return this.invoiceRepository.find({
       where: {
-        enrol: { num, year },
+        enrol: termId ? { id: termId } : { num, year },
         isVoided: false,
       },
       relations: [
@@ -1655,9 +1665,10 @@ export class InvoiceService {
   async getTermInvoicesForAudit(
     num: number,
     year: number,
+    termId?: number,
   ): Promise<InvoiceEntity[]> {
     return this.invoiceRepository.find({
-      where: { enrol: { num, year } },
+      where: { enrol: termId ? { id: termId } : { num, year } },
       relations: [
         'student',
         'enrol',
@@ -1891,9 +1902,10 @@ export class InvoiceService {
   async getInvoiceStats(
     num: number,
     year: number,
+    termId?: number,
   ): Promise<InvoiceStatsModel[]> {
     const invoices = await this.invoiceRepository.find({
-      where: { enrol: { num, year } },
+      where: { enrol: termId ? { id: termId } : { num, year } },
       relations: ['student', 'enrol', 'balanceBfwd', 'bills', 'bills.fees'],
     });
 

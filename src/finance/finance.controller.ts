@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { CreateFeesDto } from './dtos/fees.dto';
@@ -108,8 +109,13 @@ export class FinanceController {
   getBillsByEnrolment(
     @Param('num', ParseIntPipe) num: number,
     @Param('year', ParseIntPipe) year: number,
+    @Query('termId') termId?: string,
   ) {
-    return this.financeService.getBillsByEnrolment(num, year);
+    return this.financeService.getBillsByEnrolment(
+      num,
+      year,
+      termId ? parseInt(termId, 10) : undefined,
+    );
   }
 
   @Get('billing/:year')
@@ -123,8 +129,13 @@ export class FinanceController {
   getTotalBillByTerm(
     @Param('num', ParseIntPipe) num: number,
     @Param('year', ParseIntPipe) year: number,
+    @Query('termId') termId?: string,
   ) {
-    return this.financeService.getTotalBillByTerm(num, year);
+    return this.financeService.getTotalBillByTerm(
+      num,
+      year,
+      termId ? parseInt(termId, 10) : undefined,
+    );
   }
 
   @Get('billing/total/:year')
@@ -138,8 +149,13 @@ export class FinanceController {
   getStudentsNotBilledForTerm(
     @Param('num', ParseIntPipe) num: number,
     @Param('year', ParseIntPipe) year: number,
+    @Query('termId') termId?: string,
   ) {
-    return this.financeService.findStudentsNotBilledForTerm(num, year);
+    return this.financeService.findStudentsNotBilledForTerm(
+      num,
+      year,
+      termId ? parseInt(termId, 10) : undefined,
+    );
   }
 
   // @Post('balance')

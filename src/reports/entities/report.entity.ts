@@ -12,6 +12,9 @@ export class ReportsEntity {
   @Column()
   year: number;
 
+  @Column({ nullable: true })
+  termId?: number | null;
+
   @Column()
   name: string;
 

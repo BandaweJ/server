@@ -15,13 +15,18 @@ export class EnrolDto {
 
   @ApiProperty()
   @IsNumber()
-  @IsNotEmpty()
+  @IsOptional()
   num: number;
 
   @ApiProperty()
   @IsNumber()
-  @IsNotEmpty()
+  @IsOptional()
   year: number;
+
+  @ApiProperty()
+  @IsNumber()
+  @IsOptional()
+  termId?: number;
 
   @ApiProperty()
   @IsOptional()

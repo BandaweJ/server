@@ -36,8 +36,9 @@ export class ReportsController {
     @Param('name') name: string,
     @Param('num') num: number,
     @Param('year') year: number,
-    @Param('examType') examType: string,
     @GetUser() profile,
+    @Param('examType') examType: string,
+    @Query('termId') termId?: string,
   ) {
     // console.log('name', name);
     return this.reportsService.generateReports(
@@ -45,6 +46,7 @@ export class ReportsController {
       num,
       year,
       examType,
+      termId ? parseInt(termId, 10) : undefined,
       profile,
     );
   }
@@ -56,9 +58,10 @@ export class ReportsController {
 
     @Param('num') num: number,
     @Param('year') year: number,
-    @Param('examType') examType: ExamType,
     @Body() reports: ReportsModel[],
     @GetUser() profile,
+    @Param('examType') examType: ExamType,
+    @Query('termId') termId?: string,
   ) {
     return this.reportsService.saveReports(
       num,
@@ -66,6 +69,7 @@ export class ReportsController {
       name,
       reports,
       examType,
+      termId ? parseInt(termId, 10) : undefined,
       profile,
     );
   }
@@ -103,10 +107,18 @@ export class ReportsController {
 
     @Param('num') num: number,
     @Param('year') year: number,
-    @Param('examType') examType: string,
     @GetUser() profile,
+    @Param('examType') examType: string,
+    @Query('termId') termId?: string,
   ) {
-    return this.reportsService.viewReports(name, num, year, examType, profile);
+    return this.reportsService.viewReports(
+      name,
+      num,
+      year,
+      examType,
+      termId ? parseInt(termId, 10) : undefined,
+      profile,
+    );
   }
 
   @Get('/view/:studentNumber')
@@ -164,6 +176,7 @@ export class ReportsController {
 
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
     @Res() res: Response,
+    @Query('termId') termId?: string,
   ): Promise<void> {
     const result = await this.reportsService.downloadReport(
       name,
@@ -171,6 +184,7 @@ export class ReportsController {
       year,
       examType,
       studentNumber,
+      termId ? parseInt(termId, 10) : undefined,
       profile,
     );
 
