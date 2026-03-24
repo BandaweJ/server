@@ -91,18 +91,18 @@ export class EnrolmentController {
     }
   }
 
-  @Get('terms/:num(\\d+)/:year(\\d+)')
+  @Get('terms/id/:id')
+  getOneTermById(@Param('id', ParseIntPipe) id: number) {
+    return this.enrolmentService.getOneTermById(id);
+  }
+
+  @Get('terms/:num/:year')
   getOneTerm(
     @Param('num', ParseIntPipe) num: number,
     @Param('year', ParseIntPipe) year: number,
   ) {
     console.log('num : ', num, 'year : ', year);
     return this.enrolmentService.getOneTerm(num, year);
-  }
-
-  @Get('terms/id/:id')
-  getOneTermById(@Param('id', ParseIntPipe) id: number) {
-    return this.enrolmentService.getOneTermById(id);
   }
 
   @Get('terms/current')
@@ -144,21 +144,21 @@ export class EnrolmentController {
     );
   }
 
-  @Delete('terms/:num(\\d+)/:year(\\d+)')
-  deleteTerm(
-    @Param('num', ParseIntPipe) num: number,
-    @Param('year', ParseIntPipe) year: number,
-    @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
-  ) {
-    return this.enrolmentService.deleteTerm(num, year, profile);
-  }
-
   @Delete('terms/id/:id')
   deleteTermById(
     @Param('id', ParseIntPipe) id: number,
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
     return this.enrolmentService.deleteTermById(id, profile);
+  }
+
+  @Delete('terms/:num/:year')
+  deleteTerm(
+    @Param('num', ParseIntPipe) num: number,
+    @Param('year', ParseIntPipe) year: number,
+    @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
+  ) {
+    return this.enrolmentService.deleteTerm(num, year, profile);
   }
 
   @Post('enrol')
