@@ -143,8 +143,8 @@ export class EnrolmentController {
 
   @Delete('terms/:num/:year')
   deleteTerm(
-    @Param('num') num: number,
-    @Param('year') year: number,
+    @Param('num', ParseIntPipe) num: number,
+    @Param('year', ParseIntPipe) year: number,
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
     return this.enrolmentService.deleteTerm(num, year, profile);
