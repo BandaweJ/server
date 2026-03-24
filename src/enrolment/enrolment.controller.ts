@@ -91,8 +91,11 @@ export class EnrolmentController {
     }
   }
 
-  @Get('terms/:num/:year')
-  getOneTerm(@Param('num') num: number, @Param('year') year: number) {
+  @Get('terms/:num(\\d+)/:year(\\d+)')
+  getOneTerm(
+    @Param('num', ParseIntPipe) num: number,
+    @Param('year', ParseIntPipe) year: number,
+  ) {
     console.log('num : ', num, 'year : ', year);
     return this.enrolmentService.getOneTerm(num, year);
   }
@@ -141,7 +144,7 @@ export class EnrolmentController {
     );
   }
 
-  @Delete('terms/:num/:year')
+  @Delete('terms/:num(\\d+)/:year(\\d+)')
   deleteTerm(
     @Param('num', ParseIntPipe) num: number,
     @Param('year', ParseIntPipe) year: number,
