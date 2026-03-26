@@ -121,6 +121,28 @@ export class MarksController {
     );
   }
 
+  @Get('/diagnostics/subject/:num/:year/:name/:subjectCode/:examType')
+  @HasPermissions(PERMISSIONS.MARKS.VIEW)
+  getSubjectEntryDiagnostics(
+    @Param('num') num: number,
+    @Param('year') year: number,
+    @Param('name') name: string,
+    @Param('subjectCode') subjectCode: string,
+    @Param('examType') examType: string,
+    @GetUser() profile: StudentsEntity | ParentsEntity | TeachersEntity,
+    @Query('termId') termId?: string,
+  ) {
+    return this.marksService.getSubjectEntryDiagnostics(
+      num,
+      year,
+      name,
+      subjectCode,
+      examType,
+      profile,
+      termId ? parseInt(termId, 10) : undefined,
+    );
+  }
+
   @Get('/studentMarks/:studentNumber')
   getStudentMarks(@Param('studentNumber') studentNumber: string) {
     return this.marksService.getStudentMarks(studentNumber);
