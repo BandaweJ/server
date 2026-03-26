@@ -41,6 +41,7 @@ import { GenerateRoleCommentDto } from './dtos/generate-role-comment.dto';
 @Injectable()
 export class ReportsService {
   private readonly logger = new Logger(ReportsService.name);
+  private static readonly MAX_ROLE_COMMENT_LENGTH = 220;
 
   constructor(
     private marksService: MarksService,
@@ -954,6 +955,9 @@ export class ReportsService {
       );
     }
 
+    const normalizedComment = (comment.comment || '')
+      .trim()
+      .slice(0, ReportsService.MAX_ROLE_COMMENT_LENGTH);
     let existingReport: ReportsEntity | null = null;
 
     // Try to find existing report: first by ID if provided, then by unique combination
@@ -992,7 +996,7 @@ export class ReportsService {
       existingReport.report = {
         ...existingReport.report,
         ...comment.report.report, // Merge any other updates from frontend
-        headComment: comment.comment, // Update the head comment
+        headComment: normalizedComment, // Update the head comment
       };
 
       return await this.reportsRepository.save(existingReport);
@@ -1016,7 +1020,7 @@ export class ReportsService {
         examType: examType || null,
         report: {
           ...comment.report.report, // Use the full report data from frontend
-          headComment: comment.comment, // Set the head comment
+          headComment: normalizedComment, // Set the head comment
         },
       });
 
@@ -1064,6 +1068,9 @@ export class ReportsService {
       );
     }
 
+    const normalizedComment = (comment.comment || '')
+      .trim()
+      .slice(0, ReportsService.MAX_ROLE_COMMENT_LENGTH);
     let existingReport: ReportsEntity | null = null;
 
     // Try to find existing report: first by ID if provided, then by unique combination
@@ -1102,7 +1109,7 @@ export class ReportsService {
       existingReport.report = {
         ...existingReport.report,
         ...comment.report.report, // Merge any other updates from frontend
-        classTrComment: comment.comment, // Update the teacher comment
+        classTrComment: normalizedComment, // Update the teacher comment
       };
 
       return await this.reportsRepository.save(existingReport);
@@ -1126,7 +1133,7 @@ export class ReportsService {
         examType: examType || null,
         report: {
           ...comment.report.report, // Use the full report data from frontend
-          classTrComment: comment.comment, // Set the teacher comment
+          classTrComment: normalizedComment, // Set the teacher comment
         },
       });
 

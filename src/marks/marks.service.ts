@@ -117,8 +117,7 @@ export class MarksService {
     const { num, year, termId, name, mark, comment, subject, student, examType } =
       createMarkDto;
 
-    const found = await this.marksRepository.findOne({
-      // where: { id },
+    const matches = await this.marksRepository.find({
       where: {
         num,
         year,
@@ -131,22 +130,19 @@ export class MarksService {
       relations: ['student', 'subject'],
     });
 
-    if (found) {
-      //edited mark
+    if (matches.length > 0) {
+      // Update the oldest existing row and remove accidental duplicates.
+      const [canonical, ...duplicates] = [...matches].sort((a, b) => a.id - b.id);
+      canonical.mark = mark;
+      canonical.comment = comment;
 
-      //update the mark and comment only
-      found.mark = mark;
-      found.comment = comment;
-      const id = found.id;
+      const updated = await this.marksRepository.save(canonical);
 
-      const result = await this.marksRepository.update(id, {
-        mark,
-        comment,
-      });
-
-      if (result.affected) {
-        return found;
+      if (duplicates.length > 0) {
+        await this.marksRepository.delete(duplicates.map((d) => d.id));
       }
+
+      return updated;
     } else {
       //new mark
       const record = new MarksEntity();
