@@ -50,6 +50,7 @@ export interface RoleCommentResponse {
 @Injectable()
 export class OpenAIService {
   private readonly logger = new Logger(OpenAIService.name);
+  private static readonly MAX_ROLE_COMMENT_CHARS = 220;
   private openai: OpenAI;
   private readonly bannedGenericPatterns = [
     /well done/i,
@@ -457,15 +458,16 @@ Requirements:
           {
             role: 'system',
             content:
-              'You are a school educator writing concise report-card summary comments. Keep output compact, specific, and professional.',
+              'You are a school educator writing concise report-card summary comments. Output must be plain text only, one paragraph, no markdown, no bullet points, no hashtags.',
           },
           {
             role: 'user',
             content: prompt,
           },
         ],
-        max_tokens: 80,
+        max_tokens: 70,
         temperature: 0.7,
+        stop: ['\n'],
       });
 
       const response = completion.choices[0]?.message?.content?.trim();
@@ -525,10 +527,11 @@ Weak subjects: ${weak || 'N/A'}
 Subject comments evidence: ${classroomEvidence || 'N/A'}
 
 Requirements:
-- 16 to 32 words total
+- Maximum length: ${OpenAIService.MAX_ROLE_COMMENT_CHARS} characters
+- 14 to 30 words total
 - Mention at least one strength and one target for improvement
 - Use professional school tone
-- Do not use quotation marks
+- Plain text only, single paragraph, no line breaks
 - Do not mention AI
     `.trim();
   }
@@ -536,13 +539,14 @@ Requirements:
   private normalizeRoleComment(value: string): string | null {
     const line = value
       .replace(/\s+/g, ' ')
-      .replace(/^["']|["']$/g, '')
+      .replace(/^["'\-\*\#\d\.\)\s]+/, '')
       .trim();
-    const wordCount = line
+    const bounded = line.slice(0, OpenAIService.MAX_ROLE_COMMENT_CHARS);
+    const wordCount = bounded
       .split(/\s+/)
       .filter((w) => w.length > 0).length;
-    if (wordCount < 12 || wordCount > 40) return null;
-    return line;
+    if (wordCount < 10 || wordCount > 35) return null;
+    return bounded;
   }
 
   private getRoleCommentFallback(context: RoleCommentContext): string {
@@ -557,10 +561,10 @@ Requirements:
       'core areas';
 
     if (context.role === 'headTeacher') {
-      return `${name} has shown commendable effort, especially in ${top}. Greater consistency in ${weak} and sustained revision discipline will improve overall performance next term.`;
+      return `${name} shows strong potential, especially in ${top}. Improve consistency in ${weak} through regular revision and focused practice next term.`;
     }
 
-    return `${name} demonstrates solid potential with notable strength in ${top}. Focused practice in ${weak}, completion of corrections, and improved exam technique should raise achievement further.`;
+    return `${name} demonstrates good effort with strength in ${top}. Focused practice in ${weak} and consistent corrections will improve overall performance.`;
   }
 
   private normalizeComment(comment: string): string {

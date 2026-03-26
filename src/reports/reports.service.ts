@@ -958,6 +958,11 @@ export class ReportsService {
     const normalizedComment = (comment.comment || '')
       .trim()
       .slice(0, ReportsService.MAX_ROLE_COMMENT_LENGTH);
+    if (!comment.report.id) {
+      throw new BadRequestException(
+        'Report must be saved before adding head comment.',
+      );
+    }
     let existingReport: ReportsEntity | null = null;
 
     // Try to find existing report: first by ID if provided, then by unique combination
@@ -967,65 +972,25 @@ export class ReportsService {
       });
     }
 
-    // If not found by ID (or no ID provided), try to find by unique combination
+    // For comment saves we require an existing persisted report.
     if (!existingReport) {
-      const whereClause: any = {
-        name,
-        num,
-        year,
-        ...(termId ? { termId } : {}),
-        studentNumber,
-      };
-      if (examType) {
-        whereClause.examType = examType;
-      }
-
-      existingReport = await this.reportsRepository.findOne({
-        where: whereClause,
-      });
+      throw new NotFoundException(
+        `Report not found for student ${studentNumber}. Save reports first.`,
+      );
     }
 
-    if (existingReport) {
-      // --- UPDATE EXISTING REPORT ---
-      this.logger.debug('Updating existing report with head comment', {
-        reportId: existingReport.id,
-        studentNumber: existingReport.studentNumber,
-      });
+    this.logger.debug('Updating existing report with head comment', {
+      reportId: existingReport.id,
+      studentNumber: existingReport.studentNumber,
+    });
 
-      // Merge the incoming report data with existing report, updating only the head comment
-      existingReport.report = {
-        ...existingReport.report,
-        ...comment.report.report, // Merge any other updates from frontend
-        headComment: normalizedComment, // Update the head comment
-      };
+    existingReport.report = {
+      ...existingReport.report,
+      ...comment.report.report, // Merge any other updates from frontend
+      headComment: normalizedComment, // Update the head comment
+    };
 
-      return await this.reportsRepository.save(existingReport);
-    } else {
-      // --- CREATE NEW REPORT ---
-      this.logger.debug('Creating new report with head comment', {
-        studentNumber,
-        name,
-        num,
-        year,
-        examType,
-      });
-
-      // Create new report with the comment
-      const newReport = this.reportsRepository.create({
-        name,
-        num,
-        year,
-        termId: termId ?? null,
-        studentNumber,
-        examType: examType || null,
-        report: {
-          ...comment.report.report, // Use the full report data from frontend
-          headComment: normalizedComment, // Set the head comment
-        },
-      });
-
-      return await this.reportsRepository.save(newReport);
-    }
+    return await this.reportsRepository.save(existingReport);
   }
 
   /**
@@ -1071,6 +1036,11 @@ export class ReportsService {
     const normalizedComment = (comment.comment || '')
       .trim()
       .slice(0, ReportsService.MAX_ROLE_COMMENT_LENGTH);
+    if (!comment.report.id) {
+      throw new BadRequestException(
+        'Report must be saved before adding form teacher comment.',
+      );
+    }
     let existingReport: ReportsEntity | null = null;
 
     // Try to find existing report: first by ID if provided, then by unique combination
@@ -1080,65 +1050,25 @@ export class ReportsService {
       });
     }
 
-    // If not found by ID (or no ID provided), try to find by unique combination
+    // For comment saves we require an existing persisted report.
     if (!existingReport) {
-      const whereClause: any = {
-        name,
-        num,
-        year,
-        ...(termId ? { termId } : {}),
-        studentNumber,
-      };
-      if (examType) {
-        whereClause.examType = examType;
-      }
-
-      existingReport = await this.reportsRepository.findOne({
-        where: whereClause,
-      });
+      throw new NotFoundException(
+        `Report not found for student ${studentNumber}. Save reports first.`,
+      );
     }
 
-    if (existingReport) {
-      // --- UPDATE EXISTING REPORT ---
-      this.logger.debug('Updating existing report with teacher comment', {
-        reportId: existingReport.id,
-        studentNumber: existingReport.studentNumber,
-      });
+    this.logger.debug('Updating existing report with teacher comment', {
+      reportId: existingReport.id,
+      studentNumber: existingReport.studentNumber,
+    });
 
-      // Merge the incoming report data with existing report, updating only the teacher comment
-      existingReport.report = {
-        ...existingReport.report,
-        ...comment.report.report, // Merge any other updates from frontend
-        classTrComment: normalizedComment, // Update the teacher comment
-      };
+    existingReport.report = {
+      ...existingReport.report,
+      ...comment.report.report, // Merge any other updates from frontend
+      classTrComment: normalizedComment, // Update the teacher comment
+    };
 
-      return await this.reportsRepository.save(existingReport);
-    } else {
-      // --- CREATE NEW REPORT ---
-      this.logger.debug('Creating new report with teacher comment', {
-        studentNumber,
-        name,
-        num,
-        year,
-        examType,
-      });
-
-      // Create new report with the comment
-      const newReport = this.reportsRepository.create({
-        name,
-        num,
-        year,
-        termId: termId ?? null,
-        studentNumber,
-        examType: examType || null,
-        report: {
-          ...comment.report.report, // Use the full report data from frontend
-          classTrComment: normalizedComment, // Set the teacher comment
-        },
-      });
-
-      return await this.reportsRepository.save(newReport);
-    }
+    return await this.reportsRepository.save(existingReport);
   }
 
   async generateRoleComment(
