@@ -12,6 +12,7 @@ import { TeachersEntity } from 'src/profiles/entities/teachers.entity';
 import { ParentsEntity } from 'src/profiles/entities/parents.entity';
 import { FinancialAuditLogEntity } from 'src/payment/entities/financial-audit-log.entity';
 import { EnrolmentService } from 'src/enrolment/enrolment.service';
+import { MarksEntity } from 'src/marks/entities/marks.entity';
 
 export interface EnrollmentAnalytics {
   totalStudents: number;
@@ -64,7 +65,78 @@ export interface AnalyticsSummary {
   academic: AcademicAnalytics;
   userActivity: UserActivityAnalytics;
   system: SystemAnalytics;
+  dataQuality: DataQualityAnalytics;
+  predictions: PredictionsAnalytics;
+  metricsCatalog: MetricCatalogResponse;
   generatedAt: Date;
+}
+
+export interface MetricDefinition {
+  id: string;
+  name: string;
+  category: 'academic' | 'finance' | 'operations' | 'system';
+  ownerRole: string;
+  description: string;
+  formula: string;
+  interpretation: string;
+}
+
+export interface MetricCatalogResponse {
+  version: string;
+  generatedAt: Date;
+  metrics: MetricDefinition[];
+}
+
+export interface DataQualityAnalytics {
+  totals: {
+    marksWithoutTermId: number;
+    enrolmentWithoutTermId: number;
+    duplicateMarkGroups: number;
+    duplicateMarkRows: number;
+    reportWithoutTermId: number;
+  };
+  duplicateMarkSamples: Array<{
+    num: number;
+    year: number;
+    termId: number | null;
+    className: string;
+    examType: string;
+    subjectCode: string;
+    studentNumber: string;
+    duplicateCount: number;
+  }>;
+  marksCoverageBySubject: Array<{
+    subjectCode: string;
+    subjectName: string;
+    enteredCount: number;
+  }>;
+}
+
+export interface PredictionsAnalytics {
+  atRiskStudents: Array<{
+    studentNumber: string;
+    average: number;
+    riskLevel: 'high' | 'medium' | 'low';
+    explanation: string;
+  }>;
+  feeDefaultRisks: Array<{
+    studentNumber: string;
+    invoiceNumber: string;
+    balance: number;
+    overdueDays: number;
+    riskLevel: 'high' | 'medium' | 'low';
+  }>;
+  executiveForecast: {
+    expectedPassRate: number;
+    passRateConfidenceLow: number;
+    passRateConfidenceHigh: number;
+    expectedCollectionRate: number;
+    collectionConfidenceLow: number;
+    collectionConfidenceHigh: number;
+    expectedEnrollment: number;
+    enrollmentConfidenceLow: number;
+    enrollmentConfidenceHigh: number;
+  };
 }
 
 @Injectable()
@@ -90,6 +162,8 @@ export class AnalyticsService {
     private parentsRepository: Repository<ParentsEntity>,
     @InjectRepository(FinancialAuditLogEntity)
     private auditLogRepository: Repository<FinancialAuditLogEntity>,
+    @InjectRepository(MarksEntity)
+    private marksRepository: Repository<MarksEntity>,
     private enrolmentService: EnrolmentService,
   ) {}
 
@@ -115,13 +189,16 @@ export class AnalyticsService {
       }
     }
 
-    const [enrollment, financial, academic, userActivity, system] =
+    const [enrollment, financial, academic, userActivity, system, dataQuality, predictions, metricsCatalog] =
       await Promise.all([
         this.getEnrollmentAnalytics(currentTermNum, currentTermYear),
         this.getFinancialAnalytics(startDate, endDate, currentTermNum, currentTermYear),
         this.getAcademicAnalytics(currentTermNum, currentTermYear),
         this.getUserActivityAnalytics(),
         this.getSystemAnalytics(),
+        this.getDataQualityAnalytics(currentTermNum, currentTermYear),
+        this.getPredictionsAnalytics(currentTermNum, currentTermYear),
+        this.getMetricCatalog(),
       ]);
 
     return {
@@ -130,6 +207,9 @@ export class AnalyticsService {
       academic,
       userActivity,
       system,
+      dataQuality,
+      predictions,
+      metricsCatalog,
       generatedAt: new Date(),
     };
   }
@@ -453,6 +533,306 @@ export class AnalyticsService {
       systemHealth: {
         databaseConnected: true,
         totalRecords: totalAuditLogs,
+      },
+    };
+  }
+
+  async getMetricCatalog(): Promise<MetricCatalogResponse> {
+    const metrics: MetricDefinition[] = [
+      {
+        id: 'academic.pass_rate',
+        name: 'Pass Rate',
+        category: 'academic',
+        ownerRole: 'teacher',
+        description: 'Percentage of reports with average mark >= 50.',
+        formula: '(passed reports / total reports) * 100',
+        interpretation: 'Higher is better; values below 70% indicate instructional risk.',
+      },
+      {
+        id: 'academic.avg_performance',
+        name: 'Average Performance',
+        category: 'academic',
+        ownerRole: 'teacher',
+        description: 'Mean report average across selected scope.',
+        formula: 'SUM(report.percentageAverge) / COUNT(reports)',
+        interpretation: 'Tracks aggregate learner attainment over time.',
+      },
+      {
+        id: 'finance.collection_rate',
+        name: 'Collection Rate',
+        category: 'finance',
+        ownerRole: 'auditor',
+        description: 'Collected receipts as a percentage of invoiced amount.',
+        formula: '(total receipts / total invoiced) * 100',
+        interpretation: 'Lower values indicate liquidity and arrears pressure.',
+      },
+      {
+        id: 'operations.marks_completion',
+        name: 'Marks Completion',
+        category: 'operations',
+        ownerRole: 'admin',
+        description: 'How much marks capture is completed per class/subject context.',
+        formula: '(entered marks / expected enrolment rows) * 100',
+        interpretation: 'Used for reporting readiness and SLA tracking.',
+      },
+      {
+        id: 'system.duplicate_mark_rows',
+        name: 'Duplicate Mark Rows',
+        category: 'system',
+        ownerRole: 'dev',
+        description: 'Duplicate rows sharing same learner, subject, class and exam context.',
+        formula: 'SUM(duplicateCount - 1) across duplicate mark groups',
+        interpretation: 'Non-zero means data hygiene regression requiring cleanup.',
+      },
+    ];
+
+    return {
+      version: '1.0.0',
+      generatedAt: new Date(),
+      metrics,
+    };
+  }
+
+  async getDataQualityAnalytics(
+    termNum?: number,
+    termYear?: number,
+  ): Promise<DataQualityAnalytics> {
+    const termFilter: Record<string, number> = {};
+    if (typeof termNum === 'number') {
+      termFilter.num = termNum;
+    }
+    if (typeof termYear === 'number') {
+      termFilter.year = termYear;
+    }
+
+    const marksWithoutTermId = await this.marksRepository.count({
+      where: { termId: null, ...termFilter },
+    });
+    const enrolmentWithoutTermId = await this.enrolRepository.count({
+      where: { termId: null, ...termFilter },
+    });
+    const reportWithoutTermId = await this.reportsRepository.count({
+      where: { termId: null, ...termFilter },
+    });
+
+    const duplicateQuery = this.marksRepository
+      .createQueryBuilder('m')
+      .select('m.num', 'num')
+      .addSelect('m.year', 'year')
+      .addSelect('m.termId', 'termId')
+      .addSelect('m.name', 'className')
+      .addSelect('COALESCE(m.examType, \'\')', 'examType')
+      .addSelect('subject.code', 'subjectCode')
+      .addSelect('student.studentNumber', 'studentNumber')
+      .addSelect('COUNT(*)', 'duplicateCount')
+      .leftJoin('m.subject', 'subject')
+      .leftJoin('m.student', 'student')
+      .groupBy('m.num')
+      .addGroupBy('m.year')
+      .addGroupBy('m.termId')
+      .addGroupBy('m.name')
+      .addGroupBy('m.examType')
+      .addGroupBy('subject.code')
+      .addGroupBy('student.studentNumber')
+      .having('COUNT(*) > 1')
+      .orderBy('COUNT(*)', 'DESC');
+
+    if (typeof termNum === 'number') {
+      duplicateQuery.andWhere('m.num = :termNum', { termNum });
+    }
+    if (typeof termYear === 'number') {
+      duplicateQuery.andWhere('m.year = :termYear', { termYear });
+    }
+
+    const duplicateRaw = await duplicateQuery.getRawMany();
+    const duplicateMarkGroups = duplicateRaw.length;
+    const duplicateMarkRows = duplicateRaw.reduce(
+      (sum, row) => sum + Math.max(0, parseInt(row.duplicateCount, 10) - 1),
+      0,
+    );
+
+    const coverageQuery = this.marksRepository
+      .createQueryBuilder('m')
+      .select('subject.code', 'subjectCode')
+      .addSelect('subject.name', 'subjectName')
+      .addSelect('COUNT(*)', 'enteredCount')
+      .leftJoin('m.subject', 'subject')
+      .groupBy('subject.code')
+      .addGroupBy('subject.name')
+      .orderBy('COUNT(*)', 'DESC');
+
+    if (typeof termNum === 'number') {
+      coverageQuery.andWhere('m.num = :termNum', { termNum });
+    }
+    if (typeof termYear === 'number') {
+      coverageQuery.andWhere('m.year = :termYear', { termYear });
+    }
+
+    const marksCoverageBySubjectRaw = await coverageQuery.getRawMany();
+
+    return {
+      totals: {
+        marksWithoutTermId,
+        enrolmentWithoutTermId,
+        duplicateMarkGroups,
+        duplicateMarkRows,
+        reportWithoutTermId,
+      },
+      duplicateMarkSamples: duplicateRaw.slice(0, 20).map((row) => ({
+        num: parseInt(row.num, 10),
+        year: parseInt(row.year, 10),
+        termId: row.termId == null ? null : parseInt(row.termId, 10),
+        className: row.className,
+        examType: row.examType || '',
+        subjectCode: row.subjectCode,
+        studentNumber: row.studentNumber,
+        duplicateCount: parseInt(row.duplicateCount, 10),
+      })),
+      marksCoverageBySubject: marksCoverageBySubjectRaw.map((row) => ({
+        subjectCode: row.subjectCode,
+        subjectName: row.subjectName,
+        enteredCount: parseInt(row.enteredCount, 10),
+      })),
+    };
+  }
+
+  async getPredictionsAnalytics(
+    termNum?: number,
+    termYear?: number,
+  ): Promise<PredictionsAnalytics> {
+    const reportWhere: Record<string, number> = {};
+    if (typeof termNum === 'number') reportWhere.num = termNum;
+    if (typeof termYear === 'number') reportWhere.year = termYear;
+
+    const reports = await this.reportsRepository.find({ where: reportWhere });
+    const atRiskStudents = reports
+      .map((r) => ({
+        studentNumber: r.studentNumber,
+        average: Number(r.report?.percentageAverge ?? 0),
+      }))
+      .filter((r) => !isNaN(r.average))
+      .map((r) => ({
+        ...r,
+        riskLevel:
+          (r.average < 45 ? 'high' : r.average < 55 ? 'medium' : 'low') as
+            | 'high'
+            | 'medium'
+            | 'low',
+        explanation:
+          r.average < 45
+            ? 'Current average is significantly below pass threshold.'
+            : r.average < 55
+              ? 'Current average is marginal; intervention recommended.'
+              : 'Performance currently stable.',
+      }))
+      .sort((a, b) => a.average - b.average)
+      .slice(0, 20);
+
+    const invoiceQuery = this.invoiceRepository
+      .createQueryBuilder('invoice')
+      .leftJoinAndSelect('invoice.student', 'student')
+      .where('invoice.isVoided = false');
+
+    if (typeof termNum === 'number' && typeof termYear === 'number') {
+      invoiceQuery
+        .leftJoin('invoice.enrol', 'enrol')
+        .andWhere('enrol.num = :termNum', { termNum })
+        .andWhere('enrol.year = :termYear', { termYear });
+    }
+
+    const invoices = await invoiceQuery.getMany();
+    const now = new Date();
+    const feeDefaultRisks = invoices
+      .filter((invoice) => Number(invoice.balance) > 0)
+      .map((invoice) => {
+        const due = invoice.invoiceDueDate ? new Date(invoice.invoiceDueDate) : now;
+        const overdueDays = Math.max(
+          0,
+          Math.floor((now.getTime() - due.getTime()) / (1000 * 60 * 60 * 24)),
+        );
+        const balance = Number(invoice.balance);
+        const highRisk = overdueDays >= 60 || balance >= 500;
+        const mediumRisk = overdueDays >= 30 || balance >= 200;
+        return {
+          studentNumber: invoice.student?.studentNumber ?? 'Unknown',
+          invoiceNumber: invoice.invoiceNumber,
+          balance,
+          overdueDays,
+          riskLevel: (highRisk
+            ? 'high'
+            : mediumRisk
+              ? 'medium'
+              : 'low') as 'high' | 'medium' | 'low',
+        };
+      })
+      .sort((a, b) => b.overdueDays - a.overdueDays || b.balance - a.balance)
+      .slice(0, 20);
+
+    const reportRows = await this.reportsRepository.find({
+      order: { year: 'DESC', num: 'DESC' },
+      take: 600,
+    });
+    const groupedPass = new Map<string, { total: number; passed: number }>();
+    reportRows.forEach((row) => {
+      const key = `${row.year}-${row.num}`;
+      const avg = Number(row.report?.percentageAverge ?? 0);
+      if (!groupedPass.has(key)) {
+        groupedPass.set(key, { total: 0, passed: 0 });
+      }
+      const bucket = groupedPass.get(key)!;
+      bucket.total += 1;
+      if (avg >= 50) {
+        bucket.passed += 1;
+      }
+    });
+    const recentBuckets = Array.from(groupedPass.values()).slice(0, 3);
+    const expectedPassRate =
+      recentBuckets.length > 0
+        ? recentBuckets.reduce((sum, b) => sum + (b.total > 0 ? (b.passed / b.total) * 100 : 0), 0) /
+          recentBuckets.length
+        : 0;
+
+    const expectedCollectionRate = await (async () => {
+      const financial = await this.getFinancialAnalytics(undefined, undefined, termNum, termYear);
+      return financial.collectionRate;
+    })();
+
+    const recentEnrolments = await this.enrolRepository
+      .createQueryBuilder('enrol')
+      .select('enrol.year', 'year')
+      .addSelect('enrol.num', 'num')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('enrol.year')
+      .addGroupBy('enrol.num')
+      .orderBy('enrol.year', 'DESC')
+      .addOrderBy('enrol.num', 'DESC')
+      .limit(3)
+      .getRawMany();
+    const expectedEnrollment =
+      recentEnrolments.length > 0
+        ? recentEnrolments.reduce((sum, row) => sum + Number(row.count || 0), 0) /
+          recentEnrolments.length
+        : 0;
+
+    return {
+      atRiskStudents,
+      feeDefaultRisks,
+      executiveForecast: {
+        expectedPassRate: Math.round(expectedPassRate * 100) / 100,
+        passRateConfidenceLow: Math.max(0, Math.round((expectedPassRate - 5) * 100) / 100),
+        passRateConfidenceHigh: Math.min(100, Math.round((expectedPassRate + 5) * 100) / 100),
+        expectedCollectionRate: Math.round(expectedCollectionRate * 100) / 100,
+        collectionConfidenceLow: Math.max(
+          0,
+          Math.round((expectedCollectionRate - 6) * 100) / 100,
+        ),
+        collectionConfidenceHigh: Math.min(
+          100,
+          Math.round((expectedCollectionRate + 6) * 100) / 100,
+        ),
+        expectedEnrollment: Math.round(expectedEnrollment),
+        enrollmentConfidenceLow: Math.max(0, Math.round(expectedEnrollment * 0.92)),
+        enrollmentConfidenceHigh: Math.round(expectedEnrollment * 1.08),
       },
     };
   }

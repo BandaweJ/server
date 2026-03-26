@@ -32,12 +32,25 @@ import { CalendarService } from './services/calendar.service';
 import { ReportReleaseModule } from './report-release.module';
 import { CalendarController } from './controllers/calendar.controller';
 import { TenantModule } from '../tenant/tenant.module';
+import { MarksEntity } from '../marks/entities/marks.entity';
 
 @Module({
   imports: [
     TenantModule, // Provides request-scoped repos for tenant-scoped entities (system_settings, etc.) so search_path is used
     TypeOrmModule.forFeature([
-      // Only non-tenant-scoped entities here; tenant-scoped (SystemSettingsEntity, etc.) come from TenantModule
+      StudentsEntity,
+      EnrolEntity,
+      InvoiceEntity,
+      ReceiptEntity,
+      ReportsEntity,
+      AccountsEntity,
+      TeachersEntity,
+      ParentsEntity,
+      FinancialAuditLogEntity,
+      MarksEntity,
+      IntegrationEntity,
+      CalendarEventEntity,
+      EventNotificationEntity,
     ]),
     AuthModule, // Import AuthModule to provide RolesGuard and AccountsEntityRepository
     forwardRef(() => PaymentModule), // Import PaymentModule to access AuditService (forwardRef to break circular dependency)
