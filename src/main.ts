@@ -27,27 +27,24 @@ async function bootstrap() {
     }),
   );
 
-  // Define your allowed origins dynamically or explicitly
+  // Allow local frontend, production frontend, and Vercel preview deployments.
   const allowedOrigins = [
-    'http://localhost:4200', // Your local development frontend
-    'https://front-mu-five.vercel.app', // Your Vercel deployed frontend URL
-    // If your Vercel frontend generates dynamic preview URLs (e.g., for branches),
-    // you might need a more flexible approach using a regex.
-    // Example for dynamic Vercel URLs:
-    // /https:\/\/front-mu-five(-\w+)?\.vercel\.app$/ // Matches front-mu-five.vercel.app AND front-mu-five-branchname.vercel.app
+    'http://localhost:4200',
+    'https://front-mu-five.vercel.app',
   ];
 
   app.enableCors({
-    origin: allowedOrigins, // or a list of allowed origins
+    origin: (origin, callback) => {
+      if (!origin) {
+        return callback(null, true);
+      }
+      const isAllowed =
+        allowedOrigins.includes(origin) ||
+        /^https:\/\/front-mu-five(-[a-z0-9-]+)?\.vercel\.app$/i.test(origin);
+      return callback(isAllowed ? null : new Error('Not allowed by CORS'), isAllowed);
+    },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-      'X-Tenant',
-      'Accept',
-      'Origin',
-      'X-Requested-With',
-    ],
+    allowedHeaders: '*',
     credentials: true,
     exposedHeaders: ['Content-Disposition'],
     maxAge: 86400,
