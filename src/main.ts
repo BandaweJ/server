@@ -39,9 +39,19 @@ async function bootstrap() {
 
   app.enableCors({
     origin: allowedOrigins, // or a list of allowed origins
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Tenant',
+      'Accept',
+      'Origin',
+      'X-Requested-With',
+    ],
     credentials: true,
     exposedHeaders: ['Content-Disposition'],
+    maxAge: 86400,
+    optionsSuccessStatus: 204,
   });
   const config = new DocumentBuilder()
     .setTitle('Reports System')
