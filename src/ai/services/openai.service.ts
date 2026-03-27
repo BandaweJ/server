@@ -53,6 +53,7 @@ export interface RoleCommentResponse {
 export class OpenAIService {
   private readonly logger = new Logger(OpenAIService.name);
   private static readonly MAX_ROLE_COMMENT_CHARS = 220;
+  private static readonly MAX_FORM_TEACHER_COMMENT_CHARS = 140;
   private openai: OpenAI;
   private readonly bannedGenericPatterns = [
     /well done/i,
@@ -521,7 +522,7 @@ Requirements:
         throw new Error('No response from OpenAI');
       }
 
-      const normalized = this.normalizeRoleComment(response);
+      const normalized = this.normalizeRoleComment(response, context.role);
       if (!normalized) {
         throw new Error('Response failed validation');
       }
@@ -558,6 +559,22 @@ Requirements:
       .map((s) => `${s.subject}: ${s.comment}`)
       .join(' | ');
 
+    const isFormTeacher = context.role === 'formTeacher';
+    const maxChars = isFormTeacher
+      ? OpenAIService.MAX_FORM_TEACHER_COMMENT_CHARS
+      : OpenAIService.MAX_ROLE_COMMENT_CHARS;
+    const roleSpecificRequirements =
+      context.role === 'formTeacher'
+        ? `Form Teacher Focus:
+- Comment on behaviour, conduct, discipline, punctuality, and attitude towards work
+- You may infer likely conduct trends from marks/consistency, but avoid fabricating incidents
+- Keep it to one short sentence only
+- Keep wording practical and school-appropriate
+- Prefer phrases like: "Positive attitude towards school work."`
+        : `Head Teacher Focus:
+- Give a concise academic leadership summary with strength and improvement target
+- Keep it professional and forward-looking`;
+
     return `
 Write one ${roleLabel} for a report card.
 
@@ -573,26 +590,49 @@ Weak subjects: ${weak || 'N/A'}
 Subject comments evidence: ${classroomEvidence || 'N/A'}
 
 Requirements:
-- Maximum length: ${OpenAIService.MAX_ROLE_COMMENT_CHARS} characters
-- 14 to 30 words total
-- Mention at least one strength and one target for improvement
+- Maximum length: ${maxChars} characters
+- ${
+      isFormTeacher ? '8 to 16 words total' : '14 to 30 words total'
+    }
+- ${
+      isFormTeacher
+        ? 'Focus on behaviour and work attitude; do not include subject-by-subject analysis'
+        : 'Mention at least one strength and one target for improvement'
+    }
 - Use professional school tone
 - Plain text only, single paragraph, no line breaks
 - Do not mention AI
+${roleSpecificRequirements}
     `.trim();
   }
 
-  private normalizeRoleComment(value: string): string | null {
+  private normalizeRoleComment(
+    value: string,
+    role: RoleCommentContext['role'],
+  ): string | null {
     const line = value
       .replace(/\s+/g, ' ')
       .replace(/^["'\-\*\#\d\.\)\s]+/, '')
       .trim();
-    const bounded = line.slice(0, OpenAIService.MAX_ROLE_COMMENT_CHARS);
+    const maxChars =
+      role === 'formTeacher'
+        ? OpenAIService.MAX_FORM_TEACHER_COMMENT_CHARS
+        : OpenAIService.MAX_ROLE_COMMENT_CHARS;
+    const singleSentence =
+      role === 'formTeacher' ? this.keepFirstSentence(line) : line;
+    const bounded = singleSentence.slice(0, maxChars).trim();
     const wordCount = bounded
       .split(/\s+/)
       .filter((w) => w.length > 0).length;
-    if (wordCount < 10 || wordCount > 35) return null;
+    const minWords = role === 'formTeacher' ? 6 : 10;
+    const maxWords = role === 'formTeacher' ? 20 : 35;
+    if (wordCount < minWords || wordCount > maxWords) return null;
     return bounded;
+  }
+
+  private keepFirstSentence(text: string): string {
+    const match = text.match(/^(.+?[.!?])(?:\s|$)/);
+    return match ? match[1].trim() : text.trim();
   }
 
   private getRoleCommentFallback(context: RoleCommentContext): string {
@@ -610,7 +650,7 @@ Requirements:
       return `${name} shows strong potential, especially in ${top}. Improve consistency in ${weak} through regular revision and focused practice next term.`;
     }
 
-    return `${name} demonstrates good effort with strength in ${top}. Focused practice in ${weak} and consistent corrections will improve overall performance.`;
+    return `Positive attitude towards school work; needs stronger consistency and discipline in ${weak}.`;
   }
 
   private normalizeComment(comment: string): string {
