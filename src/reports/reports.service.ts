@@ -408,10 +408,13 @@ export class ReportsService {
         return;
       }
 
+      // Always carry over the persisted DB id when a saved report exists.
+      // Frontend uses this id to determine if comments can be edited/saved.
+      generated.id = saved.id;
+
       // Head's comment (existing behaviour)
       if (saved.report.headComment) {
         generated.report.headComment = saved.report.headComment;
-        generated.id = saved.id;
       }
 
       // NEW: class/form teacher comment primarily comes from the saved report JSON

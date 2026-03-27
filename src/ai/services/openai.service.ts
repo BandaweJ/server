@@ -16,6 +16,8 @@ export interface CommentGenerationRequest {
   classSize?: number;
 }
 
+type SchoolStage = 'form1to2' | 'form3to4' | 'form5to6' | 'genericSecondary';
+
 export interface CommentGenerationResponse {
   comments: string[];
   success: boolean;
@@ -60,6 +62,36 @@ export class OpenAIService {
     /excellent work/i,
     /outstanding work/i,
   ];
+  private readonly stageDisallowedTerms: Record<SchoolStage, string[]> = {
+    form1to2: [
+      'algorithm',
+      'algorithms',
+      'derivative',
+      'derivatives',
+      'integration',
+      'integral',
+      'stoichiometry',
+      'electrolysis',
+      'trigonometric',
+      'kinematics',
+      'organic chemistry',
+      'argumentation',
+      'evaluation',
+      'hypothesis',
+      'theorem',
+    ],
+    form3to4: [
+      'derivative',
+      'derivatives',
+      'integration',
+      'integral',
+      'electromagnetism',
+      'stoichiometry',
+      'algorithmic complexity',
+    ],
+    form5to6: [],
+    genericSecondary: [],
+  };
 
   constructor(private configService: ConfigService) {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
@@ -122,7 +154,8 @@ export class OpenAIService {
       }
 
       // Parse the response to extract individual comments
-      let comments = this.parseComments(response, request.subject);
+      const stage = this.inferSchoolStage(request.className, request.studentLevel);
+      let comments = this.parseComments(response, request.subject, stage);
 
       // If we have 3 or fewer comments after filtering, request more
       if (comments.length <= 3) {
@@ -163,6 +196,7 @@ export class OpenAIService {
             const additionalComments = this.parseComments(
               additionalResponse,
               request.subject,
+              stage,
             );
             const beforeCount = comments.length;
             // Combine comments, avoiding duplicates and limiting to 5 total
@@ -255,7 +289,9 @@ export class OpenAIService {
         ? ` Position: ${request.position}/${request.classSize}.`
         : '';
     const tone = request.tone || 'balanced';
-    const subjectKeyword = this.getPrimarySubjectKeyword(request.subject);
+    const stage = this.inferSchoolStage(request.className, request.studentLevel);
+    const subjectKeyword = this.getPrimarySubjectKeyword(request.subject, stage);
+    const stageInstruction = this.getStageInstruction(stage);
 
     // Determine guidance based on percentage
     let guidanceInstructions = '';
@@ -292,6 +328,8 @@ Requirements:
 - Avoid generic praise phrases such as "well done", "keep it up", "good work", "great effort"
 - Comments should be concise, realistic, and motivating
 - All 5 comments must be wording-distinct
+- Follow Cambridge syllabus expectations for this level
+- Keep vocabulary age-appropriate for this stage: ${stageInstruction}
 - Format as a numbered list (1. 2. 3. 4. 5.)
 
 Examples (style only):
@@ -310,26 +348,27 @@ Examples (style only):
     return 'Requires Attention';
   }
 
-  private parseComments(response: string, subject?: string): string[] {
-    // Split by numbered list items and clean up
+  private parseComments(
+    response: string,
+    subject?: string,
+    stage: SchoolStage = 'genericSecondary',
+  ): string[] {
     const lines = response
       .split('\n')
       .map((line) => line.trim())
       .filter((line) => line.length > 0)
       .map((line) => {
-        // Remove numbering (1. 2. etc.) and clean up
         return line.replace(/^[-*]?\s*\d*[\).\-\s]*/, '').trim();
       })
       .filter((line) => {
-        if (line.length === 0 || line.length > 80) {
-          return false;
-        }
+        if (line.length === 0 || line.length > 80) return false;
         const wordCount = line
           .split(/\s+/)
           .filter((word) => word.length > 0).length;
         if (wordCount < 3 || wordCount > 5) return false;
         if (this.isGenericComment(line)) return false;
         if (subject && !this.containsSubjectContext(line, subject)) return false;
+        if (this.containsDisallowedTerms(line, stage)) return false;
         return true;
       })
       .map((line) => this.normalizeComment(line));
@@ -355,7 +394,9 @@ Examples (style only):
     const level = request.studentLevel
       ? ` for ${request.studentLevel} students`
       : '';
-    const subjectKeyword = this.getPrimarySubjectKeyword(request.subject);
+    const stage = this.inferSchoolStage(request.className, request.studentLevel);
+    const subjectKeyword = this.getPrimarySubjectKeyword(request.subject, stage);
+    const stageInstruction = this.getStageInstruction(stage);
     const needed = 5 - existingCount;
     const tone = request.tone || 'balanced';
 
@@ -394,6 +435,8 @@ Requirements:
 - Include one clear action verb
 - Avoid generic praise phrases
 - Keep each comment distinct from others
+- Follow Cambridge syllabus expectations for this level
+- Keep vocabulary age-appropriate for this stage: ${stageInstruction}
 - Format as a numbered list (1. 2. 3. etc.)
 - Make sure these comments are different from the ones already generated
     `.trim();
@@ -404,9 +447,12 @@ Requirements:
     mark: number,
     maxMark: number = 100,
     subject?: string,
+    className?: string,
+    studentLevel?: string,
   ): string[] {
     const percentage = (mark / maxMark) * 100;
-    const keyword = this.getPrimarySubjectKeyword(subject);
+    const stage = this.inferSchoolStage(className, studentLevel);
+    const keyword = this.getPrimarySubjectKeyword(subject, stage);
 
     if (percentage >= 60) {
       return [
@@ -614,19 +660,103 @@ Requirements:
     return combined.slice(0, 5);
   }
 
-  private getPrimarySubjectKeyword(subject?: string): string {
+  private getPrimarySubjectKeywordByStage(
+    subject: string | undefined,
+    stage: SchoolStage,
+  ): string {
     if (!subject) return 'concepts';
     const normalized = subject.toLowerCase();
-    if (normalized.includes('math')) return 'equations';
-    if (normalized.includes('physics')) return 'calculations';
-    if (normalized.includes('chem')) return 'reactions';
-    if (normalized.includes('biology')) return 'processes';
-    if (normalized.includes('history')) return 'evidence';
-    if (normalized.includes('geography')) return 'maps';
-    if (normalized.includes('account')) return 'ledgers';
-    if (normalized.includes('business')) return 'analysis';
-    if (normalized.includes('english')) return 'writing';
-    if (normalized.includes('computer')) return 'algorithms';
+
+    const lowStage = stage === 'form1to2';
+    const midStage = stage === 'form3to4';
+    const highStage = stage === 'form5to6';
+
+    if (normalized.includes('math')) return lowStage ? 'steps' : midStage ? 'equations' : 'problem-solving';
+    if (normalized.includes('physics')) return lowStage ? 'units' : midStage ? 'calculations' : 'principles';
+    if (normalized.includes('chem')) return lowStage ? 'symbols' : midStage ? 'reactions' : 'concepts';
+    if (normalized.includes('biology')) return lowStage ? 'definitions' : midStage ? 'processes' : 'analysis';
+    if (normalized.includes('history')) return lowStage ? 'facts' : midStage ? 'evidence' : 'arguments';
+    if (normalized.includes('geography')) return lowStage ? 'mapwork' : midStage ? 'maps' : 'case-studies';
+    if (normalized.includes('account')) return lowStage ? 'entries' : midStage ? 'ledgers' : 'interpretation';
+    if (normalized.includes('business')) return lowStage ? 'key terms' : midStage ? 'analysis' : 'evaluation';
+    if (normalized.includes('english') || normalized.includes('language'))
+      return lowStage ? 'sentence structure' : midStage ? 'writing' : 'argumentation';
+    if (normalized.includes('computer')) return lowStage ? 'logic' : midStage ? 'program structure' : 'algorithms';
     return 'concepts';
+  }
+
+  private getPrimarySubjectKeyword(
+    subject?: string,
+    stage: SchoolStage = 'genericSecondary',
+  ): string {
+    const keyword = this.getPrimarySubjectKeywordByStage(subject, stage);
+    if (this.containsDisallowedTerms(keyword, stage)) {
+      return 'concepts';
+    }
+    return keyword;
+  }
+
+  private inferSchoolStage(
+    className?: string,
+    studentLevel?: string,
+  ): SchoolStage {
+    const classText = (className || '').toLowerCase();
+    const levelText = (studentLevel || '').toLowerCase();
+
+    if (
+      levelText.includes('a level') ||
+      levelText.includes('as level') ||
+      classText.includes('form 5') ||
+      classText.includes('form 6') ||
+      classText.includes('5 ') ||
+      classText.startsWith('5') ||
+      classText.includes('6 ') ||
+      classText.startsWith('6')
+    ) {
+      return 'form5to6';
+    }
+
+    if (
+      classText.includes('form 1') ||
+      classText.includes('form 2') ||
+      classText.startsWith('1') ||
+      classText.startsWith('2')
+    ) {
+      return 'form1to2';
+    }
+
+    if (
+      classText.includes('form 3') ||
+      classText.includes('form 4') ||
+      classText.startsWith('3') ||
+      classText.startsWith('4')
+    ) {
+      return 'form3to4';
+    }
+
+    if (levelText.includes('o level') || levelText.includes('igcse')) {
+      return 'form3to4';
+    }
+
+    return 'genericSecondary';
+  }
+
+  private getStageInstruction(stage: SchoolStage): string {
+    if (stage === 'form1to2') {
+      return 'simple classroom vocabulary for ages about 13-15; avoid advanced technical jargon';
+    }
+    if (stage === 'form3to4') {
+      return 'IGCSE/O-Level appropriate terminology for ages about 15-17';
+    }
+    if (stage === 'form5to6') {
+      return 'A-Level appropriate terminology, still concise and clear';
+    }
+    return 'secondary-school appropriate and not overly technical';
+  }
+
+  private containsDisallowedTerms(text: string, stage: SchoolStage): boolean {
+    const disallowed = this.stageDisallowedTerms[stage] || [];
+    const normalized = text.toLowerCase();
+    return disallowed.some((term) => normalized.includes(term));
   }
 }
