@@ -118,7 +118,7 @@ export class ReportsService {
       profile,
     );
     reports.forEach((r) => {
-      r.formPosition = formPositions.get(r.studentNumber) ?? 0;
+      r.formPosition = formPositions.get(r.studentNumber);
     });
 
     // 6) Attach teacher comments
@@ -345,7 +345,6 @@ export class ReportsService {
     type StudentAgg = {
       // subjectCode -> mark (dedupe in case of duplicates)
       subjectMarks: Map<string, number>;
-      hasAnyNonZeroMark: boolean;
     };
 
     const aggByStudent = new Map<string, StudentAgg>();
@@ -372,20 +371,16 @@ export class ReportsService {
         if (!aggByStudent.has(studentNumber)) {
           aggByStudent.set(studentNumber, {
             subjectMarks: new Map<string, number>(),
-            hasAnyNonZeroMark: false,
           });
         }
 
         const agg = aggByStudent.get(studentNumber)!;
         agg.subjectMarks.set(subjectCode, markValue);
-        if (markValue > 0) {
-          agg.hasAnyNonZeroMark = true;
-        }
       }
     }
 
     const ranked = Array.from(aggByStudent.entries())
-      .filter(([, agg]) => agg.hasAnyNonZeroMark && agg.subjectMarks.size > 0)
+      .filter(([, agg]) => agg.subjectMarks.size > 0)
       .map(([studentNumber, agg]) => {
         let sum = 0;
         for (const v of agg.subjectMarks.values()) sum += v;
@@ -1313,6 +1308,30 @@ export class ReportsService {
     const normalizedReports = reports.map((rep) =>
       this.normalizeReportStructure(rep),
     );
+
+    // Only compute form-level ranking for staff.
+    // Students/parents are blocked from fetching cross-class marks by marksService.getMarksbyClass().
+    const isStaff =
+      !(profile instanceof StudentsEntity) && !(profile instanceof ParentsEntity);
+
+    if (isStaff) {
+      const formPositions = await this.computeFormPositionsForForm(
+        name,
+        num,
+        year,
+        examType,
+        termId,
+        profile,
+      );
+
+      normalizedReports.forEach((rep: any) => {
+        if (rep?.report?.studentNumber) {
+          rep.report.formPosition = formPositions.get(
+            rep.report.studentNumber,
+          );
+        }
+      });
+    }
 
     return normalizedReports;
   }
