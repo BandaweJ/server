@@ -107,6 +107,20 @@ export class ReportsService {
     this.computeClassSizeAndAverages(reports);
     this.assignClassPositions(reports);
 
+    // 5b) Compute form‑level positions across all sections in the form
+    // (e.g. Form 1 Blue/Gold/Camel/White are ranked together).
+    const formPositions = await this.computeFormPositionsForForm(
+      name,
+      num,
+      year,
+      examType,
+      termId,
+      profile,
+    );
+    reports.forEach((r) => {
+      r.formPosition = formPositions.get(r.studentNumber) ?? 0;
+    });
+
     // 6) Attach teacher comments
     const comments = await this.teacherCommentRepository.find({
       where: {
@@ -306,6 +320,91 @@ export class ReportsService {
     reports.forEach((report, index) => {
       report.classPosition = index + 1;
     });
+  }
+
+  /**
+   * Computes rank (1..N) for each student across ALL classes within the same form.
+   * Rank is based on the student's average mark for this exam type.
+   */
+  private async computeFormPositionsForForm(
+    currentClassName: string,
+    num: number,
+    year: number,
+    examType: string,
+    termId: number | undefined,
+    profile: TeachersEntity | StudentsEntity | ParentsEntity,
+  ): Promise<Map<string, number>> {
+    const currentClass = await this.enrolmentService.getOneClass(
+      currentClassName,
+    );
+    const form = currentClass.form;
+
+    const allClasses = await this.enrolmentService.getAllClasses();
+    const classesInForm = allClasses.filter((c) => c.form === form);
+
+    type StudentAgg = {
+      // subjectCode -> mark (dedupe in case of duplicates)
+      subjectMarks: Map<string, number>;
+      hasAnyNonZeroMark: boolean;
+    };
+
+    const aggByStudent = new Map<string, StudentAgg>();
+
+    for (const cls of classesInForm) {
+      const marks = await this.marksService.getMarksbyClass(
+        num,
+        year,
+        cls.name,
+        examType,
+        profile,
+        termId,
+      );
+
+      for (const m of marks) {
+        const studentNumber = m.student?.studentNumber;
+        const subjectCode = m.subject?.code;
+        const markValue = m.mark;
+
+        if (!studentNumber || !subjectCode || typeof markValue !== 'number') {
+          continue;
+        }
+
+        if (!aggByStudent.has(studentNumber)) {
+          aggByStudent.set(studentNumber, {
+            subjectMarks: new Map<string, number>(),
+            hasAnyNonZeroMark: false,
+          });
+        }
+
+        const agg = aggByStudent.get(studentNumber)!;
+        agg.subjectMarks.set(subjectCode, markValue);
+        if (markValue > 0) {
+          agg.hasAnyNonZeroMark = true;
+        }
+      }
+    }
+
+    const ranked = Array.from(aggByStudent.entries())
+      .filter(([, agg]) => agg.hasAnyNonZeroMark && agg.subjectMarks.size > 0)
+      .map(([studentNumber, agg]) => {
+        let sum = 0;
+        for (const v of agg.subjectMarks.values()) sum += v;
+        const avg = sum / agg.subjectMarks.size;
+        return { studentNumber, avg };
+      })
+      .sort((a, b) => {
+        const byAvg = b.avg - a.avg;
+        if (byAvg !== 0) return byAvg;
+        // deterministic tie-breaker
+        return a.studentNumber.localeCompare(b.studentNumber);
+      });
+
+    const formPositions = new Map<string, number>();
+    ranked.forEach((row, index) => {
+      formPositions.set(row.studentNumber, index + 1);
+    });
+
+    return formPositions;
   }
 
   /**
