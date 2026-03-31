@@ -1472,7 +1472,8 @@ export class ReportsService {
       const statsY = rowHeight * 6;
       const statsRowWidth = columnWidth * 18;
       const statCellWidth = statsRowWidth / 3;
-      const labelValueGap = columnWidth * 1.45;
+      const statHorizontalPadding = smallPadding;
+      const minGap = 6;
 
       doc
         .moveDown()
@@ -1484,14 +1485,16 @@ export class ReportsService {
         width: statCellWidth,
         align: 'left',
       });
+      const classLabelWidth = doc.widthOfString('Class position:');
+      const classValueX = margin + statHorizontalPadding + classLabelWidth + minGap;
       doc
         .fillColor(blueColor)
         .text(
           `${report.report.classPosition} / ${report.report.classSize}`,
-          margin + labelValueGap,
+          classValueX,
           statsY,
           {
-            width: statCellWidth - labelValueGap,
+            width: margin + statCellWidth - classValueX - statHorizontalPadding,
             align: 'left',
           },
         );
@@ -1504,14 +1507,16 @@ export class ReportsService {
           width: statCellWidth,
           align: 'left',
         });
+      const formLabelWidth = doc.widthOfString('Form position:');
+      const formValueX = formX + statHorizontalPadding + formLabelWidth + minGap;
       doc
         .fillColor(blueColor)
         .text(
           `${report.report.formPosition != null ? report.report.formPosition : 'N/A'}`,
-          formX + labelValueGap,
+          formValueX,
           statsY,
           {
-            width: statCellWidth - labelValueGap,
+            width: formX + statCellWidth - formValueX - statHorizontalPadding,
             align: 'left',
           },
         );
@@ -1524,10 +1529,12 @@ export class ReportsService {
           width: statCellWidth,
           align: 'left',
         });
+      const passedLabelWidth = doc.widthOfString('Passed:');
+      const passedValueX = passedX + statHorizontalPadding + passedLabelWidth + minGap;
       doc
         .fillColor(blueColor)
-        .text(`${report.report.subjectsPassed}`, passedX + labelValueGap, statsY, {
-          width: statCellWidth - labelValueGap,
+        .text(`${report.report.subjectsPassed}`, passedValueX, statsY, {
+          width: passedX + statCellWidth - passedValueX - statHorizontalPadding,
           align: 'left',
         });
 
