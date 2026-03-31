@@ -41,7 +41,6 @@ import { GenerateRoleCommentDto } from './dtos/generate-role-comment.dto';
 @Injectable()
 export class ReportsService {
   private readonly logger = new Logger(ReportsService.name);
-  private static readonly MAX_ROLE_COMMENT_LENGTH = 220;
 
   constructor(
     private marksService: MarksService,
@@ -106,20 +105,6 @@ export class ReportsService {
     // 5) Compute class‑level stats and positions
     this.computeClassSizeAndAverages(reports);
     this.assignClassPositions(reports);
-
-    // 5b) Compute form‑level positions across all sections in the form
-    // (e.g. Form 1 Blue/Gold/Camel/White are ranked together).
-    const formPositions = await this.computeFormPositionsForForm(
-      name,
-      num,
-      year,
-      examType,
-      termId,
-      profile,
-    );
-    reports.forEach((r) => {
-      r.formPosition = formPositions.get(r.studentNumber);
-    });
 
     // 6) Attach teacher comments
     const comments = await this.teacherCommentRepository.find({
@@ -323,86 +308,6 @@ export class ReportsService {
   }
 
   /**
-   * Computes rank (1..N) for each student across ALL classes within the same form.
-   * Rank is based on the student's average mark for this exam type.
-   */
-  private async computeFormPositionsForForm(
-    currentClassName: string,
-    num: number,
-    year: number,
-    examType: string,
-    termId: number | undefined,
-    profile: TeachersEntity | StudentsEntity | ParentsEntity,
-  ): Promise<Map<string, number>> {
-    const currentClass = await this.enrolmentService.getOneClass(
-      currentClassName,
-    );
-    const form = currentClass.form;
-
-    const allClasses = await this.enrolmentService.getAllClasses();
-    const classesInForm = allClasses.filter((c) => c.form === form);
-
-    type StudentAgg = {
-      // subjectCode -> mark (dedupe in case of duplicates)
-      subjectMarks: Map<string, number>;
-    };
-
-    const aggByStudent = new Map<string, StudentAgg>();
-
-    for (const cls of classesInForm) {
-      const marks = await this.marksService.getMarksbyClass(
-        num,
-        year,
-        cls.name,
-        examType,
-        profile,
-        termId,
-      );
-
-      for (const m of marks) {
-        const studentNumber = m.student?.studentNumber;
-        const subjectCode = m.subject?.code;
-        const markValue = m.mark;
-
-        if (!studentNumber || !subjectCode || typeof markValue !== 'number') {
-          continue;
-        }
-
-        if (!aggByStudent.has(studentNumber)) {
-          aggByStudent.set(studentNumber, {
-            subjectMarks: new Map<string, number>(),
-          });
-        }
-
-        const agg = aggByStudent.get(studentNumber)!;
-        agg.subjectMarks.set(subjectCode, markValue);
-      }
-    }
-
-    const ranked = Array.from(aggByStudent.entries())
-      .filter(([, agg]) => agg.subjectMarks.size > 0)
-      .map(([studentNumber, agg]) => {
-        let sum = 0;
-        for (const v of agg.subjectMarks.values()) sum += v;
-        const avg = sum / agg.subjectMarks.size;
-        return { studentNumber, avg };
-      })
-      .sort((a, b) => {
-        const byAvg = b.avg - a.avg;
-        if (byAvg !== 0) return byAvg;
-        // deterministic tie-breaker
-        return a.studentNumber.localeCompare(b.studentNumber);
-      });
-
-    const formPositions = new Map<string, number>();
-    ranked.forEach((row, index) => {
-      formPositions.set(row.studentNumber, index + 1);
-    });
-
-    return formPositions;
-  }
-
-  /**
    * Attach teacher comments using a map keyed by student number.
    * NOTE: this now acts as a LEGACY FALLBACK only.
    * For new reports, the primary source of the teacher/class comment
@@ -502,13 +407,10 @@ export class ReportsService {
         return;
       }
 
-      // Always carry over the persisted DB id when a saved report exists.
-      // Frontend uses this id to determine if comments can be edited/saved.
-      generated.id = saved.id;
-
       // Head's comment (existing behaviour)
       if (saved.report.headComment) {
         generated.report.headComment = saved.report.headComment;
+        generated.id = saved.id;
       }
 
       // NEW: class/form teacher comment primarily comes from the saved report JSON
@@ -1052,14 +954,6 @@ export class ReportsService {
       );
     }
 
-    const normalizedComment = (comment.comment || '')
-      .trim()
-      .slice(0, ReportsService.MAX_ROLE_COMMENT_LENGTH);
-    if (!comment.report.id) {
-      throw new BadRequestException(
-        'Report must be saved before adding head comment.',
-      );
-    }
     let existingReport: ReportsEntity | null = null;
 
     // Try to find existing report: first by ID if provided, then by unique combination
@@ -1069,25 +963,65 @@ export class ReportsService {
       });
     }
 
-    // For comment saves we require an existing persisted report.
+    // If not found by ID (or no ID provided), try to find by unique combination
     if (!existingReport) {
-      throw new NotFoundException(
-        `Report not found for student ${studentNumber}. Save reports first.`,
-      );
+      const whereClause: any = {
+        name,
+        num,
+        year,
+        ...(termId ? { termId } : {}),
+        studentNumber,
+      };
+      if (examType) {
+        whereClause.examType = examType;
+      }
+
+      existingReport = await this.reportsRepository.findOne({
+        where: whereClause,
+      });
     }
 
-    this.logger.debug('Updating existing report with head comment', {
-      reportId: existingReport.id,
-      studentNumber: existingReport.studentNumber,
-    });
+    if (existingReport) {
+      // --- UPDATE EXISTING REPORT ---
+      this.logger.debug('Updating existing report with head comment', {
+        reportId: existingReport.id,
+        studentNumber: existingReport.studentNumber,
+      });
 
-    existingReport.report = {
-      ...existingReport.report,
-      ...comment.report.report, // Merge any other updates from frontend
-      headComment: normalizedComment, // Update the head comment
-    };
+      // Merge the incoming report data with existing report, updating only the head comment
+      existingReport.report = {
+        ...existingReport.report,
+        ...comment.report.report, // Merge any other updates from frontend
+        headComment: comment.comment, // Update the head comment
+      };
 
-    return await this.reportsRepository.save(existingReport);
+      return await this.reportsRepository.save(existingReport);
+    } else {
+      // --- CREATE NEW REPORT ---
+      this.logger.debug('Creating new report with head comment', {
+        studentNumber,
+        name,
+        num,
+        year,
+        examType,
+      });
+
+      // Create new report with the comment
+      const newReport = this.reportsRepository.create({
+        name,
+        num,
+        year,
+        termId: termId ?? null,
+        studentNumber,
+        examType: examType || null,
+        report: {
+          ...comment.report.report, // Use the full report data from frontend
+          headComment: comment.comment, // Set the head comment
+        },
+      });
+
+      return await this.reportsRepository.save(newReport);
+    }
   }
 
   /**
@@ -1130,14 +1064,6 @@ export class ReportsService {
       );
     }
 
-    const normalizedComment = (comment.comment || '')
-      .trim()
-      .slice(0, ReportsService.MAX_ROLE_COMMENT_LENGTH);
-    if (!comment.report.id) {
-      throw new BadRequestException(
-        'Report must be saved before adding form teacher comment.',
-      );
-    }
     let existingReport: ReportsEntity | null = null;
 
     // Try to find existing report: first by ID if provided, then by unique combination
@@ -1147,25 +1073,65 @@ export class ReportsService {
       });
     }
 
-    // For comment saves we require an existing persisted report.
+    // If not found by ID (or no ID provided), try to find by unique combination
     if (!existingReport) {
-      throw new NotFoundException(
-        `Report not found for student ${studentNumber}. Save reports first.`,
-      );
+      const whereClause: any = {
+        name,
+        num,
+        year,
+        ...(termId ? { termId } : {}),
+        studentNumber,
+      };
+      if (examType) {
+        whereClause.examType = examType;
+      }
+
+      existingReport = await this.reportsRepository.findOne({
+        where: whereClause,
+      });
     }
 
-    this.logger.debug('Updating existing report with teacher comment', {
-      reportId: existingReport.id,
-      studentNumber: existingReport.studentNumber,
-    });
+    if (existingReport) {
+      // --- UPDATE EXISTING REPORT ---
+      this.logger.debug('Updating existing report with teacher comment', {
+        reportId: existingReport.id,
+        studentNumber: existingReport.studentNumber,
+      });
 
-    existingReport.report = {
-      ...existingReport.report,
-      ...comment.report.report, // Merge any other updates from frontend
-      classTrComment: normalizedComment, // Update the teacher comment
-    };
+      // Merge the incoming report data with existing report, updating only the teacher comment
+      existingReport.report = {
+        ...existingReport.report,
+        ...comment.report.report, // Merge any other updates from frontend
+        classTrComment: comment.comment, // Update the teacher comment
+      };
 
-    return await this.reportsRepository.save(existingReport);
+      return await this.reportsRepository.save(existingReport);
+    } else {
+      // --- CREATE NEW REPORT ---
+      this.logger.debug('Creating new report with teacher comment', {
+        studentNumber,
+        name,
+        num,
+        year,
+        examType,
+      });
+
+      // Create new report with the comment
+      const newReport = this.reportsRepository.create({
+        name,
+        num,
+        year,
+        termId: termId ?? null,
+        studentNumber,
+        examType: examType || null,
+        report: {
+          ...comment.report.report, // Use the full report data from frontend
+          classTrComment: comment.comment, // Set the teacher comment
+        },
+      });
+
+      return await this.reportsRepository.save(newReport);
+    }
   }
 
   async generateRoleComment(
@@ -1308,30 +1274,6 @@ export class ReportsService {
     const normalizedReports = reports.map((rep) =>
       this.normalizeReportStructure(rep),
     );
-
-    // Only compute form-level ranking for staff.
-    // Students/parents are blocked from fetching cross-class marks by marksService.getMarksbyClass().
-    const isStaff =
-      !(profile instanceof StudentsEntity) && !(profile instanceof ParentsEntity);
-
-    if (isStaff) {
-      const formPositions = await this.computeFormPositionsForForm(
-        name,
-        num,
-        year,
-        examType,
-        termId,
-        profile,
-      );
-
-      normalizedReports.forEach((rep: any) => {
-        if (rep?.report?.studentNumber) {
-          rep.report.formPosition = formPositions.get(
-            rep.report.studentNumber,
-          );
-        }
-      });
-    }
 
     return normalizedReports;
   }
