@@ -1539,17 +1539,30 @@ export class ReportsService {
         .fillColor(blueColor)
         .text(` ${report.report.classPosition} / ${report.report.classSize}`);
 
+      // Position in form
+      doc
+        .fillColor(blackColor)
+        .text(`Position in Form: `, margin + columnWidth * 9, rowHeight * 6, {
+          width: columnWidth * 9,
+        })
+        .fillColor(blueColor)
+        .text(
+          `${report.report.formPosition != null ? report.report.formPosition : 'N/A'}`,
+          margin + columnWidth * 13,
+          rowHeight * 6,
+        );
+
       //Subjects Passed
       doc
         .fillColor(blackColor)
-        .text('Subjects Passed: ', margin + columnWidth * 9, rowHeight * 6, {
+        .text('Subjects Passed: ', margin + columnWidth * 9, rowHeight * 6.7, {
           width: columnWidth * 9,
         })
         .fillColor(blueColor)
         .text(
           `${report.report.subjectsPassed}`,
           margin + columnWidth * 13,
-          rowHeight * 6,
+          rowHeight * 6.7,
         );
 
       //start table
