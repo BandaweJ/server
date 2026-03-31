@@ -1806,54 +1806,69 @@ export class ReportsService {
           rowHeight * (7 + averageMarkRowNumber + 1) + padding,
         );
 
-      //Teacher's Comment
+      const commentBoxWidth = columnWidth * 8;
+      const commentBoxHeight = rowHeight * 2;
+      const commentInnerWidth = commentBoxWidth - smallPadding * 2;
+      const commentInnerHeight = commentBoxHeight - padding * 1.5;
+      const teacherCommentText = this.fitTextToBox(
+        doc,
+        `${report.report.classTrComment || ''}`,
+        commentInnerWidth,
+        commentInnerHeight,
+        defaultFontSize - 2,
+      );
+      const headCommentText = this.fitTextToBox(
+        doc,
+        report.report.headComment ? `${report.report.headComment}` : '',
+        commentInnerWidth,
+        commentInnerHeight,
+        defaultFontSize - 2,
+      );
+
+      // Teacher's Comment
       doc
         .fontSize(defaultFontSize - 2)
         .text('Form Teacher', margin, rowHeight * 24 + padding, {
           align: 'center',
-          width: columnWidth * 8,
+          width: commentBoxWidth,
           height: rowHeight,
         })
-        .rect(margin, rowHeight * 25, columnWidth * 8, rowHeight * 2)
-        .stroke()
-        .text(
-          `${report.report.classTrComment}`,
-          margin + smallPadding,
-          rowHeight * 25 + padding,
-          {
-            width: columnWidth * 8,
-            height: rowHeight * 2,
-            align: 'left',
-          },
-        );
+        .rect(margin, rowHeight * 25, commentBoxWidth, commentBoxHeight)
+        .stroke();
 
-      //Head's Comment
+      doc
+        .fontSize(teacherCommentText.fontSize)
+        .text(teacherCommentText.text, margin + smallPadding, rowHeight * 25 + padding, {
+          width: commentInnerWidth,
+          height: commentInnerHeight,
+          align: 'left',
+        });
+
+      // Head's Comment
       doc
         .fontSize(defaultFontSize - 2)
-        .text(
-          "Head's Comment",
-          margin + columnWidth * 10,
-          rowHeight * 24 + padding,
-          {
-            align: 'center',
-            width: columnWidth * 8,
-            height: rowHeight,
-          },
-        )
+        .text("Head's Comment", margin + columnWidth * 10, rowHeight * 24 + padding, {
+          align: 'center',
+          width: commentBoxWidth,
+          height: rowHeight,
+        })
         .rect(
           margin + columnWidth * 10,
           rowHeight * 25,
-          columnWidth * 8,
-          rowHeight * 2,
+          commentBoxWidth,
+          commentBoxHeight,
         )
-        .stroke()
+        .stroke();
+
+      doc
+        .fontSize(headCommentText.fontSize)
         .text(
-          report.report.headComment ? `${report.report.headComment}` : '',
+          headCommentText.text,
           margin + columnWidth * 10 + smallPadding,
           rowHeight * 25 + padding,
           {
-            width: columnWidth * 8,
-            height: rowHeight * 2,
+            width: commentInnerWidth,
+            height: commentInnerHeight,
             align: 'left',
           },
         );
@@ -1885,6 +1900,51 @@ export class ReportsService {
     // 1 point = (1 inch / 72) * (25.4 mm / 1 inch)
     const pointsPerMm = 25.4 / 72;
     return mm * pointsPerMm;
+  }
+
+  private fitTextToBox(
+    doc: any,
+    rawText: string,
+    width: number,
+    height: number,
+    initialFontSize: number,
+    minFontSize = 8,
+  ): { text: string; fontSize: number } {
+    const normalized = (rawText || '').replace(/\s+/g, ' ').trim();
+    if (!normalized) {
+      return { text: '', fontSize: initialFontSize };
+    }
+
+    let fontSize = initialFontSize;
+    doc.fontSize(fontSize);
+
+    while (
+      fontSize > minFontSize &&
+      doc.heightOfString(normalized, { width, align: 'left' }) > height
+    ) {
+      fontSize -= 0.5;
+      doc.fontSize(fontSize);
+    }
+
+    if (doc.heightOfString(normalized, { width, align: 'left' }) <= height) {
+      return { text: normalized, fontSize };
+    }
+
+    let low = 0;
+    let high = normalized.length;
+    let best = '';
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      const candidate = `${normalized.slice(0, mid).trimEnd()}...`;
+      if (doc.heightOfString(candidate, { width, align: 'left' }) <= height) {
+        best = candidate;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+
+    return { text: best || '...', fontSize };
   }
 
   private normalizeReportStructure(reportEntity: any): any {
