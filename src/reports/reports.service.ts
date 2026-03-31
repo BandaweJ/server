@@ -1468,44 +1468,68 @@ export class ReportsService {
           align: 'right',
         });
 
-      //Position in class
+      // Summary stats on one clean row: class position, form position, passed
+      const statsY = rowHeight * 6;
+      const statsRowWidth = columnWidth * 18;
+      const statCellWidth = statsRowWidth / 3;
+      const labelValueGap = columnWidth * 1.45;
+
       doc
         .moveDown()
         .fillColor(blackColor)
-        .fontSize(defaultFontSize)
-        .text(`Position in Class: `, margin, rowHeight * 6, {
-          // align: 'center',
-          width: columnWidth * 9,
-          continued: true,
-        })
-        .fillColor(blueColor)
-        .text(` ${report.report.classPosition} / ${report.report.classSize}`);
+        .fontSize(defaultFontSize - 1);
 
-      // Position in form
+      // 1) Class position
+      doc.text('Class position:', margin, statsY, {
+        width: statCellWidth,
+        align: 'left',
+      });
+      doc
+        .fillColor(blueColor)
+        .text(
+          `${report.report.classPosition} / ${report.report.classSize}`,
+          margin + labelValueGap,
+          statsY,
+          {
+            width: statCellWidth - labelValueGap,
+            align: 'left',
+          },
+        );
+
+      // 2) Form position
+      const formX = margin + statCellWidth;
       doc
         .fillColor(blackColor)
-        .text(`Position in Form: `, margin + columnWidth * 9, rowHeight * 6, {
-          width: columnWidth * 9,
-        })
+        .text('Form position:', formX, statsY, {
+          width: statCellWidth,
+          align: 'left',
+        });
+      doc
         .fillColor(blueColor)
         .text(
           `${report.report.formPosition != null ? report.report.formPosition : 'N/A'}`,
-          margin + columnWidth * 13,
-          rowHeight * 6,
+          formX + labelValueGap,
+          statsY,
+          {
+            width: statCellWidth - labelValueGap,
+            align: 'left',
+          },
         );
 
-      //Subjects Passed
+      // 3) Passed
+      const passedX = margin + statCellWidth * 2;
       doc
         .fillColor(blackColor)
-        .text('Subjects Passed: ', margin + columnWidth * 9, rowHeight * 6.7, {
-          width: columnWidth * 9,
-        })
+        .text('Passed:', passedX, statsY, {
+          width: statCellWidth,
+          align: 'left',
+        });
+      doc
         .fillColor(blueColor)
-        .text(
-          `${report.report.subjectsPassed}`,
-          margin + columnWidth * 13,
-          rowHeight * 6.7,
-        );
+        .text(`${report.report.subjectsPassed}`, passedX + labelValueGap, statsY, {
+          width: statCellWidth - labelValueGap,
+          align: 'left',
+        });
 
       //start table
 
