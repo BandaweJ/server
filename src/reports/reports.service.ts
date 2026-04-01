@@ -1307,14 +1307,20 @@ export class ReportsService {
       }
     }
 
-    // Students and parents: allow download only if the invoice for this term has zero balance (same rule as view).
+    // Students and parents: allow download when there is no outstanding debt
+    // for the term (zero or credit balances are allowed).
     if (profile instanceof StudentsEntity || profile instanceof ParentsEntity) {
       const balance = await this.invoiceService.getBalanceForStudentTerm(
         studentNumber,
         num,
         year,
       );
-      if (balance !== null && Number(balance) !== 0) {
+      const balanceNumber = Number(balance);
+      if (
+        balance !== null &&
+        Number.isFinite(balanceNumber) &&
+        balanceNumber > 0
+      ) {
         throw new ForbiddenException(
           'Report not available for download due to pending balance for this term.',
         );
