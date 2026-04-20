@@ -34,6 +34,7 @@ import { ReceiptService } from './services/receipt.service';
 import { logStructured } from './utils/logger.util';
 import { EnrolmentService } from 'src/enrolment/enrolment.service';
 import { FinanceService } from 'src/finance/finance.service';
+import { FeesNames } from 'src/finance/models/fees-names.enum';
 import { Residence } from 'src/enrolment/models/residence.model';
 import { TermType } from 'src/enrolment/models/term-type.enum';
 import {
@@ -717,6 +718,25 @@ export class PaymentService {
     return templates;
   }
 
+  private buildVacationFeeTemplateByResidence(
+    fees: Awaited<ReturnType<FinanceService['getAllFees']>>,
+  ): Map<Residence, Set<number>> {
+    const templates = new Map<Residence, Set<number>>();
+    const dayFee = fees.find((fee) => fee.name === FeesNames.vacationTuitionDay);
+    const boarderFee = fees.find(
+      (fee) => fee.name === FeesNames.vacationTuitionBoarder,
+    );
+
+    if (dayFee?.id) {
+      templates.set(Residence.Day, new Set([dayFee.id]));
+    }
+    if (boarderFee?.id) {
+      templates.set(Residence.Boarder, new Set([boarderFee.id]));
+    }
+
+    return templates;
+  }
+
   async bulkInvoiceClassTerm(
     className: string,
     num: number,
@@ -744,16 +764,23 @@ export class PaymentService {
       );
     }
 
-    const billsForTerm = await this.financeService.getBillsByEnrolment(
-      termNum,
-      termYear,
-      term.id,
-    );
-    const templateByResidence = this.buildFeeTemplateByResidence(
-      billsForTerm,
-      className,
-    );
+    const allFees = await this.financeService.getAllFees();
+    const billsForTerm =
+      termType === TermType.VACATION
+        ? []
+        : await this.financeService.getBillsByEnrolment(termNum, termYear, term.id);
+
+    const templateByResidence =
+      termType === TermType.VACATION
+        ? this.buildVacationFeeTemplateByResidence(allFees)
+        : this.buildFeeTemplateByResidence(billsForTerm, className);
+
     if (!templateByResidence.size) {
+      if (termType === TermType.VACATION) {
+        throw new BadRequestException(
+          `Vacation fee definitions are missing. Configure ${FeesNames.vacationTuitionDay} and ${FeesNames.vacationTuitionBoarder} first.`,
+        );
+      }
       throw new BadRequestException(
         `No configured bills were found for class ${className} in term ${termNum}/${termYear}. Configure bills first.`,
       );
@@ -785,21 +812,18 @@ export class PaymentService {
         continue;
       }
 
-      const studentBills = billsForTerm.filter(
-        (bill) =>
-          bill.student?.studentNumber === studentNumber &&
-          bill.enrol?.id === enrol.id &&
-          templateFeeIds.has(bill.fees?.id),
+      const templateFees = allFees.filter(
+        (fee) => !!fee?.id && templateFeeIds.has(fee.id),
       );
 
-      if (!studentBills.length) {
+      if (!templateFees.length) {
         results.push({
           studentNumber,
           studentName,
           success: false,
           termType,
           residence: normalizedResidence,
-          error: `No matching configured bills found for student ${studentNumber}.`,
+          error: `No matching fee definitions found for ${normalizedResidence} students.`,
         });
         continue;
       }
@@ -821,10 +845,10 @@ export class PaymentService {
             studentNumber,
             termNum,
             year: termYear,
-            bills: studentBills.map((bill) => ({
+            bills: templateFees.map((fee) => ({
               student,
               enrol,
-              fees: bill.fees,
+              fees: fee,
             })),
           },
           performedBy,
