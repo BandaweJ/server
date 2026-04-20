@@ -91,16 +91,8 @@ export class EnrolmentController {
     }
   }
 
-  @Get('terms/id/:id')
-  getOneTermById(@Param('id', ParseIntPipe) id: number) {
-    return this.enrolmentService.getOneTermById(id);
-  }
-
   @Get('terms/:num/:year')
-  getOneTerm(
-    @Param('num', ParseIntPipe) num: number,
-    @Param('year', ParseIntPipe) year: number,
-  ) {
+  getOneTerm(@Param('num') num: number, @Param('year') year: number) {
     console.log('num : ', num, 'year : ', year);
     return this.enrolmentService.getOneTerm(num, year);
   }
@@ -120,19 +112,16 @@ export class EnrolmentController {
     return this.enrolmentService.editTerm(term);
   }
 
-  @Patch('terms/id/:id')
-  editTermById(@Param('id', ParseIntPipe) id: number, @Body() term: CreateTermDto) {
-    return this.enrolmentService.editTerm({ ...term, id });
-  }
-
   @Get('enrol/migrate/:fromName/:fronNum/:fromYear/:toName/:toNum/:toYear')
   migrateClassEnrolment(
     @Param('fromName') fromName: string,
-    @Param('fromNum') fronNum: number,
+    @Param('fronNum') fronNum: number,
     @Param('fromYear') fromYear: number,
     @Param('toName') toName: string,
     @Param('toNum') toNum: number,
     @Param('toYear') toYear: number,
+    @Query('fromTermId') fromTermId?: string,
+    @Query('toTermId') toTermId?: string,
   ) {
     return this.enrolmentService.migrateClass(
       fromName,
@@ -141,21 +130,15 @@ export class EnrolmentController {
       toName,
       toNum,
       toYear,
+      fromTermId ? parseInt(fromTermId, 10) : undefined,
+      toTermId ? parseInt(toTermId, 10) : undefined,
     );
-  }
-
-  @Delete('terms/id/:id')
-  deleteTermById(
-    @Param('id', ParseIntPipe) id: number,
-    @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
-  ) {
-    return this.enrolmentService.deleteTermById(id, profile);
   }
 
   @Delete('terms/:num/:year')
   deleteTerm(
-    @Param('num', ParseIntPipe) num: number,
-    @Param('year', ParseIntPipe) year: number,
+    @Param('num') num: number,
+    @Param('year') year: number,
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
   ) {
     return this.enrolmentService.deleteTerm(num, year, profile);

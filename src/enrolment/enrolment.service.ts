@@ -194,9 +194,7 @@ export class EnrolmentService {
   async getAllTerms(): Promise<TermsEntity[]> {
     this.logger.log('getAllTerms() - Starting to fetch terms from database');
     try {
-      const terms = await this.termRepository.find({
-        order: { id: 'DESC' },
-      });
+      const terms = await this.termRepository.find();
       this.logger.log(`getAllTerms() - Successfully fetched ${terms.length} terms from database`);
       return terms;
     } catch (error) {
@@ -222,18 +220,18 @@ export class EnrolmentService {
   }
 
   async getOneTerm(num: number, year: number): Promise<TermsEntity> {
-    const terms = await this.termRepository.find({ where: { num, year } });
-    if (!terms.length) {
+    const term = await this.termRepository.findOne({
+      where: {
+        num,
+        year,
+      },
+    });
+    if (!term) {
       throw new NotFoundException(
         `Term with number: ${num} and year: ${year} not found`,
       );
     }
-    if (terms.length > 1) {
-      throw new BadRequestException(
-        'Multiple terms found for this num/year. Query by term id instead.',
-      );
-    }
-    return terms[0];
+    return term;
   }
 
   async getOneTermById(id: number): Promise<TermsEntity> {
@@ -260,46 +258,11 @@ export class EnrolmentService {
       }
     }
 
-    const terms = await this.termRepository.find({ where: { num, year } });
-    if (!terms.length) {
-      throw new NotFoundException(
-        `Term with number: ${num} and year: ${year} not found`,
-      );
-    }
-    if (terms.length > 1) {
-      throw new BadRequestException(
-        'Multiple terms found for this num/year. Delete by term id instead.',
-      );
-    }
-    return this.deleteTermById(terms[0].id, profile);
-  }
+    const term = await this.getOneTerm(num, year);
 
-  async deleteTermById(
-    id: number,
-    profile: TeachersEntity | ParentsEntity | StudentsEntity,
-  ): Promise<number> {
-    switch (profile.role) {
-      case ROLES.hod:
-      case ROLES.parent:
-      case ROLES.reception:
-      case ROLES.student:
-      case ROLES.teacher: {
-        throw new UnauthorizedException('Only admins allowed to delete Terms');
-      }
-    }
+    const result = await this.termRepository.remove(term);
 
-    const term = await this.getOneTermById(id);
-    const linkedEnrolments = await this.enrolmentRepository.count({
-      where: { termId: id },
-    });
-    if (linkedEnrolments > 0) {
-      throw new BadRequestException(
-        `Cannot delete term ${id}: it is linked to ${linkedEnrolments} enrolment record(s).`,
-      );
-    }
-
-    await this.termRepository.remove(term);
-    return 1;
+    return result && 1;
   }
 
   //Enrolmnt
@@ -748,10 +711,38 @@ export class EnrolmentService {
     toName: string,
     toNum: number,
     toYear: number,
+    fromTermId?: number,
+    toTermId?: number,
   ) {
+    let resolvedFromNum = fromNum;
+    let resolvedFromYear = fromYear;
+    let resolvedFromTermId: number | null = fromTermId ?? null;
+    if (fromTermId != null) {
+      const sourceTerm = await this.getOneTermById(fromTermId);
+      resolvedFromNum = sourceTerm.num;
+      resolvedFromYear = sourceTerm.year;
+      resolvedFromTermId = sourceTerm.id;
+    }
+
+    let resolvedToNum = toNum;
+    let resolvedToYear = toYear;
+    let resolvedToTermId: number | null = toTermId ?? null;
+    let resolvedToTerm: TermsEntity | null = null;
+    if (toTermId != null) {
+      resolvedToTerm = await this.getOneTermById(toTermId);
+      resolvedToNum = resolvedToTerm.num;
+      resolvedToYear = resolvedToTerm.year;
+      resolvedToTermId = resolvedToTerm.id;
+    }
+
     // Step 1: Get all students enrolled in the class we are migrating from.
     const sourceClassEnrolments = await this.enrolmentRepository.find({
-      where: { name: fromName, num: fromNum, year: fromYear },
+      where: {
+        name: fromName,
+        ...(resolvedFromTermId != null
+          ? { termId: resolvedFromTermId }
+          : { num: resolvedFromNum, year: resolvedFromYear }),
+      },
       relations: ['student'],
     });
 
@@ -763,7 +754,10 @@ export class EnrolmentService {
 
     // Step 2: Get all students currently enrolled in ANY class for the destination term and year.
     const allEnrolmentsInDestinationTerm = await this.enrolmentRepository.find({
-      where: { num: toNum, year: toYear },
+      where:
+        resolvedToTermId != null
+          ? { termId: resolvedToTermId }
+          : { num: resolvedToNum, year: resolvedToYear },
       relations: ['student'],
     });
 
@@ -794,8 +788,10 @@ export class EnrolmentService {
     ).map((enrol) => {
       const newEnrol = new EnrolEntity();
       newEnrol.name = toName;
-      newEnrol.num = toNum;
-      newEnrol.year = toYear;
+      newEnrol.num = resolvedToNum;
+      newEnrol.year = resolvedToYear;
+      newEnrol.termId = resolvedToTermId;
+      newEnrol.term = resolvedToTerm;
       newEnrol.student = enrol.student;
       // Preserve the residence from the source enrolment
       newEnrol.residence = enrol.residence;
@@ -821,19 +817,10 @@ export class EnrolmentService {
   }
 
   async editTerm(term: CreateTermDto) {
-    const { id, num, year } = term;
-    let trm: TermsEntity | null = null;
-    if (id != null) {
-      trm = await this.termRepository.findOne({ where: { id } });
-    } else {
-      const matches = await this.termRepository.find({ where: { num, year } });
-      if (matches.length > 1) {
-        throw new BadRequestException(
-          'Multiple terms found for this num/year. Update by term id instead.',
-        );
-      }
-      trm = matches[0] ?? null;
-    }
+    const { num, year } = term;
+    const trm = await this.termRepository.findOne({
+      where: { num, year },
+    });
 
     if (!trm) {
       throw new NotFoundException('Term not found');
