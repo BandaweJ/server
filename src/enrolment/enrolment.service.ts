@@ -711,53 +711,51 @@ export class EnrolmentService {
     toName: string,
     toNum: number,
     toYear: number,
-    fromTermId?: number,
-    toTermId?: number,
+    fromTermId: number,
+    toTermId: number,
   ) {
-    let resolvedFromNum = fromNum;
-    let resolvedFromYear = fromYear;
-    let resolvedFromTermId: number | null = fromTermId ?? null;
-    if (fromTermId != null) {
-      const sourceTerm = await this.getOneTermById(fromTermId);
-      resolvedFromNum = sourceTerm.num;
-      resolvedFromYear = sourceTerm.year;
-      resolvedFromTermId = sourceTerm.id;
-    }
+    const sourceTerm = await this.getOneTermById(fromTermId);
+    const destinationTerm = await this.getOneTermById(toTermId);
 
-    let resolvedToNum = toNum;
-    let resolvedToYear = toYear;
-    let resolvedToTermId: number | null = toTermId ?? null;
-    let resolvedToTerm: TermsEntity | null = null;
-    if (toTermId != null) {
-      resolvedToTerm = await this.getOneTermById(toTermId);
-      resolvedToNum = resolvedToTerm.num;
-      resolvedToYear = resolvedToTerm.year;
-      resolvedToTermId = resolvedToTerm.id;
+    const resolvedFromNum = sourceTerm.num;
+    const resolvedFromYear = sourceTerm.year;
+    const resolvedFromTermId = sourceTerm.id;
+
+    const resolvedToNum = destinationTerm.num;
+    const resolvedToYear = destinationTerm.year;
+    const resolvedToTermId = destinationTerm.id;
+    const resolvedToTerm: TermsEntity = destinationTerm;
+
+    // Guard against mismatched path params and term ids.
+    if (fromNum !== resolvedFromNum || fromYear !== resolvedFromYear) {
+      throw new BadRequestException(
+        `Source term mismatch: fromTermId ${fromTermId} is term ${resolvedFromNum}/${resolvedFromYear}, not ${fromNum}/${fromYear}`,
+      );
+    }
+    if (toNum !== resolvedToNum || toYear !== resolvedToYear) {
+      throw new BadRequestException(
+        `Destination term mismatch: toTermId ${toTermId} is term ${resolvedToNum}/${resolvedToYear}, not ${toNum}/${toYear}`,
+      );
     }
 
     // Step 1: Get all students enrolled in the class we are migrating from.
     const sourceClassEnrolments = await this.enrolmentRepository.find({
       where: {
         name: fromName,
-        ...(resolvedFromTermId != null
-          ? { termId: resolvedFromTermId }
-          : { num: resolvedFromNum, year: resolvedFromYear }),
+        termId: resolvedFromTermId,
       },
       relations: ['student'],
     });
 
     if (sourceClassEnrolments.length === 0) {
-      throw new Error(
-        'The class you chose appears to not have students enrolled in it',
+      throw new BadRequestException(
+        `No students found in source class ${fromName} for term ${resolvedFromNum}/${resolvedFromYear} (termId ${resolvedFromTermId})`,
       );
     }
 
     // Step 2: Get all students currently enrolled in ANY class for the destination term and year.
     const allEnrolmentsInDestinationTerm = await this.enrolmentRepository.find({
-      where:
-        resolvedToTermId != null
-          ? { termId: resolvedToTermId }
-          : { num: resolvedToNum, year: resolvedToYear },
+      where: { termId: resolvedToTermId },
       relations: ['student'],
     });
 

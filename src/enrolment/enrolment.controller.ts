@@ -1,6 +1,7 @@
 /* eslint-disable prettier/prettier */
 import { TeachersEntity } from './../profiles/entities/teachers.entity';
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -112,26 +113,40 @@ export class EnrolmentController {
     return this.enrolmentService.editTerm(term);
   }
 
-  @Get('enrol/migrate/:fromName/:fronNum/:fromYear/:toName/:toNum/:toYear')
+  @Get('enrol/migrate/:fromName/:fromNum/:fromYear/:toName/:toNum/:toYear')
   migrateClassEnrolment(
     @Param('fromName') fromName: string,
-    @Param('fronNum') fronNum: number,
-    @Param('fromYear') fromYear: number,
+    @Param('fromNum', ParseIntPipe) fromNum: number,
+    @Param('fromYear', ParseIntPipe) fromYear: number,
     @Param('toName') toName: string,
-    @Param('toNum') toNum: number,
-    @Param('toYear') toYear: number,
+    @Param('toNum', ParseIntPipe) toNum: number,
+    @Param('toYear', ParseIntPipe) toYear: number,
     @Query('fromTermId') fromTermId?: string,
     @Query('toTermId') toTermId?: string,
   ) {
+    const parsedFromTermId = fromTermId ? parseInt(fromTermId, 10) : NaN;
+    const parsedToTermId = toTermId ? parseInt(toTermId, 10) : NaN;
+
+    if (!Number.isInteger(parsedFromTermId) || parsedFromTermId <= 0) {
+      throw new BadRequestException(
+        'fromTermId query param is required and must be a positive integer',
+      );
+    }
+    if (!Number.isInteger(parsedToTermId) || parsedToTermId <= 0) {
+      throw new BadRequestException(
+        'toTermId query param is required and must be a positive integer',
+      );
+    }
+
     return this.enrolmentService.migrateClass(
       fromName,
-      fronNum,
+      fromNum,
       fromYear,
       toName,
       toNum,
       toYear,
-      fromTermId ? parseInt(fromTermId, 10) : undefined,
-      toTermId ? parseInt(toTermId, 10) : undefined,
+      parsedFromTermId,
+      parsedToTermId,
     );
   }
 
