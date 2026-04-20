@@ -5,6 +5,7 @@ describe('PaymentController', () => {
   let controller: PaymentController;
   const paymentService = {
     getFinanceDashboardSummary: jest.fn(),
+    bulkInvoiceClassTerm: jest.fn(),
   };
 
   beforeEach(() => {
@@ -34,5 +35,22 @@ describe('PaymentController', () => {
       termType: 'vacation',
       transactionType: 'Invoice',
     });
+  });
+
+  it('passes payload to bulk class invoicing service', () => {
+    const req = { ip: '127.0.0.1', socket: { remoteAddress: '127.0.0.1' } } as any;
+    const profile = { email: 'finance@example.com' } as any;
+    const body = { dryRun: true, termId: 2 };
+
+    controller.bulkInvoiceClass('Form 1A', 1, 2026, body, profile, req);
+
+    expect(paymentService.bulkInvoiceClassTerm).toHaveBeenCalledWith(
+      'Form 1A',
+      1,
+      2026,
+      body,
+      'finance@example.com',
+      '127.0.0.1',
+    );
   });
 });

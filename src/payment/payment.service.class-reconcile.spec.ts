@@ -9,18 +9,35 @@ import { InvoiceService } from './services/invoice.service';
 import { ReceiptService } from './services/receipt.service';
 import { EnrolmentService } from 'src/enrolment/enrolment.service';
 import { EnrolEntity } from 'src/enrolment/entities/enrol.entity';
+import { FinanceService } from 'src/finance/finance.service';
+import { TermType } from 'src/enrolment/models/term-type.enum';
+import { Residence } from 'src/enrolment/models/residence.model';
 
 describe('PaymentService - reconcileClassTerm', () => {
   let service: PaymentService;
-  let enrolmentService: { getEnrolmentByClass: jest.Mock };
-  let invoiceService: { reconcileStudentFinancesForStudent: jest.Mock };
+  let enrolmentService: {
+    getEnrolmentByClass: jest.Mock;
+    getOneTerm: jest.Mock;
+    getOneTermById: jest.Mock;
+  };
+  let invoiceService: {
+    reconcileStudentFinancesForStudent: jest.Mock;
+    saveInvoice: jest.Mock;
+  };
+  let financeService: { getBillsByEnrolment: jest.Mock };
 
   beforeEach(async () => {
     enrolmentService = {
       getEnrolmentByClass: jest.fn(),
+      getOneTerm: jest.fn(),
+      getOneTermById: jest.fn(),
     };
     invoiceService = {
       reconcileStudentFinancesForStudent: jest.fn(),
+      saveInvoice: jest.fn(),
+    };
+    financeService = {
+      getBillsByEnrolment: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -38,6 +55,7 @@ describe('PaymentService - reconcileClassTerm', () => {
         { provide: ReceiptService, useValue: {} },
         { provide: EnrolmentService, useValue: enrolmentService },
         { provide: InvoiceService, useValue: invoiceService },
+        { provide: FinanceService, useValue: financeService },
       ],
     }).compile();
 
@@ -106,5 +124,70 @@ describe('PaymentService - reconcileClassTerm', () => {
     expect(s2).toBeDefined();
     expect(s2!.success).toBe(false);
     expect(s2!.error).toBe('boom');
+  });
+
+  it('bulkInvoiceClassTerm maps fees by residence and reports per-student failures', async () => {
+    enrolmentService.getOneTerm.mockResolvedValue({
+      id: 5,
+      num: 1,
+      year: 2026,
+      type: TermType.VACATION,
+    });
+    enrolmentService.getEnrolmentByClass.mockResolvedValue([
+      {
+        id: 10,
+        name: 'Form 1A',
+        num: 1,
+        year: 2026,
+        residence: Residence.Day,
+        student: { studentNumber: 'S1', surname: 'Day', name: 'Student' },
+      },
+      {
+        id: 11,
+        name: 'Form 1A',
+        num: 1,
+        year: 2026,
+        residence: Residence.Boarder,
+        student: { studentNumber: 'S2', surname: 'Board', name: 'Student' },
+      },
+    ]);
+    financeService.getBillsByEnrolment.mockResolvedValue([
+      {
+        fees: { id: 101, amount: 50 },
+        student: { studentNumber: 'S1' },
+        enrol: { id: 10, name: 'Form 1A', residence: Residence.Day },
+      },
+      {
+        fees: { id: 202, amount: 80 },
+        student: { studentNumber: 'S2' },
+        enrol: { id: 11, name: 'Form 1A', residence: Residence.Boarder },
+      },
+    ]);
+    invoiceService.saveInvoice.mockImplementation(async (payload: any) => {
+      if (payload.studentNumber === 'S2') {
+        throw new Error('save failed');
+      }
+      return { invoiceNumber: 'INV-001' };
+    });
+
+    const result = await service.bulkInvoiceClassTerm(
+      'Form 1A',
+      1,
+      2026,
+      {},
+      'tester@example.com',
+      '127.0.0.1',
+    );
+
+    expect(result.termType).toBe('vacation');
+    expect(result.totalStudents).toBe(2);
+    expect(result.successCount).toBe(1);
+    expect(result.failureCount).toBe(1);
+    expect(result.results.find((r) => r.studentNumber === 'S1')?.invoiceNumber).toBe(
+      'INV-001',
+    );
+    expect(result.results.find((r) => r.studentNumber === 'S2')?.error).toBe(
+      'save failed',
+    );
   });
 });

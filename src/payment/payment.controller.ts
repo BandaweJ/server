@@ -32,6 +32,7 @@ import { PermissionsGuard } from 'src/auth/guards/permissions.guard';
 import { HasPermissions } from 'src/auth/decorators/has-permissions.decorator';
 import { PERMISSIONS } from 'src/auth/models/permissions.constants';
 import { ParentStudentAccessGuard } from 'src/auth/guards/parent-student-access.guard';
+import { BulkClassInvoiceRequestDto } from './dtos/bulk-class-invoice.dto';
 
 @Controller('payment')
 @UseGuards(AuthGuard(), RolesGuard, ParentStudentAccessGuard)
@@ -338,6 +339,26 @@ export class PaymentController {
     return this.paymentService.saveInvoice(
       invoice,
       profile.email,
+      req.ip || req.socket.remoteAddress,
+    );
+  }
+
+  @Post('invoice/bulk/class/:name/:num/:year')
+  @HasPermissions(PERMISSIONS.FINANCE.CREATE)
+  bulkInvoiceClass(
+    @Param('name') name: string,
+    @Param('num', ParseIntPipe) num: number,
+    @Param('year', ParseIntPipe) year: number,
+    @Body() request: BulkClassInvoiceRequestDto,
+    @GetUser() profile: TeachersEntity,
+    @Req() req: Request,
+  ) {
+    return this.paymentService.bulkInvoiceClassTerm(
+      name,
+      num,
+      year,
+      request ?? {},
+      profile?.email,
       req.ip || req.socket.remoteAddress,
     );
   }

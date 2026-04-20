@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier */
 import {
+  BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
@@ -32,6 +33,14 @@ import { InvoiceService } from './services/invoice.service';
 import { ReceiptService } from './services/receipt.service';
 import { logStructured } from './utils/logger.util';
 import { EnrolmentService } from 'src/enrolment/enrolment.service';
+import { FinanceService } from 'src/finance/finance.service';
+import { Residence } from 'src/enrolment/models/residence.model';
+import { TermType } from 'src/enrolment/models/term-type.enum';
+import {
+  BulkClassInvoiceRequestDto,
+  BulkClassInvoiceResponseDto,
+  BulkClassInvoiceStudentResultDto,
+} from './dtos/bulk-class-invoice.dto';
 @Injectable()
 export class PaymentService {
   private readonly logger = new Logger(PaymentService.name);
@@ -45,6 +54,7 @@ export class PaymentService {
     private readonly invoiceService: InvoiceService,
     private readonly receiptService: ReceiptService,
     private readonly enrolmentService: EnrolmentService,
+    private readonly financeService: FinanceService,
   ) {}
 
   /**
@@ -644,6 +654,212 @@ export class PaymentService {
       totalStudents: results.length,
       succeeded,
       failed,
+      results,
+    };
+  }
+
+  private normalizeResidence(residence?: Residence): Residence {
+    if (
+      residence === Residence.Day ||
+      residence === Residence.DayFood ||
+      residence === Residence.DayTransport ||
+      residence === Residence.DayFoodTransport
+    ) {
+      return Residence.Day;
+    }
+    return Residence.Boarder;
+  }
+
+  private buildFeeTemplateByResidence(
+    classBills: Awaited<ReturnType<FinanceService['getBillsByEnrolment']>>,
+    className: string,
+  ): Map<Residence, Set<number>> {
+    const templates = new Map<Residence, Set<number>>();
+    const grouped = new Map<Residence, Map<string, Set<number>>>();
+
+    for (const bill of classBills) {
+      const enrol = bill.enrol;
+      const studentNumber = bill.student?.studentNumber;
+      const feeId = bill.fees?.id;
+      if (!enrol || !studentNumber || !feeId || enrol.name !== className) continue;
+
+      const residence = this.normalizeResidence(enrol.residence);
+      const byStudent = grouped.get(residence) ?? new Map<string, Set<number>>();
+      const feeSet = byStudent.get(studentNumber) ?? new Set<number>();
+      feeSet.add(feeId);
+      byStudent.set(studentNumber, feeSet);
+      grouped.set(residence, byStudent);
+    }
+
+    for (const [residence, byStudent] of grouped.entries()) {
+      const signatureCounts = new Map<string, { count: number; feeIds: number[] }>();
+      for (const fees of byStudent.values()) {
+        const feeIds = Array.from(fees).sort((a, b) => a - b);
+        const signature = feeIds.join(',');
+        const existing = signatureCounts.get(signature);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          signatureCounts.set(signature, { count: 1, feeIds });
+        }
+      }
+
+      const selected = Array.from(signatureCounts.values()).sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        return b.feeIds.length - a.feeIds.length;
+      })[0];
+
+      if (selected) {
+        templates.set(residence, new Set(selected.feeIds));
+      }
+    }
+
+    return templates;
+  }
+
+  async bulkInvoiceClassTerm(
+    className: string,
+    num: number,
+    year: number,
+    request: BulkClassInvoiceRequestDto,
+    performedBy?: string,
+    ipAddress?: string,
+  ): Promise<BulkClassInvoiceResponseDto> {
+    const term = request.termId
+      ? await this.enrolmentService.getOneTermById(request.termId)
+      : await this.enrolmentService.getOneTerm(num, year);
+    const termNum = term.num;
+    const termYear = term.year;
+    const termType = (term.type ?? TermType.REGULAR) as 'regular' | 'vacation';
+
+    const enrolments = await this.enrolmentService.getEnrolmentByClass(
+      className,
+      termNum,
+      termYear,
+      term.id,
+    );
+    if (!enrolments.length) {
+      throw new NotFoundException(
+        `No enrolled students found for class ${className} in term ${termNum}/${termYear}.`,
+      );
+    }
+
+    const billsForTerm = await this.financeService.getBillsByEnrolment(
+      termNum,
+      termYear,
+      term.id,
+    );
+    const templateByResidence = this.buildFeeTemplateByResidence(
+      billsForTerm,
+      className,
+    );
+    if (!templateByResidence.size) {
+      throw new BadRequestException(
+        `No configured bills were found for class ${className} in term ${termNum}/${termYear}. Configure bills first.`,
+      );
+    }
+
+    const results: BulkClassInvoiceStudentResultDto[] = [];
+
+    for (const enrol of enrolments) {
+      const student = enrol.student;
+      const studentNumber = student?.studentNumber;
+      if (!studentNumber) continue;
+
+      const studentName =
+        student?.surname || student?.name
+          ? `${student?.surname ?? ''} ${student?.name ?? ''}`.trim()
+          : undefined;
+      const normalizedResidence = this.normalizeResidence(enrol.residence);
+      const templateFeeIds = templateByResidence.get(normalizedResidence);
+
+      if (!templateFeeIds || templateFeeIds.size === 0) {
+        results.push({
+          studentNumber,
+          studentName,
+          success: false,
+          termType,
+          residence: normalizedResidence,
+          error: `Missing configured fees for ${normalizedResidence} students in ${termType} term.`,
+        });
+        continue;
+      }
+
+      const studentBills = billsForTerm.filter(
+        (bill) =>
+          bill.student?.studentNumber === studentNumber &&
+          bill.enrol?.id === enrol.id &&
+          templateFeeIds.has(bill.fees?.id),
+      );
+
+      if (!studentBills.length) {
+        results.push({
+          studentNumber,
+          studentName,
+          success: false,
+          termType,
+          residence: normalizedResidence,
+          error: `No matching configured bills found for student ${studentNumber}.`,
+        });
+        continue;
+      }
+
+      if (request.dryRun) {
+        results.push({
+          studentNumber,
+          studentName,
+          success: true,
+          termType,
+          residence: normalizedResidence,
+        });
+        continue;
+      }
+
+      try {
+        const invoice = await this.invoiceService.saveInvoice(
+          {
+            studentNumber,
+            termNum,
+            year: termYear,
+            bills: studentBills.map((bill) => ({
+              student,
+              enrol,
+              fees: bill.fees,
+            })),
+          },
+          performedBy,
+          ipAddress,
+        );
+
+        results.push({
+          studentNumber,
+          studentName,
+          success: true,
+          invoiceNumber: invoice.invoiceNumber,
+          termType,
+          residence: normalizedResidence,
+        });
+      } catch (error) {
+        results.push({
+          studentNumber,
+          studentName,
+          success: false,
+          termType,
+          residence: normalizedResidence,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    const successCount = results.filter((entry) => entry.success).length;
+    return {
+      className,
+      termNum,
+      year: termYear,
+      termType,
+      totalStudents: results.length,
+      successCount,
+      failureCount: results.length - successCount,
       results,
     };
   }

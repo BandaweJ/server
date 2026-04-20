@@ -1979,6 +1979,8 @@ export class InvoiceService {
             break;
           case FeesNames.oLevelTuitionBoarder:
           case FeesNames.oLevelTuitionDay:
+          case FeesNames.vacationTuitionBoarder:
+          case FeesNames.vacationTuitionDay:
             addAmount('tuition', Number(bill.fees.amount), '3');
             addAmount('dayScholars', Number(bill.fees.amount), '3');
             break;
@@ -5031,6 +5033,10 @@ export class InvoiceService {
         return 'O Level Day Tuition';
       case FeesNames.transportFee:
         return 'Transport Fee';
+      case FeesNames.vacationTuitionDay:
+        return 'Vacation Day Tuition';
+      case FeesNames.vacationTuitionBoarder:
+        return 'Vacation Boarder Tuition';
       case FeesNames.exemption:
         if (exemptionTypeFromBill) {
           return `Exemption (${exemptionTypeFromBill.replace(/_/g, ' ')})`;

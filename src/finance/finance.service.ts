@@ -213,7 +213,7 @@ export class FinanceService {
           ...(termId ? { termId } : { num, year }),
         },
       },
-      relations: ['fees'],
+      relations: ['fees', 'enrol', 'student'],
     });
   }
 
