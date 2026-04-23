@@ -417,7 +417,7 @@ export class InvoiceService {
             {
               where: {
                 student: { studentNumber },
-                enrol: { num: termNum, year: year },
+                enrol: enrol?.id ? { id: enrol.id } : { num: termNum, year: year },
                 isVoided: false,
               },
             },
@@ -478,6 +478,7 @@ export class InvoiceService {
           // If we didn't find the invoice earlier, try the more comprehensive query
           // (This handles cases where invoice.id wasn't provided but invoiceNumber was)
           if (!foundInvoice) {
+            const hasConcreteEnrolmentId = !!enrol?.id;
             foundInvoice = await transactionalEntityManager
               .createQueryBuilder(InvoiceEntity, 'invoice')
               .leftJoinAndSelect('invoice.student', 'student')
@@ -489,8 +490,14 @@ export class InvoiceService {
               .where('student.studentNumber = :studentNumber', {
                 studentNumber: student.studentNumber,
               })
-              .andWhere('enrol.num = :num', { num: termNum })
-              .andWhere('enrol.year = :year', { year: year })
+              .andWhere(
+                hasConcreteEnrolmentId
+                  ? 'enrol.id = :enrolId'
+                  : 'enrol.num = :num AND enrol.year = :year',
+                hasConcreteEnrolmentId
+                  ? { enrolId: enrol.id }
+                  : { num: termNum, year: year },
+              )
               .andWhere('(invoice.isVoided = false OR invoice.isVoided IS NULL)')
               .getOne();
           } else {
