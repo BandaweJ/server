@@ -250,37 +250,32 @@ export class PaymentController {
     res.end(pdfBuffer);
   }
 
-  // More specific than /:num/:year if it were directly under /payment, but here it's under 'invoice'
-  @Get('invoice/stats/:num/:year') // This specific sub-path is fine
+  // Term-specific invoice stats use explicit termId path.
+  @Get('invoice/stats/:termId')
   getInvoiceStats(
-    @Param('num', ParseIntPipe) num: number,
-    @Param('year', ParseIntPipe) year: number,
+    @Param('termId', ParseIntPipe) termId: number,
   ) {
-    return this.paymentService.getInvoiceStats(num, year);
+    return this.paymentService.getInvoiceStats(termId);
   }
 
-  @Get('invoice/:studentNumber/:num/:year')
+  @Get('invoice/:studentNumber/term/:termId')
   generateInvoice(
     @Param('studentNumber') studentNumber: string,
-    @Param('num', ParseIntPipe) num: number,
-    @Param('year', ParseIntPipe) year: number,
+    @Param('termId', ParseIntPipe) termId: number,
     @Query('includeVoided') includeVoided?: string,
   ) {
     return this.paymentService.getInvoice(
       studentNumber,
-      num,
-      year,
+      termId,
       includeVoided === 'true',
     );
   }
 
-  // 'invoice' + num + year
-  @Get('invoice/:num/:year') // This path is now after the more specific 'invoice/:studentNumber/:num/:year'
+  @Get('invoice/term/:termId')
   getTermInvoices(
-    @Param('num', ParseIntPipe) num: number,
-    @Param('year', ParseIntPipe) year: number,
+    @Param('termId', ParseIntPipe) termId: number,
   ) {
-    return this.paymentService.getTermInvoices(num, year);
+    return this.paymentService.getTermInvoices(termId);
   }
 
   @Get('invoice')
@@ -322,12 +317,11 @@ export class PaymentController {
     return this.paymentService.getStudentInvoicesForAudit(studentNumber);
   }
 
-  @Get('invoice/audit/term/:num/:year')
+  @Get('invoice/audit/term/:termId')
   getTermInvoicesForAudit(
-    @Param('num', ParseIntPipe) num: number,
-    @Param('year', ParseIntPipe) year: number,
+    @Param('termId', ParseIntPipe) termId: number,
   ) {
-    return this.paymentService.getTermInvoicesForAudit(num, year);
+    return this.paymentService.getTermInvoicesForAudit(termId);
   }
 
   @Post('invoice')
@@ -343,20 +337,18 @@ export class PaymentController {
     );
   }
 
-  @Post('invoice/bulk/class/:name/:num/:year')
+  @Post('invoice/bulk/class/:name/:termId')
   @HasPermissions(PERMISSIONS.FINANCE.CREATE)
   bulkInvoiceClass(
     @Param('name') name: string,
-    @Param('num', ParseIntPipe) num: number,
-    @Param('year', ParseIntPipe) year: number,
+    @Param('termId', ParseIntPipe) termId: number,
     @Body() request: BulkClassInvoiceRequestDto,
     @GetUser() profile: TeachersEntity,
     @Req() req: Request,
   ) {
     return this.paymentService.bulkInvoiceClassTerm(
       name,
-      num,
-      year,
+      termId,
       request ?? {},
       profile?.email,
       req.ip || req.socket.remoteAddress,
@@ -376,7 +368,7 @@ export class PaymentController {
   }
 
   // GENERAL PAYMENT ROUTES (These are the trickiest due to parameters)
-  // Use a distinct prefix for each. E.g., '/student/:studentNumber', '/term/:num/:year', '/year/:year'
+  // Use distinct prefixes for each dimension: student, termId, or year.
   // Or consolidate into a single general payments query endpoint with optional query parameters.
 
   // OPTION 1: Use specific prefixes (Recommended)
@@ -385,12 +377,11 @@ export class PaymentController {
     return this.paymentService.getPaymentsByStudent(studentNumber);
   }
 
-  @Get('term/:num/:year') // Recommended prefix
+  @Get('term/:termId')
   getPaymentsInTerm(
-    @Param('num', ParseIntPipe) num: number,
-    @Param('year', ParseIntPipe) year: number,
+    @Param('termId', ParseIntPipe) termId: number,
   ) {
-    return this.paymentService.getPaymentsInTerm(num, year);
+    return this.paymentService.getPaymentsInTerm(termId);
   }
 
   @Get('year/:year') // Recommended prefix
@@ -431,14 +422,13 @@ export class PaymentController {
     return this.paymentService.reconcileStudentFinances(studentNumber);
   }
 
-  @Post('reconcile/class/:name/:num/:year')
+  @Post('reconcile/class/:name/:termId')
   @Roles(ROLES.director, ROLES.auditor, ROLES.reception, ROLES.dev)
   reconcileClassTerm(
     @Param('name') name: string,
-    @Param('num', ParseIntPipe) num: number,
-    @Param('year', ParseIntPipe) year: number,
+    @Param('termId', ParseIntPipe) termId: number,
   ) {
-    return this.paymentService.reconcileClassTerm(name, num, year);
+    return this.paymentService.reconcileClassTerm(name, termId);
   }
 
   /**

@@ -24,53 +24,59 @@ import { PermissionsGuard } from 'src/auth/guards/permissions.guard';
 import { HasPermissions } from 'src/auth/decorators/has-permissions.decorator';
 import { PERMISSIONS } from 'src/auth/models/permissions.constants';
 import { ParentStudentAccessGuard } from 'src/auth/guards/parent-student-access.guard';
+import { EnrolmentService } from 'src/enrolment/enrolment.service';
 
 @Controller('reports')
 @UseGuards(AuthGuard(), PermissionsGuard, ParentStudentAccessGuard)
 export class ReportsController {
-  constructor(private reportsService: ReportsService) {}
+  constructor(
+    private reportsService: ReportsService,
+    private enrolmentService: EnrolmentService,
+  ) {}
 
-  @Get('/generate/:name/:num/:year/:examType')
+  @Get('/generate/:name/:termId/:examType')
   @HasPermissions(PERMISSIONS.REPORTS.GENERATE)
   generateReports(
     @Param('name') name: string,
-    @Param('num') num: number,
-    @Param('year') year: number,
+    @Param('termId') termId: number,
     @GetUser() profile,
     @Param('examType') examType: string,
-    @Query('termId') termId?: string,
   ) {
+    const normalizedTermId = Number(termId);
     // console.log('name', name);
-    return this.reportsService.generateReports(
+    return this.enrolmentService.getOneTermById(normalizedTermId).then((term) =>
+      this.reportsService.generateReports(
       name,
-      num,
-      year,
+      term.num,
+      term.year,
       examType,
-      termId ? parseInt(termId, 10) : undefined,
+      normalizedTermId,
       profile,
+      ),
     );
   }
 
-  @Post('/save/:name/:num/:year/:examType')
+  @Post('/save/:name/:termId/:examType')
   @HasPermissions(PERMISSIONS.REPORTS.SAVE)
   saveReports(
     @Param('name') name: string,
 
-    @Param('num') num: number,
-    @Param('year') year: number,
+    @Param('termId') termId: number,
     @Body() reports: ReportsModel[],
     @GetUser() profile,
     @Param('examType') examType: ExamType,
-    @Query('termId') termId?: string,
   ) {
-    return this.reportsService.saveReports(
-      num,
-      year,
-      name,
-      reports,
-      examType,
-      termId ? parseInt(termId, 10) : undefined,
-      profile,
+    const normalizedTermId = Number(termId);
+    return this.enrolmentService.getOneTermById(normalizedTermId).then((term) =>
+      this.reportsService.saveReports(
+        term.num,
+        term.year,
+        name,
+        reports,
+        examType,
+        normalizedTermId,
+        profile,
+      ),
     );
   }
 
@@ -101,23 +107,24 @@ export class ReportsController {
     return this.reportsService.generateRoleComment(payload, profile);
   }
 
-  @Get('/view/:name/:num/:year/:examType')
+  @Get('/view/:name/:termId/:examType')
   viewReports(
     @Param('name') name: string,
 
-    @Param('num') num: number,
-    @Param('year') year: number,
+    @Param('termId') termId: number,
     @GetUser() profile,
     @Param('examType') examType: string,
-    @Query('termId') termId?: string,
   ) {
-    return this.reportsService.viewReports(
-      name,
-      num,
-      year,
-      examType,
-      termId ? parseInt(termId, 10) : undefined,
-      profile,
+    const normalizedTermId = Number(termId);
+    return this.enrolmentService.getOneTermById(normalizedTermId).then((term) =>
+      this.reportsService.viewReports(
+        name,
+        term.num,
+        term.year,
+        examType,
+        normalizedTermId,
+        profile,
+      ),
     );
   }
 
@@ -132,16 +139,14 @@ export class ReportsController {
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
     @Query('studentNumber') studentNumber?: string,
     @Query('name') name?: string,
-    @Query('num') num?: string,
-    @Query('year') year?: string,
+    @Query('termId') termId?: string,
     @Query('examType') examType?: string,
   ) {
     return this.reportsService.searchReports(
       {
         studentNumber,
         name,
-        num: num ? parseInt(num, 10) : undefined,
-        year: year ? parseInt(year, 10) : undefined,
+        termId: termId ? parseInt(termId, 10) : undefined,
         examType,
       },
       profile,
@@ -165,26 +170,26 @@ export class ReportsController {
   //   );
   // }
 
-  @Get('/pdf/:name/:num/:year/:examType/:studentNumber/')
+  @Get('/pdf/:name/:termId/:examType/:studentNumber/')
   @HasPermissions(PERMISSIONS.REPORTS.DOWNLOAD)
   async getOnePDF(
     @Param('name') name: string,
-    @Param('num') num: number,
-    @Param('year') year: number,
+    @Param('termId') termId: number,
     @Param('examType') examType: string,
     @Param('studentNumber') studentNumber: string,
 
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
     @Res() res: Response,
-    @Query('termId') termId?: string,
   ): Promise<void> {
+    const normalizedTermId = Number(termId);
+    const term = await this.enrolmentService.getOneTermById(normalizedTermId);
     const result = await this.reportsService.downloadReport(
       name,
-      num,
-      year,
+      term.num,
+      term.year,
       examType,
       studentNumber,
-      termId ? parseInt(termId, 10) : undefined,
+      normalizedTermId,
       profile,
     );
 
@@ -199,7 +204,7 @@ export class ReportsController {
     res.end(result.buffer);
   }
 
-  // @Get('/pdf/:name/:num/:year')
+  // @Get('/pdf/:name/:termId')
   // async getAllPDFs(
   //   @Param('name') name: string,
   //   @Param('num') num: number,

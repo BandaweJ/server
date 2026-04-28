@@ -48,8 +48,6 @@ export class AIController {
           request.mark,
           request.maxMark || 100,
           request.subject,
-          request.className,
-          request.studentLevel,
         );
 
         return {
@@ -67,8 +65,6 @@ export class AIController {
         request.mark,
         request.maxMark || 100,
         request.subject,
-        request.className,
-        request.studentLevel,
       );
 
       return {

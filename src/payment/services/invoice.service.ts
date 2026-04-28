@@ -143,8 +143,7 @@ export class InvoiceService {
 
   async generateEmptyInvoice(
     studentNumber: string,
-    num: number,
-    year: number,
+    termId: number,
   ): Promise<InvoiceEntity> {
     const student = await this.resourceById.getStudentByStudentNumber(
       studentNumber,
@@ -152,13 +151,14 @@ export class InvoiceService {
 
     const enrol = await this.enrolmentService.getOneEnrolment(
       studentNumber,
-      num,
-      year,
+      0,
+      0,
+      termId,
     );
 
     if (!enrol) {
       throw new NotImplementedException(
-        `Student ${studentNumber} not enrolled in Term ${num}, ${year}`,
+        `Student ${studentNumber} not enrolled in term ${termId}`,
       );
     }
 
@@ -199,8 +199,7 @@ export class InvoiceService {
     }
 
     const studentNumber = invoice.studentNumber || invoice.student?.studentNumber;
-    const termNum = invoice.termNum || invoice.enrol?.num;
-    const year = invoice.year || invoice.enrol?.year;
+    const termId = invoice.termId || invoice.enrol?.termId;
 
     if (!studentNumber) {
       throw new MissingRequiredFieldException('studentNumber', [
@@ -208,8 +207,8 @@ export class InvoiceService {
       ]);
     }
 
-    if (termNum === undefined || year === undefined) {
-      throw new MissingRequiredFieldException('termNum and year', [
+    if (termId === undefined) {
+      throw new MissingRequiredFieldException('termId', [
         'enrol entity',
       ]);
     }
@@ -226,8 +225,7 @@ export class InvoiceService {
       'Saving invoice',
       {
         studentNumber,
-        termNumber: termNum,
-        year,
+        termId,
         invoiceNumber: invoice.invoiceNumber,
         billsCount: invoice.bills?.length || 0,
       },
@@ -266,27 +264,18 @@ export class InvoiceService {
           }
 
           let enrol = invoice.enrol;
-          if (!enrol && termNum !== undefined && year !== undefined) {
-            const enrolments =
-              await this.enrolmentService.getEnrolmentsByStudent(
-                studentNumber,
-                student,
-              );
-            enrol = enrolments.find(
-              (e) => e.num === termNum && e.year === year,
+          if (!enrol && termId !== undefined) {
+            enrol = await this.enrolmentService.getOneEnrolment(
+              studentNumber,
+              0,
+              0,
+              termId,
             );
-            if (!enrol) {
-              throw new EnrolmentNotFoundException(
-                studentNumber,
-                termNum,
-                year,
-              );
-            }
           }
 
           if (!enrol) {
             throw new MissingRequiredFieldException('enrolment', [
-              'termNum and year',
+              'termId',
             ]);
           }
 
@@ -417,7 +406,7 @@ export class InvoiceService {
             {
               where: {
                 student: { studentNumber },
-                enrol: enrol?.id ? { id: enrol.id } : { num: termNum, year: year },
+                enrol: { id: enrol.id },
                 isVoided: false,
               },
             },
@@ -463,12 +452,12 @@ export class InvoiceService {
           );
 
           // Debug logging to verify calculation
-          this.logger.debug(`Invoice validation - Term: ${termNum}/${year}, Is update: ${!!foundInvoice}, Existing invoices count: ${invoicesToCount.length}, Existing total: ${existingInvoicesTotal}, New/Updated invoice: ${calculatedNetTotalBill}, Combined: ${existingInvoicesTotal + calculatedNetTotalBill}`);
+          this.logger.debug(`Invoice validation - termId: ${termId}, Is update: ${!!foundInvoice}, Existing invoices count: ${invoicesToCount.length}, Existing total: ${existingInvoicesTotal}, New/Updated invoice: ${calculatedNetTotalBill}, Combined: ${existingInvoicesTotal + calculatedNetTotalBill}`);
 
           this.financialValidationService.validateMaximumInvoiceAmountPerTerm(
             calculatedNetTotalBill,
-            termNum,
-            year,
+            enrol.num,
+            enrol.year,
             existingInvoicesTotal,
           );
 
@@ -493,10 +482,10 @@ export class InvoiceService {
               .andWhere(
                 hasConcreteEnrolmentId
                   ? 'enrol.id = :enrolId'
-                  : 'enrol.num = :num AND enrol.year = :year',
+                  : 'enrol.id = :enrolId',
                 hasConcreteEnrolmentId
                   ? { enrolId: enrol.id }
-                  : { num: termNum, year: year },
+                  : { enrolId: enrol.id },
               )
               .andWhere('(invoice.isVoided = false OR invoice.isVoided IS NULL)')
               .getOne();
@@ -1421,8 +1410,7 @@ export class InvoiceService {
   }
   async getInvoice(
     studentNumber: string,
-    num: number,
-    year: number,
+    termId: number,
     includeVoided: boolean = false,
   ): Promise<InvoiceResponseDto> {
     const relations: (keyof InvoiceEntity | string)[] = [
@@ -1436,7 +1424,7 @@ export class InvoiceService {
 
     const baseWhere = {
       student: { studentNumber },
-      enrol: { num, year },
+      enrol: { id: termId },
     };
 
     // 1. Always try to return the active invoice (isVoided = false OR null)
@@ -1452,8 +1440,7 @@ export class InvoiceService {
       .leftJoinAndSelect('invoice.exemption', 'exemption')
       .leftJoinAndSelect('invoice.invoiceCharges', 'invoiceCharges')
       .where('student.studentNumber = :studentNumber', { studentNumber })
-      .andWhere('enrol.num = :num', { num })
-      .andWhere('enrol.year = :year', { year })
+      .andWhere('enrol.id = :termId', { termId })
       .andWhere('(invoice.isVoided = false OR invoice.isVoided IS NULL)')
       .getOne();
 
@@ -1465,8 +1452,7 @@ export class InvoiceService {
         'Returning existing invoice for student/term',
         {
           studentNumber,
-          termNumber: num,
-          year,
+          termId,
           invoiceId: activeInvoice.id,
           invoiceNumber: activeInvoice.invoiceNumber,
           isVoided: activeInvoice.isVoided,
@@ -1534,8 +1520,7 @@ export class InvoiceService {
           'Returning voided invoice because includeVoided=true',
           {
             studentNumber,
-            termNumber: num,
-            year,
+            termId,
             invoiceId: voidedInvoice.id,
             invoiceNumber: voidedInvoice.invoiceNumber,
           },
@@ -1551,10 +1536,10 @@ export class InvoiceService {
       'log',
       'invoice.getInvoice.generateNew',
       'No existing invoice found. Generating empty invoice skeleton.',
-      { studentNumber, termNumber: num, year },
+      { studentNumber, termId },
     );
     
-    const emptyInvoice = await this.generateEmptyInvoice(studentNumber, num, year);
+    const emptyInvoice = await this.generateEmptyInvoice(studentNumber, termId);
     
     // Check if there's a voided invoice to show warning
     // No ordering needed - student + term uniquely identifies one invoice
@@ -1624,9 +1609,7 @@ export class InvoiceService {
    */
   async getBalanceForStudentTerm(
     studentNumber: string,
-    num: number,
-    year: number,
-    termId?: number,
+    termId: number,
   ): Promise<number | null> {
     const qb = this.invoiceRepository
       .createQueryBuilder('invoice')
@@ -1635,13 +1618,7 @@ export class InvoiceService {
       .where('student.studentNumber = :studentNumber', { studentNumber })
       .andWhere('(invoice.isVoided = false OR invoice.isVoided IS NULL)')
       .select('invoice.balance', 'balance');
-    if (termId) {
-      qb.andWhere('enrol.termId = :termId', { termId });
-    } else {
-      qb.andWhere('enrol.num = :num', { num }).andWhere('enrol.year = :year', {
-        year,
-      });
-    }
+    qb.andWhere('enrol.id = :termId', { termId });
     const invoiceFromQuery = await qb.getRawOne<{ balance: string }>();
     if (!invoiceFromQuery) return null;
     const balance = Number(invoiceFromQuery.balance);
@@ -1649,13 +1626,11 @@ export class InvoiceService {
   }
 
   async getTermInvoices(
-    num: number,
-    year: number,
-    termId?: number,
+    termId: number,
   ): Promise<InvoiceEntity[]> {
     return this.invoiceRepository.find({
       where: {
-        enrol: termId ? { id: termId } : { num, year },
+        enrol: { id: termId },
         isVoided: false,
       },
       relations: [
@@ -1670,12 +1645,10 @@ export class InvoiceService {
   }
 
   async getTermInvoicesForAudit(
-    num: number,
-    year: number,
-    termId?: number,
+    termId: number,
   ): Promise<InvoiceEntity[]> {
     return this.invoiceRepository.find({
-      where: { enrol: termId ? { id: termId } : { num, year } },
+      where: { enrol: { id: termId } },
       relations: [
         'student',
         'enrol',
@@ -1830,13 +1803,11 @@ export class InvoiceService {
       });
     }
     if (filters.enrolTerm && filters.enrolTerm.trim()) {
-      const parts = filters.enrolTerm.trim().split(/\s+/);
-      const num = parts.length > 0 ? parseInt(parts[0], 10) : NaN;
-      const year = parts.length > 1 ? parseInt(parts[1], 10) : NaN;
-      if (!isNaN(num) && !isNaN(year)) {
+      const parsedTermId = parseInt(filters.enrolTerm.trim(), 10);
+      if (!isNaN(parsedTermId)) {
         qb.innerJoin('invoice.enrol', 'enrol').andWhere(
-          'enrol.num = :enrolNum AND enrol.year = :enrolYear',
-          { enrolNum: num, enrolYear: year },
+          'enrol.id = :enrolTermId',
+          { enrolTermId: parsedTermId },
         );
       }
     }
@@ -1845,7 +1816,7 @@ export class InvoiceService {
         .innerJoin(
           TermsEntity,
           'termPeriod',
-          'termPeriod.num = termEnrol.num AND termPeriod.year = termEnrol.year',
+          'termPeriod.id = termEnrol.termId',
         )
         .andWhere('termPeriod.type = :termType', { termType: filters.termType });
     }
@@ -1907,12 +1878,10 @@ export class InvoiceService {
   }
 
   async getInvoiceStats(
-    num: number,
-    year: number,
-    termId?: number,
+    termId: number,
   ): Promise<InvoiceStatsModel[]> {
     const invoices = await this.invoiceRepository.find({
-      where: { enrol: termId ? { id: termId } : { num, year } },
+      where: { enrol: { id: termId } },
       relations: ['student', 'enrol', 'balanceBfwd', 'bills', 'bills.fees'],
     });
 

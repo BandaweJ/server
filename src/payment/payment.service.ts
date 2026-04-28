@@ -299,8 +299,8 @@ export class PaymentService {
     );
   }
 
-  async getPaymentsInTerm(num: number, year: number): Promise<ReceiptEntity[]> {
-    return this.receiptService.getPaymentsInTerm(num, year);
+  async getPaymentsInTerm(termId: number): Promise<ReceiptEntity[]> {
+    return this.receiptService.getPaymentsInTerm(termId);
   }
 
   async getPaymentsByYear(year: number): Promise<ReceiptEntity[]> {
@@ -327,10 +327,9 @@ export class PaymentService {
 
   async generateEmptyInvoice(
     studentNumber: string,
-    num: number,
-    year: number,
+    termId: number,
   ): Promise<InvoiceEntity> {
-    return this.invoiceService.generateEmptyInvoice(studentNumber, num, year);
+    return this.invoiceService.generateEmptyInvoice(studentNumber, termId);
   }
 
   /**
@@ -342,8 +341,8 @@ export class PaymentService {
     return this.invoiceService.applyExemptionToExistingInvoices(studentNumber);
   }
 
-  async getTermInvoices(num: number, year: number): Promise<InvoiceEntity[]> {
-    return this.invoiceService.getTermInvoices(num, year);
+  async getTermInvoices(termId: number): Promise<InvoiceEntity[]> {
+    return this.invoiceService.getTermInvoices(termId);
   }
 
   /**
@@ -352,11 +351,8 @@ export class PaymentService {
    * @param year - Term year
    * @returns All invoices including voided
    */
-  async getTermInvoicesForAudit(
-    num: number,
-    year: number,
-  ): Promise<InvoiceEntity[]> {
-    return this.invoiceService.getTermInvoicesForAudit(num, year);
+  async getTermInvoicesForAudit(termId: number): Promise<InvoiceEntity[]> {
+    return this.invoiceService.getTermInvoicesForAudit(termId);
   }
 
   async getAllInvoices(): Promise<InvoiceEntity[]> {
@@ -413,14 +409,12 @@ export class PaymentService {
 
   async getInvoice(
     studentNumber: string,
-    num: number,
-    year: number,
+    termId: number,
     includeVoided: boolean = false,
   ) {
     return this.invoiceService.getInvoice(
       studentNumber,
-      num,
-      year,
+      termId,
       includeVoided,
     );
   }
@@ -439,11 +433,8 @@ export class PaymentService {
     return this.invoiceService.getInvoiceByInvoiceNumber(invoiceNumber);
   }
 
-  async getInvoiceStats(
-    num: number,
-    year: number,
-  ): Promise<InvoiceStatsModel[]> {
-    return this.invoiceService.getInvoiceStats(num, year);
+  async getInvoiceStats(termId: number): Promise<InvoiceStatsModel[]> {
+    return this.invoiceService.getInvoiceStats(termId);
   }
 
   async updatePayment(
@@ -539,8 +530,7 @@ export class PaymentService {
 
   async reconcileClassTerm(
     className: string,
-    num: number,
-    year: number,
+    termId: number,
   ): Promise<{
     className: string;
     termNum: number;
@@ -571,13 +561,15 @@ export class PaymentService {
       'log',
       'payment.reconcile.class.start',
       'Starting class-term reconciliation',
-      { className, termNum: num, year },
+      { className, termId },
     );
 
+    const term = await this.enrolmentService.getOneTermById(termId);
     const enrols = await this.enrolmentService.getEnrolmentByClass(
       className,
-      num,
-      year,
+      term.num,
+      term.year,
+      term.id,
     );
 
     const studentsByNumber = new Map<
@@ -645,13 +637,13 @@ export class PaymentService {
       'log',
       'payment.reconcile.class.complete',
       'Class-term reconciliation completed',
-      { className, termNum: num, year, totalStudents: results.length, succeeded, failed },
+      { className, termId, totalStudents: results.length, succeeded, failed },
     );
 
     return {
       className,
-      termNum: num,
-      year,
+      termNum: term.num,
+      year: term.year,
       totalStudents: results.length,
       succeeded,
       failed,
@@ -739,15 +731,13 @@ export class PaymentService {
 
   async bulkInvoiceClassTerm(
     className: string,
-    num: number,
-    year: number,
+    termId: number,
     request: BulkClassInvoiceRequestDto,
     performedBy?: string,
     ipAddress?: string,
   ): Promise<BulkClassInvoiceResponseDto> {
-    const term = request.termId
-      ? await this.enrolmentService.getOneTermById(request.termId)
-      : await this.enrolmentService.getOneTerm(num, year);
+    const resolvedTermId = request.termId ?? termId;
+    const term = await this.enrolmentService.getOneTermById(resolvedTermId);
     const termNum = term.num;
     const termYear = term.year;
     const termType = (term.type ?? TermType.REGULAR) as 'regular' | 'vacation';
@@ -768,7 +758,7 @@ export class PaymentService {
     const billsForTerm =
       termType === TermType.VACATION
         ? []
-        : await this.financeService.getBillsByEnrolment(termNum, termYear, term.id);
+        : await this.financeService.getBillsByEnrolment(term.id);
 
     const templateByResidence =
       termType === TermType.VACATION
@@ -843,8 +833,7 @@ export class PaymentService {
         const invoice = await this.invoiceService.saveInvoice(
           {
             studentNumber,
-            termNum,
-            year: termYear,
+            termId: term.id,
             bills: templateFees.map((fee) => ({
               student,
               enrol,

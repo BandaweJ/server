@@ -758,7 +758,7 @@ export class ReportsService {
           name,
           num,
           year,
-          ...(termId ? { termId } : {}),
+          termId,
           examType,
           studentNumber: In(studentNumbers), // Use TypeORM's 'In' operator
         },
@@ -948,9 +948,9 @@ export class ReportsService {
 
     // Validate required fields for report identification
     const { name, num, year, termId, studentNumber, examType } = comment.report as ReportsModel;
-    if (!name || !num || !year || !studentNumber) {
+    if (!name || !termId || !studentNumber) {
       throw new BadRequestException(
-        'Missing required fields: name, num, year, and studentNumber are required to identify the report.'
+        'Missing required fields: name, termId, and studentNumber are required to identify the report.'
       );
     }
 
@@ -969,7 +969,7 @@ export class ReportsService {
         name,
         num,
         year,
-        ...(termId ? { termId } : {}),
+        termId,
         studentNumber,
       };
       if (examType) {
@@ -1058,9 +1058,9 @@ export class ReportsService {
 
     // Validate required fields for report identification
     const { name, num, year, termId, studentNumber, examType } = comment.report as ReportsModel;
-    if (!name || !num || !year || !studentNumber) {
+    if (!name || !termId || !studentNumber) {
       throw new BadRequestException(
-        'Missing required fields: name, num, year, and studentNumber are required to identify the report.'
+        'Missing required fields: name, termId, and studentNumber are required to identify the report.'
       );
     }
 
@@ -1079,7 +1079,7 @@ export class ReportsService {
         name,
         num,
         year,
-        ...(termId ? { termId } : {}),
+        termId,
         studentNumber,
       };
       if (examType) {
@@ -1210,6 +1210,7 @@ export class ReportsService {
       name?: string;
       num?: number;
       year?: number;
+      termId?: number;
       examType?: string;
     },
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
@@ -1222,11 +1223,8 @@ export class ReportsService {
     if (filters.name) {
       where.name = filters.name;
     }
-    if (filters.num !== undefined) {
-      where.num = filters.num;
-    }
-    if (filters.year !== undefined) {
-      where.year = filters.year;
+    if (filters.termId !== undefined) {
+      where.termId = filters.termId;
     }
     if (filters.examType) {
       where.examType = filters.examType;
@@ -1257,7 +1255,7 @@ export class ReportsService {
           name,
           num,
           year,
-          ...(termId ? { termId } : {}),
+          termId,
           examType,
         },
       });
@@ -1267,7 +1265,7 @@ export class ReportsService {
           name,
           num,
           year,
-          ...(termId ? { termId } : {}),
+          termId,
         },
       });
 
@@ -1312,8 +1310,7 @@ export class ReportsService {
     if (profile instanceof StudentsEntity || profile instanceof ParentsEntity) {
       const balance = await this.invoiceService.getBalanceForStudentTerm(
         studentNumber,
-        num,
-        year,
+        termId,
       );
       const balanceNumber = Number(balance);
       if (
@@ -1332,7 +1329,7 @@ export class ReportsService {
         name,
         num,
         year,
-        ...(termId ? { termId } : {}),
+        termId,
         studentNumber,
         examType,
       },

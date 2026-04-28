@@ -1335,13 +1335,11 @@ export class ReceiptService {
       });
     }
     if (filters.enrolTerm && filters.enrolTerm.trim()) {
-      const parts = filters.enrolTerm.trim().split(/\s+/);
-      const num = parts.length > 0 ? parseInt(parts[0], 10) : NaN;
-      const year = parts.length > 1 ? parseInt(parts[1], 10) : NaN;
-      if (!isNaN(num) && !isNaN(year)) {
+      const parsedTermId = parseInt(filters.enrolTerm.trim(), 10);
+      if (!isNaN(parsedTermId)) {
         qb.innerJoin('receipt.enrol', 'enrol').andWhere(
-          'enrol.num = :enrolNum AND enrol.year = :enrolYear',
-          { enrolNum: num, enrolYear: year },
+          'enrol.id = :enrolTermId',
+          { enrolTermId: parsedTermId },
         );
       }
     }
@@ -1350,7 +1348,7 @@ export class ReceiptService {
         .innerJoin(
           TermsEntity,
           'termPeriod',
-          'termPeriod.num = termEnrol.num AND termPeriod.year = termEnrol.year',
+          'termPeriod.id = termEnrol.termId',
         )
         .andWhere('termPeriod.type = :termType', { termType: filters.termType });
     }
@@ -1396,8 +1394,8 @@ export class ReceiptService {
     });
   }
 
-  async getPaymentsInTerm(num: number, year: number): Promise<ReceiptEntity[]> {
-    const term = await this.enrolmentService.getOneTerm(num, year);
+  async getPaymentsInTerm(termId: number): Promise<ReceiptEntity[]> {
+    const term = await this.enrolmentService.getOneTermById(termId);
 
     if (!term) {
       return [];

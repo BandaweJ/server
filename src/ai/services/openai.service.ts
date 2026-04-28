@@ -16,8 +16,6 @@ export interface CommentGenerationRequest {
   classSize?: number;
 }
 
-type SchoolStage = 'form1to2' | 'form3to4' | 'form5to6' | 'genericSecondary';
-
 export interface CommentGenerationResponse {
   comments: string[];
   success: boolean;
@@ -52,8 +50,6 @@ export interface RoleCommentResponse {
 @Injectable()
 export class OpenAIService {
   private readonly logger = new Logger(OpenAIService.name);
-  private static readonly MAX_ROLE_COMMENT_CHARS = 220;
-  private static readonly MAX_FORM_TEACHER_COMMENT_CHARS = 140;
   private openai: OpenAI;
   private readonly bannedGenericPatterns = [
     /well done/i,
@@ -63,36 +59,6 @@ export class OpenAIService {
     /excellent work/i,
     /outstanding work/i,
   ];
-  private readonly stageDisallowedTerms: Record<SchoolStage, string[]> = {
-    form1to2: [
-      'algorithm',
-      'algorithms',
-      'derivative',
-      'derivatives',
-      'integration',
-      'integral',
-      'stoichiometry',
-      'electrolysis',
-      'trigonometric',
-      'kinematics',
-      'organic chemistry',
-      'argumentation',
-      'evaluation',
-      'hypothesis',
-      'theorem',
-    ],
-    form3to4: [
-      'derivative',
-      'derivatives',
-      'integration',
-      'integral',
-      'electromagnetism',
-      'stoichiometry',
-      'algorithmic complexity',
-    ],
-    form5to6: [],
-    genericSecondary: [],
-  };
 
   constructor(private configService: ConfigService) {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
@@ -155,8 +121,7 @@ export class OpenAIService {
       }
 
       // Parse the response to extract individual comments
-      const stage = this.inferSchoolStage(request.className, request.studentLevel);
-      let comments = this.parseComments(response, request.subject, stage);
+      let comments = this.parseComments(response, request.subject);
 
       // If we have 3 or fewer comments after filtering, request more
       if (comments.length <= 3) {
@@ -197,7 +162,6 @@ export class OpenAIService {
             const additionalComments = this.parseComments(
               additionalResponse,
               request.subject,
-              stage,
             );
             const beforeCount = comments.length;
             // Combine comments, avoiding duplicates and limiting to 5 total
@@ -290,9 +254,7 @@ export class OpenAIService {
         ? ` Position: ${request.position}/${request.classSize}.`
         : '';
     const tone = request.tone || 'balanced';
-    const stage = this.inferSchoolStage(request.className, request.studentLevel);
-    const subjectKeyword = this.getPrimarySubjectKeyword(request.subject, stage);
-    const stageInstruction = this.getStageInstruction(stage);
+    const subjectKeyword = this.getPrimarySubjectKeyword(request.subject);
 
     // Determine guidance based on percentage
     let guidanceInstructions = '';
@@ -329,8 +291,6 @@ Requirements:
 - Avoid generic praise phrases such as "well done", "keep it up", "good work", "great effort"
 - Comments should be concise, realistic, and motivating
 - All 5 comments must be wording-distinct
-- Follow Cambridge syllabus expectations for this level
-- Keep vocabulary age-appropriate for this stage: ${stageInstruction}
 - Format as a numbered list (1. 2. 3. 4. 5.)
 
 Examples (style only):
@@ -349,27 +309,26 @@ Examples (style only):
     return 'Requires Attention';
   }
 
-  private parseComments(
-    response: string,
-    subject?: string,
-    stage: SchoolStage = 'genericSecondary',
-  ): string[] {
+  private parseComments(response: string, subject?: string): string[] {
+    // Split by numbered list items and clean up
     const lines = response
       .split('\n')
       .map((line) => line.trim())
       .filter((line) => line.length > 0)
       .map((line) => {
+        // Remove numbering (1. 2. etc.) and clean up
         return line.replace(/^[-*]?\s*\d*[\).\-\s]*/, '').trim();
       })
       .filter((line) => {
-        if (line.length === 0 || line.length > 80) return false;
+        if (line.length === 0 || line.length > 80) {
+          return false;
+        }
         const wordCount = line
           .split(/\s+/)
           .filter((word) => word.length > 0).length;
         if (wordCount < 3 || wordCount > 5) return false;
         if (this.isGenericComment(line)) return false;
         if (subject && !this.containsSubjectContext(line, subject)) return false;
-        if (this.containsDisallowedTerms(line, stage)) return false;
         return true;
       })
       .map((line) => this.normalizeComment(line));
@@ -395,9 +354,7 @@ Examples (style only):
     const level = request.studentLevel
       ? ` for ${request.studentLevel} students`
       : '';
-    const stage = this.inferSchoolStage(request.className, request.studentLevel);
-    const subjectKeyword = this.getPrimarySubjectKeyword(request.subject, stage);
-    const stageInstruction = this.getStageInstruction(stage);
+    const subjectKeyword = this.getPrimarySubjectKeyword(request.subject);
     const needed = 5 - existingCount;
     const tone = request.tone || 'balanced';
 
@@ -436,8 +393,6 @@ Requirements:
 - Include one clear action verb
 - Avoid generic praise phrases
 - Keep each comment distinct from others
-- Follow Cambridge syllabus expectations for this level
-- Keep vocabulary age-appropriate for this stage: ${stageInstruction}
 - Format as a numbered list (1. 2. 3. etc.)
 - Make sure these comments are different from the ones already generated
     `.trim();
@@ -448,12 +403,9 @@ Requirements:
     mark: number,
     maxMark: number = 100,
     subject?: string,
-    className?: string,
-    studentLevel?: string,
   ): string[] {
     const percentage = (mark / maxMark) * 100;
-    const stage = this.inferSchoolStage(className, studentLevel);
-    const keyword = this.getPrimarySubjectKeyword(subject, stage);
+    const keyword = this.getPrimarySubjectKeyword(subject);
 
     if (percentage >= 60) {
       return [
@@ -505,16 +457,15 @@ Requirements:
           {
             role: 'system',
             content:
-              'You are a school educator writing concise report-card summary comments. Output must be plain text only, one paragraph, no markdown, no bullet points, no hashtags.',
+              'You are a school educator writing concise report-card summary comments. Keep output compact, specific, and professional.',
           },
           {
             role: 'user',
             content: prompt,
           },
         ],
-        max_tokens: 70,
+        max_tokens: 80,
         temperature: 0.7,
-        stop: ['\n'],
       });
 
       const response = completion.choices[0]?.message?.content?.trim();
@@ -522,7 +473,7 @@ Requirements:
         throw new Error('No response from OpenAI');
       }
 
-      const normalized = this.normalizeRoleComment(response, context.role);
+      const normalized = this.normalizeRoleComment(response);
       if (!normalized) {
         throw new Error('Response failed validation');
       }
@@ -559,22 +510,6 @@ Requirements:
       .map((s) => `${s.subject}: ${s.comment}`)
       .join(' | ');
 
-    const isFormTeacher = context.role === 'formTeacher';
-    const maxChars = isFormTeacher
-      ? OpenAIService.MAX_FORM_TEACHER_COMMENT_CHARS
-      : OpenAIService.MAX_ROLE_COMMENT_CHARS;
-    const roleSpecificRequirements =
-      context.role === 'formTeacher'
-        ? `Form Teacher Focus:
-- Comment on behaviour, conduct, discipline, punctuality, and attitude towards work
-- You may infer likely conduct trends from marks/consistency, but avoid fabricating incidents
-- Keep it to one short sentence only
-- Keep wording practical and school-appropriate
-- Prefer phrases like: "Positive attitude towards school work."`
-        : `Head Teacher Focus:
-- Give a concise academic leadership summary with strength and improvement target
-- Keep it professional and forward-looking`;
-
     return `
 Write one ${roleLabel} for a report card.
 
@@ -590,49 +525,24 @@ Weak subjects: ${weak || 'N/A'}
 Subject comments evidence: ${classroomEvidence || 'N/A'}
 
 Requirements:
-- Maximum length: ${maxChars} characters
-- ${
-      isFormTeacher ? '8 to 16 words total' : '14 to 30 words total'
-    }
-- ${
-      isFormTeacher
-        ? 'Focus on behaviour and work attitude; do not include subject-by-subject analysis'
-        : 'Mention at least one strength and one target for improvement'
-    }
+- 16 to 32 words total
+- Mention at least one strength and one target for improvement
 - Use professional school tone
-- Plain text only, single paragraph, no line breaks
+- Do not use quotation marks
 - Do not mention AI
-${roleSpecificRequirements}
     `.trim();
   }
 
-  private normalizeRoleComment(
-    value: string,
-    role: RoleCommentContext['role'],
-  ): string | null {
+  private normalizeRoleComment(value: string): string | null {
     const line = value
       .replace(/\s+/g, ' ')
-      .replace(/^["'\-\*\#\d\.\)\s]+/, '')
+      .replace(/^["']|["']$/g, '')
       .trim();
-    const maxChars =
-      role === 'formTeacher'
-        ? OpenAIService.MAX_FORM_TEACHER_COMMENT_CHARS
-        : OpenAIService.MAX_ROLE_COMMENT_CHARS;
-    const singleSentence =
-      role === 'formTeacher' ? this.keepFirstSentence(line) : line;
-    const bounded = singleSentence.slice(0, maxChars).trim();
-    const wordCount = bounded
+    const wordCount = line
       .split(/\s+/)
       .filter((w) => w.length > 0).length;
-    const minWords = role === 'formTeacher' ? 6 : 10;
-    const maxWords = role === 'formTeacher' ? 20 : 35;
-    if (wordCount < minWords || wordCount > maxWords) return null;
-    return bounded;
-  }
-
-  private keepFirstSentence(text: string): string {
-    const match = text.match(/^(.+?[.!?])(?:\s|$)/);
-    return match ? match[1].trim() : text.trim();
+    if (wordCount < 12 || wordCount > 40) return null;
+    return line;
   }
 
   private getRoleCommentFallback(context: RoleCommentContext): string {
@@ -647,10 +557,10 @@ ${roleSpecificRequirements}
       'core areas';
 
     if (context.role === 'headTeacher') {
-      return `${name} shows strong potential, especially in ${top}. Improve consistency in ${weak} through regular revision and focused practice next term.`;
+      return `${name} has shown commendable effort, especially in ${top}. Greater consistency in ${weak} and sustained revision discipline will improve overall performance next term.`;
     }
 
-    return `Positive attitude towards school work; needs stronger consistency and discipline in ${weak}.`;
+    return `${name} demonstrates solid potential with notable strength in ${top}. Focused practice in ${weak}, completion of corrections, and improved exam technique should raise achievement further.`;
   }
 
   private normalizeComment(comment: string): string {
@@ -700,103 +610,19 @@ ${roleSpecificRequirements}
     return combined.slice(0, 5);
   }
 
-  private getPrimarySubjectKeywordByStage(
-    subject: string | undefined,
-    stage: SchoolStage,
-  ): string {
+  private getPrimarySubjectKeyword(subject?: string): string {
     if (!subject) return 'concepts';
     const normalized = subject.toLowerCase();
-
-    const lowStage = stage === 'form1to2';
-    const midStage = stage === 'form3to4';
-    const highStage = stage === 'form5to6';
-
-    if (normalized.includes('math')) return lowStage ? 'steps' : midStage ? 'equations' : 'problem-solving';
-    if (normalized.includes('physics')) return lowStage ? 'units' : midStage ? 'calculations' : 'principles';
-    if (normalized.includes('chem')) return lowStage ? 'symbols' : midStage ? 'reactions' : 'concepts';
-    if (normalized.includes('biology')) return lowStage ? 'definitions' : midStage ? 'processes' : 'analysis';
-    if (normalized.includes('history')) return lowStage ? 'facts' : midStage ? 'evidence' : 'arguments';
-    if (normalized.includes('geography')) return lowStage ? 'mapwork' : midStage ? 'maps' : 'case-studies';
-    if (normalized.includes('account')) return lowStage ? 'entries' : midStage ? 'ledgers' : 'interpretation';
-    if (normalized.includes('business')) return lowStage ? 'key terms' : midStage ? 'analysis' : 'evaluation';
-    if (normalized.includes('english') || normalized.includes('language'))
-      return lowStage ? 'sentence structure' : midStage ? 'writing' : 'argumentation';
-    if (normalized.includes('computer')) return lowStage ? 'logic' : midStage ? 'program structure' : 'algorithms';
+    if (normalized.includes('math')) return 'equations';
+    if (normalized.includes('physics')) return 'calculations';
+    if (normalized.includes('chem')) return 'reactions';
+    if (normalized.includes('biology')) return 'processes';
+    if (normalized.includes('history')) return 'evidence';
+    if (normalized.includes('geography')) return 'maps';
+    if (normalized.includes('account')) return 'ledgers';
+    if (normalized.includes('business')) return 'analysis';
+    if (normalized.includes('english')) return 'writing';
+    if (normalized.includes('computer')) return 'algorithms';
     return 'concepts';
-  }
-
-  private getPrimarySubjectKeyword(
-    subject?: string,
-    stage: SchoolStage = 'genericSecondary',
-  ): string {
-    const keyword = this.getPrimarySubjectKeywordByStage(subject, stage);
-    if (this.containsDisallowedTerms(keyword, stage)) {
-      return 'concepts';
-    }
-    return keyword;
-  }
-
-  private inferSchoolStage(
-    className?: string,
-    studentLevel?: string,
-  ): SchoolStage {
-    const classText = (className || '').toLowerCase();
-    const levelText = (studentLevel || '').toLowerCase();
-
-    if (
-      levelText.includes('a level') ||
-      levelText.includes('as level') ||
-      classText.includes('form 5') ||
-      classText.includes('form 6') ||
-      classText.includes('5 ') ||
-      classText.startsWith('5') ||
-      classText.includes('6 ') ||
-      classText.startsWith('6')
-    ) {
-      return 'form5to6';
-    }
-
-    if (
-      classText.includes('form 1') ||
-      classText.includes('form 2') ||
-      classText.startsWith('1') ||
-      classText.startsWith('2')
-    ) {
-      return 'form1to2';
-    }
-
-    if (
-      classText.includes('form 3') ||
-      classText.includes('form 4') ||
-      classText.startsWith('3') ||
-      classText.startsWith('4')
-    ) {
-      return 'form3to4';
-    }
-
-    if (levelText.includes('o level') || levelText.includes('igcse')) {
-      return 'form3to4';
-    }
-
-    return 'genericSecondary';
-  }
-
-  private getStageInstruction(stage: SchoolStage): string {
-    if (stage === 'form1to2') {
-      return 'simple classroom vocabulary for ages about 13-15; avoid advanced technical jargon';
-    }
-    if (stage === 'form3to4') {
-      return 'IGCSE/O-Level appropriate terminology for ages about 15-17';
-    }
-    if (stage === 'form5to6') {
-      return 'A-Level appropriate terminology, still concise and clear';
-    }
-    return 'secondary-school appropriate and not overly technical';
-  }
-
-  private containsDisallowedTerms(text: string, stage: SchoolStage): boolean {
-    const disallowed = this.stageDisallowedTerms[stage] || [];
-    const normalized = text.toLowerCase();
-    return disallowed.some((term) => normalized.includes(term));
   }
 }

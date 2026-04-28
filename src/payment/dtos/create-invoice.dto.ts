@@ -23,7 +23,7 @@ import { SanitizeAmount } from '../decorators/sanitize-amount.decorator';
  * This replaces the Invoice model class to use InvoiceEntity as the single source of truth
  * 
  * Supports both ID-based (recommended) and entity-based (backward compatibility) approaches:
- * - ID-based: Use studentNumber, termNum, year, and CreateBillDto[] for bills
+ * - ID-based: Use studentNumber, termId, and CreateBillDto[] for bills
  * - Entity-based: Use full entity objects (for backward compatibility with existing frontend)
  * 
  * The service will handle both approaches and load entities from IDs when needed.
@@ -40,23 +40,14 @@ export class CreateInvoiceDto {
   @IsNotEmpty()
   studentNumber?: string;
 
-  @ApiProperty({ 
-    description: 'Term number (use this instead of enrol entity for new code)',
-    example: 1,
+  @ApiProperty({
+    description: 'Term id (required for strict term identity)',
+    example: 12,
     required: false,
   })
   @IsOptional()
   @IsNumber()
-  termNum?: number;
-
-  @ApiProperty({ 
-    description: 'Academic year (use this instead of enrol entity for new code)',
-    example: 2024,
-    required: false,
-  })
-  @IsOptional()
-  @IsNumber()
-  year?: number;
+  termId?: number;
 
   // Entity-based approach (backward compatibility)
   @ApiProperty({ 
@@ -68,7 +59,7 @@ export class CreateInvoiceDto {
   student?: StudentsEntity;
 
   @ApiProperty({ 
-    description: 'Enrolment entity (for backward compatibility - use termNum/year instead for new code)',
+    description: 'Enrolment entity (for backward compatibility - use termId instead for new code)',
     required: false,
   })
   @IsOptional()

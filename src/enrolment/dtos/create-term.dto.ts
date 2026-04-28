@@ -11,11 +11,6 @@ import {
 import { TermType } from '../models/term-type.enum';
 
 export class CreateTermDto {
-  @ApiProperty({ required: false })
-  @IsNumber()
-  @IsOptional()
-  id?: number;
-
   @ApiProperty()
   @IsNumber()
   @IsNotEmpty()

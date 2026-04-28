@@ -104,18 +104,12 @@ export class FinanceController {
     return this.financeService.getStudentBills(studentNumber);
   }
 
-  @Get('billing/:num/:year')
+  @Get('billing/term/:termId')
   @HasPermissions(PERMISSIONS.FINANCE.VIEW)
   getBillsByEnrolment(
-    @Param('num', ParseIntPipe) num: number,
-    @Param('year', ParseIntPipe) year: number,
-    @Query('termId') termId?: string,
+    @Param('termId', ParseIntPipe) termId: number,
   ) {
-    return this.financeService.getBillsByEnrolment(
-      num,
-      year,
-      termId ? parseInt(termId, 10) : undefined,
-    );
+    return this.financeService.getBillsByEnrolment(termId);
   }
 
   @Get('billing/:year')
@@ -124,18 +118,12 @@ export class FinanceController {
     return this.financeService.getBillsByYear;
   }
 
-  @Get('billing/total/:num/:year')
+  @Get('billing/total/term/:termId')
   @HasPermissions(PERMISSIONS.FINANCE.VIEW)
   getTotalBillByTerm(
-    @Param('num', ParseIntPipe) num: number,
-    @Param('year', ParseIntPipe) year: number,
-    @Query('termId') termId?: string,
+    @Param('termId', ParseIntPipe) termId: number,
   ) {
-    return this.financeService.getTotalBillByTerm(
-      num,
-      year,
-      termId ? parseInt(termId, 10) : undefined,
-    );
+    return this.financeService.getTotalBillByTerm(termId);
   }
 
   @Get('billing/total/:year')
@@ -144,18 +132,12 @@ export class FinanceController {
     return this.financeService.getTotalBillsByYear(year);
   }
 
-  @Get('billing/tobill/:num/:year')
+  @Get('billing/tobill/term/:termId')
   @HasPermissions(PERMISSIONS.FINANCE.VIEW)
   getStudentsNotBilledForTerm(
-    @Param('num', ParseIntPipe) num: number,
-    @Param('year', ParseIntPipe) year: number,
-    @Query('termId') termId?: string,
+    @Param('termId', ParseIntPipe) termId: number,
   ) {
-    return this.financeService.findStudentsNotBilledForTerm(
-      num,
-      year,
-      termId ? parseInt(termId, 10) : undefined,
-    );
+    return this.financeService.findStudentsNotBilledForTerm(termId);
   }
 
   // @Post('balance')

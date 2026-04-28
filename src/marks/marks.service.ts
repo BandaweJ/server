@@ -117,7 +117,8 @@ export class MarksService {
     const { num, year, termId, name, mark, comment, subject, student, examType } =
       createMarkDto;
 
-    const matches = await this.marksRepository.find({
+    const found = await this.marksRepository.findOne({
+      // where: { id },
       where: {
         num,
         year,
@@ -130,19 +131,22 @@ export class MarksService {
       relations: ['student', 'subject'],
     });
 
-    if (matches.length > 0) {
-      // Update the oldest existing row and remove accidental duplicates.
-      const [canonical, ...duplicates] = [...matches].sort((a, b) => a.id - b.id);
-      canonical.mark = mark;
-      canonical.comment = comment;
+    if (found) {
+      //edited mark
 
-      const updated = await this.marksRepository.save(canonical);
+      //update the mark and comment only
+      found.mark = mark;
+      found.comment = comment;
+      const id = found.id;
 
-      if (duplicates.length > 0) {
-        await this.marksRepository.delete(duplicates.map((d) => d.id));
+      const result = await this.marksRepository.update(id, {
+        mark,
+        comment,
+      });
+
+      if (result.affected) {
+        return found;
       }
-
-      return updated;
     } else {
       //new mark
       const record = new MarksEntity();
@@ -461,10 +465,10 @@ export class MarksService {
       termId,
     );
 
-    // Group by subject code to avoid conflating similarly named subjects.
-    const subjectCodes = Array.from(
-      new Set<string>(marks.map((mark) => mark.subject.code)),
-    );
+    // Create set of subjects in class
+    const subjectsSet = new Set<string>(marks.map((mark) => mark.subject.name));
+
+    const subjectsNames = Array.from(subjectsSet);
 
     const marksProgress: MarksProgressModel[] = [];
 
@@ -475,12 +479,13 @@ export class MarksService {
       termId,
     );
 
-    subjectCodes.forEach((subjectCode) => {
+    subjectsNames.forEach((subjectName) => {
       const marksForSubject = marks.filter(
-        (mark) => mark.subject.code === subjectCode,
+        (mark) => mark.subject.name === subjectName,
       );
       const marksProgressItem: MarksProgressModel = {
-        subject: marks.find((mark) => mark.subject.code === subjectCode).subject,
+        subject: marks.find((mark) => mark.subject.name === subjectName)
+          .subject,
         marksEntered: marksForSubject.length,
         totalStudents: clasEnrolment.length,
         progress: (marksForSubject.length / clasEnrolment.length) * 100,
@@ -501,126 +506,5 @@ export class MarksService {
     // console.log(marksProgress[1]);
 
     return marksProgress;
-  }
-
-  async getSubjectEntryDiagnostics(
-    num: number,
-    year: number,
-    name: string,
-    subjectCode: string,
-    examType: string,
-    profile: StudentsEntity | ParentsEntity | TeachersEntity,
-    termId?: number,
-  ): Promise<{
-    filters: {
-      num: number;
-      year: number;
-      termId: number | null;
-      className: string;
-      subjectCode: string;
-      examType: string;
-    };
-    subject: { code: string; name: string };
-    totals: {
-      enrolled: number;
-      entered: number;
-      missing: number;
-    };
-    enteredStudents: Array<{
-      markId: number;
-      studentNumber: string;
-      studentName: string;
-      mark: number;
-      comment: string;
-      savedAt: Date;
-    }>;
-    missingStudents: Array<{
-      studentNumber: string;
-      studentName: string;
-    }>;
-  }> {
-    switch (profile.role) {
-      case ROLES.admin:
-      case ROLES.dev:
-        break;
-      default: {
-        throw new UnauthorizedException('You are not allowed');
-      }
-    }
-
-    const subject = await this.getOneSubject(subjectCode);
-    const enrolments = await this.enrolmentService.getEnrolmentByClass(
-      name,
-      num,
-      year,
-      termId,
-    );
-
-    const marks = await this.marksRepository.find({
-      where: {
-        num,
-        year,
-        name,
-        examType,
-        ...(termId ? { termId } : {}),
-        subject: { code: subjectCode },
-      },
-      relations: ['student', 'subject'],
-      order: { date: 'DESC' },
-    });
-
-    // Keep one canonical row per student (newest) to avoid duplicate inflation.
-    const byStudent = new Map<string, MarksEntity>();
-    marks.forEach((entry) => {
-      const studentNumber = entry.student?.studentNumber;
-      if (!studentNumber || byStudent.has(studentNumber)) {
-        return;
-      }
-      byStudent.set(studentNumber, entry);
-    });
-
-    const enteredStudents = Array.from(byStudent.values()).map((entry) => ({
-      markId: entry.id,
-      studentNumber: entry.student.studentNumber,
-      studentName: `${entry.student.name} ${entry.student.surname}`,
-      mark: entry.mark,
-      comment: entry.comment,
-      savedAt: entry.date,
-    }));
-
-    const enrolledByStudent = new Map(
-      enrolments
-        .filter((enrol) => !!enrol.student?.studentNumber)
-        .map((enrol) => [enrol.student.studentNumber, enrol.student] as const),
-    );
-
-    const missingStudents = Array.from(enrolledByStudent.entries())
-      .filter(([studentNumber]) => !byStudent.has(studentNumber))
-      .map(([studentNumber, student]) => ({
-        studentNumber,
-        studentName: `${student.name} ${student.surname}`,
-      }));
-
-    return {
-      filters: {
-        num,
-        year,
-        termId: termId ?? null,
-        className: name,
-        subjectCode,
-        examType,
-      },
-      subject: {
-        code: subject.code,
-        name: subject.name,
-      },
-      totals: {
-        enrolled: enrolments.length,
-        entered: enteredStudents.length,
-        missing: missingStudents.length,
-      },
-      enteredStudents,
-      missingStudents,
-    };
   }
 }

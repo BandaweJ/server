@@ -202,15 +202,11 @@ export class FinanceService {
     });
   }
 
-  async getBillsByEnrolment(
-    num: number,
-    year: number,
-    termId?: number,
-  ): Promise<BillsEntity[]> {
+  async getBillsByEnrolment(termId: number): Promise<BillsEntity[]> {
     return await this.billsRepository.find({
       where: {
         enrol: {
-          ...(termId ? { termId } : { num, year }),
+          termId,
         },
       },
       relations: ['fees', 'enrol', 'student'],
@@ -219,15 +215,13 @@ export class FinanceService {
 
   async getStudentBillsByTerm(
     studentNumber: string,
-    num: number,
-    year: number,
-    termId?: number,
+    termId: number,
   ) {
     return await this.billsRepository.find({
       where: {
         student: { studentNumber },
         enrol: {
-          ...(termId ? { termId } : { num, year }),
+          termId,
         },
       },
       relations: ['fees', 'enrol', 'student'],
@@ -245,12 +239,8 @@ export class FinanceService {
     });
   }
 
-  async getTotalBillByTerm(
-    num: number,
-    year: number,
-    termId?: number,
-  ): Promise<number> {
-    const termBills = await this.getBillsByEnrolment(num, year, termId);
+  async getTotalBillByTerm(termId: number): Promise<number> {
+    const termBills = await this.getBillsByEnrolment(termId);
 
     if (!termBills || termBills.length === 0) {
       return 0; // Return 0 if there are no bills for the term.
@@ -283,21 +273,18 @@ export class FinanceService {
     return totalBill;
   }
 
-  async findStudentsNotBilledForTerm(
-    num: number,
-    year: number,
-    termId?: number,
-  ): Promise<EnrolEntity[]> {
+  async findStudentsNotBilledForTerm(termId: number): Promise<EnrolEntity[]> {
+    const term = await this.enrolmentService.getOneTermById(termId);
     // 1. Find all enrolments for the given term.
     const enrolments = await this.enrolmentService.getEnrolmentByTerm(
-      num,
-      year,
+      term.num,
+      term.year,
       termId,
     );
 
     //2. Get all bills for the term
     const bills = await this.billsRepository.find({
-      where: { enrol: termId ? { termId } : { num, year } },
+      where: { enrol: { termId } },
       relations: ['enrol', 'student'],
     });
 
