@@ -398,6 +398,7 @@ export class EnrolmentService {
 
   async getAllEnrolments(
     profile: TeachersEntity | StudentsEntity | ParentsEntity,
+    termId?: number,
   ): Promise<EnrolStats> {
     if (!profile) {
       throw new UnauthorizedException('User profile not found');
@@ -419,21 +420,21 @@ export class EnrolmentService {
       girls: [],
     };
 
-    // Find the "current" term using the same inclusive logic as getCurrentTerm()
-    const today = new Date();
-    const currentTerm = await this.termRepository.findOne({
-      where: {
-        startDate: LessThanOrEqual(today),
-        endDate: MoreThanOrEqual(today),
-      },
-    });
+    const currentTerm =
+      termId != null
+        ? await this.termRepository.findOne({ where: { id: termId } })
+        : await this.termRepository.findOne({
+            where: {
+              startDate: LessThanOrEqual(new Date()),
+              endDate: MoreThanOrEqual(new Date()),
+            },
+          });
     //get enrolments for that term
 
     if (currentTerm) {
       const enrols = await this.enrolmentRepository.find({
         where: {
-          num: currentTerm.num,
-          year: currentTerm.year,
+          termId: currentTerm.id,
         },
         relations: ['student'],
       });

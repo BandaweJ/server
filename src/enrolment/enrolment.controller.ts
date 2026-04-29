@@ -204,8 +204,12 @@ export class EnrolmentController {
   @Get('enrol')
   getAllEnrolments(
     @GetUser() profile: TeachersEntity | StudentsEntity | ParentsEntity,
+    @Query('termId') termId?: string,
   ) {
-    return this.enrolmentService.getAllEnrolments(profile);
+    return this.enrolmentService.getAllEnrolments(
+      profile,
+      termId ? parseInt(termId, 10) : undefined,
+    );
   }
 
   @Get('enrol/:name/:num/:year')
