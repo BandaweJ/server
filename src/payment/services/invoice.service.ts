@@ -456,8 +456,7 @@ export class InvoiceService {
 
           this.financialValidationService.validateMaximumInvoiceAmountPerTerm(
             calculatedNetTotalBill,
-            enrol.num,
-            enrol.year,
+            termId,
             existingInvoicesTotal,
           );
 

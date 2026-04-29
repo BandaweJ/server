@@ -384,16 +384,14 @@ export class FinancialValidationService {
    * This prevents data entry errors and ensures invoices don't exceed reasonable limits.
    *
    * @param totalBill - The total bill amount for the invoice
-   * @param termNum - The term number
-   * @param year - The term year
+   * @param termId - The term ID
    * @param existingInvoicesTotal - Total amount of existing invoices for this term (optional, for cumulative validation)
    * @param maxInvoiceAmountPerTerm - Maximum allowed invoice amount per term (default: 500,000)
    * @throws InvoiceValidationException if invoice amount exceeds maximum
    */
   validateMaximumInvoiceAmountPerTerm(
     totalBill: number,
-    termNum: number,
-    year: number,
+    termId: number,
     existingInvoicesTotal: number = 0,
     maxInvoiceAmountPerTerm: number = 500000,
   ): void {
@@ -410,9 +408,9 @@ export class FinancialValidationService {
 
     if (totalForTerm > maxInvoiceAmountPerTerm) {
       this.throwInvoiceValidation(
-        `Total invoice amount for term ${termNum}/${year} would exceed maximum allowed amount of ${maxInvoiceAmountPerTerm}. Current term total: ${numericExistingTotal}, New invoice: ${numericTotalBill}, New total: ${totalForTerm}`,
+        `Total invoice amount for termId ${termId} would exceed maximum allowed amount of ${maxInvoiceAmountPerTerm}. Current term total: ${numericExistingTotal}, New invoice: ${numericTotalBill}, New total: ${totalForTerm}`,
         undefined,
-        { termNum, year, totalForTerm, maxInvoiceAmountPerTerm },
+        { termId, totalForTerm, maxInvoiceAmountPerTerm },
       );
     }
 
@@ -421,7 +419,7 @@ export class FinancialValidationService {
       this.throwInvoiceValidation(
         `Invoice amount (${numericTotalBill}) cannot exceed maximum allowed amount per invoice of ${maxInvoiceAmountPerTerm}`,
         undefined,
-        { termNum, year, totalBill: numericTotalBill, maxInvoiceAmountPerTerm },
+        { termId, totalBill: numericTotalBill, maxInvoiceAmountPerTerm },
       );
     }
   }
