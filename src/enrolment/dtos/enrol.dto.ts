@@ -25,8 +25,8 @@ export class EnrolDto {
 
   @ApiProperty()
   @IsNumber()
-  @IsOptional()
-  termId?: number;
+  @IsNotEmpty()
+  termId: number;
 
   @ApiProperty()
   @IsOptional()

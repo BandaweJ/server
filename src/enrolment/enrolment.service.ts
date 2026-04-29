@@ -344,23 +344,15 @@ export class EnrolmentService {
 
     for (const enrolDto of enrolDtos) {
       const { name, num, year, residence, student, termId } = enrolDto as EnrolDto & { termId?: number };
-      let resolvedNum = num;
-      let resolvedYear = year;
-      let resolvedTermId: number | null = termId ?? null;
-      let resolvedTerm: TermsEntity | null = null;
-
-      if (termId != null) {
-        resolvedTerm = await this.getOneTermById(termId);
-        resolvedNum = resolvedTerm.num;
-        resolvedYear = resolvedTerm.year;
-        resolvedTermId = resolvedTerm.id;
-      } else if (num != null && year != null) {
-        const foundTerm = await this.termRepository.findOne({ where: { num, year } });
-        if (foundTerm) {
-          resolvedTerm = foundTerm;
-          resolvedTermId = foundTerm.id;
-        }
+      if (!Number.isInteger(termId) || termId! <= 0) {
+        throw new BadRequestException(
+          'termId is required for enrolment and must be a positive integer.',
+        );
       }
+      const resolvedTerm = await this.getOneTermById(termId!);
+      const resolvedNum = resolvedTerm.num;
+      const resolvedYear = resolvedTerm.year;
+      const resolvedTermId = resolvedTerm.id;
 
       const enrolEntity = await this.enrolmentRepository.create({
         name,
