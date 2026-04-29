@@ -1338,7 +1338,7 @@ export class ReceiptService {
       const parsedTermId = parseInt(filters.enrolTerm.trim(), 10);
       if (!isNaN(parsedTermId)) {
         qb.innerJoin('receipt.enrol', 'enrol').andWhere(
-          'enrol.id = :enrolTermId',
+          'enrol.termId = :enrolTermId',
           { enrolTermId: parsedTermId },
         );
       }

@@ -1424,7 +1424,7 @@ export class InvoiceService {
 
     const baseWhere = {
       student: { studentNumber },
-      enrol: { id: termId },
+      enrol: { termId },
     };
 
     // 1. Always try to return the active invoice (isVoided = false OR null)
@@ -1440,7 +1440,7 @@ export class InvoiceService {
       .leftJoinAndSelect('invoice.exemption', 'exemption')
       .leftJoinAndSelect('invoice.invoiceCharges', 'invoiceCharges')
       .where('student.studentNumber = :studentNumber', { studentNumber })
-      .andWhere('enrol.id = :termId', { termId })
+      .andWhere('enrol.termId = :termId', { termId })
       .andWhere('(invoice.isVoided = false OR invoice.isVoided IS NULL)')
       .getOne();
 
@@ -1618,7 +1618,7 @@ export class InvoiceService {
       .where('student.studentNumber = :studentNumber', { studentNumber })
       .andWhere('(invoice.isVoided = false OR invoice.isVoided IS NULL)')
       .select('invoice.balance', 'balance');
-    qb.andWhere('enrol.id = :termId', { termId });
+    qb.andWhere('enrol.termId = :termId', { termId });
     const invoiceFromQuery = await qb.getRawOne<{ balance: string }>();
     if (!invoiceFromQuery) return null;
     const balance = Number(invoiceFromQuery.balance);
@@ -1630,7 +1630,7 @@ export class InvoiceService {
   ): Promise<InvoiceEntity[]> {
     return this.invoiceRepository.find({
       where: {
-        enrol: { id: termId },
+        enrol: { termId },
         isVoided: false,
       },
       relations: [
@@ -1648,7 +1648,7 @@ export class InvoiceService {
     termId: number,
   ): Promise<InvoiceEntity[]> {
     return this.invoiceRepository.find({
-      where: { enrol: { id: termId } },
+      where: { enrol: { termId } },
       relations: [
         'student',
         'enrol',
@@ -1806,7 +1806,7 @@ export class InvoiceService {
       const parsedTermId = parseInt(filters.enrolTerm.trim(), 10);
       if (!isNaN(parsedTermId)) {
         qb.innerJoin('invoice.enrol', 'enrol').andWhere(
-          'enrol.id = :enrolTermId',
+          'enrol.termId = :enrolTermId',
           { enrolTermId: parsedTermId },
         );
       }
@@ -1881,7 +1881,7 @@ export class InvoiceService {
     termId: number,
   ): Promise<InvoiceStatsModel[]> {
     const invoices = await this.invoiceRepository.find({
-      where: { enrol: { id: termId } },
+      where: { enrol: { termId } },
       relations: ['student', 'enrol', 'balanceBfwd', 'bills', 'bills.fees'],
     });
 
