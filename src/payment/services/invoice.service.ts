@@ -1,5 +1,5 @@
 /* eslint-disable prettier/prettier */
-import { Injectable, Logger, NotImplementedException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, IsNull, Like, Not, Or, Repository } from 'typeorm';
 import * as PDFDocument from 'pdfkit';
@@ -157,8 +157,8 @@ export class InvoiceService {
     );
 
     if (!enrol) {
-      throw new NotImplementedException(
-        `Student ${studentNumber} not enrolled in term ${termId}`,
+      throw new NotFoundException(
+        `Student ${studentNumber} is not enrolled in the selected term (${termId}).`,
       );
     }
 
