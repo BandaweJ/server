@@ -37,6 +37,7 @@ import { FinanceService } from 'src/finance/finance.service';
 import { FeesNames } from 'src/finance/models/fees-names.enum';
 import { Residence } from 'src/enrolment/models/residence.model';
 import { TermType } from 'src/enrolment/models/term-type.enum';
+import { TermsEntity } from 'src/enrolment/entities/term.entity';
 import {
   BulkClassInvoiceRequestDto,
   BulkClassInvoiceResponseDto,
@@ -45,6 +46,11 @@ import {
 @Injectable()
 export class PaymentService {
   private readonly logger = new Logger(PaymentService.name);
+  private static readonly NEWCOMER_ONLY_FEES = new Set<FeesNames>([
+    FeesNames.deskFee,
+    FeesNames.oLevelApplicationFee,
+    FeesNames.aLevelApplicationFee,
+  ]);
 
   constructor(
     @InjectRepository(AccountsEntity)
@@ -663,53 +669,6 @@ export class PaymentService {
     return Residence.Boarder;
   }
 
-  private buildFeeTemplateByResidence(
-    classBills: Awaited<ReturnType<FinanceService['getBillsByEnrolment']>>,
-    className: string,
-  ): Map<Residence, Set<number>> {
-    const templates = new Map<Residence, Set<number>>();
-    const grouped = new Map<Residence, Map<string, Set<number>>>();
-
-    for (const bill of classBills) {
-      const enrol = bill.enrol;
-      const studentNumber = bill.student?.studentNumber;
-      const feeId = bill.fees?.id;
-      if (!enrol || !studentNumber || !feeId || enrol.name !== className) continue;
-
-      const residence = this.normalizeResidence(enrol.residence);
-      const byStudent = grouped.get(residence) ?? new Map<string, Set<number>>();
-      const feeSet = byStudent.get(studentNumber) ?? new Set<number>();
-      feeSet.add(feeId);
-      byStudent.set(studentNumber, feeSet);
-      grouped.set(residence, byStudent);
-    }
-
-    for (const [residence, byStudent] of grouped.entries()) {
-      const signatureCounts = new Map<string, { count: number; feeIds: number[] }>();
-      for (const fees of byStudent.values()) {
-        const feeIds = Array.from(fees).sort((a, b) => a - b);
-        const signature = feeIds.join(',');
-        const existing = signatureCounts.get(signature);
-        if (existing) {
-          existing.count += 1;
-        } else {
-          signatureCounts.set(signature, { count: 1, feeIds });
-        }
-      }
-
-      const selected = Array.from(signatureCounts.values()).sort((a, b) => {
-        if (b.count !== a.count) return b.count - a.count;
-        return b.feeIds.length - a.feeIds.length;
-      })[0];
-
-      if (selected) {
-        templates.set(residence, new Set(selected.feeIds));
-      }
-    }
-
-    return templates;
-  }
-
   private buildVacationFeeTemplateByResidence(
     fees: Awaited<ReturnType<FinanceService['getAllFees']>>,
   ): Map<Residence, Set<number>> {
@@ -727,6 +686,27 @@ export class PaymentService {
     }
 
     return templates;
+  }
+
+  private async resolvePreviousRegularTerm(
+    currentTerm: TermsEntity,
+  ): Promise<TermsEntity | null> {
+    const terms = await this.enrolmentService.getAllTerms();
+    const regularTerms = terms
+      .filter((term) => (term.type ?? TermType.REGULAR) === TermType.REGULAR)
+      .sort((a, b) => {
+        if (a.year !== b.year) return a.year - b.year;
+        if (a.num !== b.num) return a.num - b.num;
+        return a.id - b.id;
+      });
+
+    const currentIndex = regularTerms.findIndex((term) => term.id === currentTerm.id);
+    if (currentIndex <= 0) return null;
+    return regularTerms[currentIndex - 1];
+  }
+
+  private isNewcomerOnlyFee(name?: FeesNames): boolean {
+    return !!name && PaymentService.NEWCOMER_ONLY_FEES.has(name);
   }
 
   async bulkInvoiceClassTerm(
@@ -755,24 +735,19 @@ export class PaymentService {
     }
 
     const allFees = await this.financeService.getAllFees();
-    const billsForTerm =
-      termType === TermType.VACATION
-        ? []
-        : await this.financeService.getBillsByEnrolment(term.id);
+    const previousRegularTerm =
+      termType === TermType.REGULAR
+        ? await this.resolvePreviousRegularTerm(term)
+        : null;
 
     const templateByResidence =
       termType === TermType.VACATION
         ? this.buildVacationFeeTemplateByResidence(allFees)
-        : this.buildFeeTemplateByResidence(billsForTerm, className);
+        : new Map<Residence, Set<number>>();
 
-    if (!templateByResidence.size) {
-      if (termType === TermType.VACATION) {
-        throw new BadRequestException(
-          `Vacation fee definitions are missing. Configure ${FeesNames.vacationTuitionDay} and ${FeesNames.vacationTuitionBoarder} first.`,
-        );
-      }
+    if (termType === TermType.VACATION && !templateByResidence.size) {
       throw new BadRequestException(
-        `No configured bills were found for class ${className} in term ${termNum}/${termYear}. Configure bills first.`,
+        `Vacation fee definitions are missing. Configure ${FeesNames.vacationTuitionDay} and ${FeesNames.vacationTuitionBoarder} first.`,
       );
     }
 
@@ -788,32 +763,83 @@ export class PaymentService {
           ? `${student?.surname ?? ''} ${student?.name ?? ''}`.trim()
           : undefined;
       const normalizedResidence = this.normalizeResidence(enrol.residence);
-      const templateFeeIds = templateByResidence.get(normalizedResidence);
+      let templateFees: typeof allFees = [];
 
-      if (!templateFeeIds || templateFeeIds.size === 0) {
-        results.push({
+      if (termType === TermType.VACATION) {
+        const templateFeeIds = templateByResidence.get(normalizedResidence);
+        if (!templateFeeIds || templateFeeIds.size === 0) {
+          results.push({
+            studentNumber,
+            studentName,
+            success: false,
+            termType,
+            residence: normalizedResidence,
+            error: `Missing configured fees for ${normalizedResidence} students in ${termType} term.`,
+          });
+          continue;
+        }
+
+        templateFees = allFees.filter(
+          (fee) => !!fee?.id && templateFeeIds.has(fee.id),
+        );
+      } else {
+        if (!previousRegularTerm) {
+          results.push({
+            studentNumber,
+            studentName,
+            success: true,
+            skipped: true,
+            message:
+              'Skipped: no previous regular term exists to use as a billing template.',
+            termType,
+            residence: normalizedResidence,
+          });
+          continue;
+        }
+
+        const previousInvoice = await this.invoiceService.getStudentInvoiceForTerm(
           studentNumber,
-          studentName,
-          success: false,
-          termType,
-          residence: normalizedResidence,
-          error: `Missing configured fees for ${normalizedResidence} students in ${termType} term.`,
-        });
-        continue;
-      }
+          previousRegularTerm.id,
+        );
+        if (!previousInvoice?.bills?.length) {
+          results.push({
+            studentNumber,
+            studentName,
+            success: true,
+            skipped: true,
+            message: `Skipped: no invoice found in previous regular term (${previousRegularTerm.num}/${previousRegularTerm.year}).`,
+            termType,
+            residence: normalizedResidence,
+          });
+          continue;
+        }
 
-      const templateFees = allFees.filter(
-        (fee) => !!fee?.id && templateFeeIds.has(fee.id),
-      );
+        templateFees = previousInvoice.bills
+          .map((bill) => bill.fees)
+          .filter(
+            (fee, index, fees) =>
+              !!fee?.id &&
+              !this.isNewcomerOnlyFee(fee.name as FeesNames) &&
+              fees.findIndex((candidate) => candidate?.id === fee.id) === index,
+          );
+      }
 
       if (!templateFees.length) {
         results.push({
           studentNumber,
           studentName,
-          success: false,
+          success: termType !== TermType.VACATION,
+          skipped: termType !== TermType.VACATION,
+          message:
+            termType === TermType.VACATION
+              ? undefined
+              : 'Skipped: previous invoice has no billable fees after excluding newcomer-only fees.',
           termType,
           residence: normalizedResidence,
-          error: `No matching fee definitions found for ${normalizedResidence} students.`,
+          error:
+            termType === TermType.VACATION
+              ? `No matching fee definitions found for ${normalizedResidence} students.`
+              : undefined,
         });
         continue;
       }

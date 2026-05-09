@@ -44,6 +44,12 @@ export class BulkClassInvoiceStudentResultDto {
 
   @ApiProperty({ required: false })
   error?: string;
+
+  @ApiProperty({ required: false, default: false })
+  skipped?: boolean;
+
+  @ApiProperty({ required: false })
+  message?: string;
 }
 
 export class BulkClassInvoiceResponseDto {

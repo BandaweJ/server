@@ -1857,6 +1857,27 @@ export class InvoiceService {
     });
   }
 
+  async getStudentInvoiceForTerm(
+    studentNumber: string,
+    termId: number,
+  ): Promise<InvoiceEntity | null> {
+    return this.invoiceRepository.findOne({
+      where: {
+        student: { studentNumber },
+        enrol: { termId },
+        isVoided: false,
+      },
+      relations: [
+        'student',
+        'enrol',
+        'balanceBfwd',
+        'bills',
+        'bills.fees',
+        'exemption',
+      ],
+    });
+  }
+
   async getStudentInvoicesForAudit(
     studentNumber: string,
   ): Promise<InvoiceEntity[]> {
