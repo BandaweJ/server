@@ -128,6 +128,7 @@ export class ReportsService {
       num,
       year,
       examType,
+      termId,
     );
 
     // 9) Merge in existing saved report metadata (headComment, id)
@@ -364,6 +365,7 @@ export class ReportsService {
     num: number,
     year: number,
     examType: string,
+    termId?: number,
   ): ReportsModel[] {
     const reps: ReportsModel[] = [];
 
@@ -376,6 +378,7 @@ export class ReportsService {
       rep.studentNumber = report.studentNumber;
       rep.year = year;
       rep.examType = examType;
+      rep.termId = termId ?? null; // Always carry termId through to the frontend
 
       reps.push(rep);
     });
@@ -407,13 +410,16 @@ export class ReportsService {
         return;
       }
 
+      // Always merge the DB id and termId so the frontend can send them back
+      generated.id = saved.id;
+      generated.termId = saved.termId ?? generated.termId;
+
       // Head's comment (existing behaviour)
       if (saved.report.headComment) {
         generated.report.headComment = saved.report.headComment;
-        generated.id = saved.id;
       }
 
-      // NEW: class/form teacher comment primarily comes from the saved report JSON
+      // class/form teacher comment comes from the saved report JSON
       if (saved.report.classTrComment) {
         generated.report.classTrComment = saved.report.classTrComment;
       }
