@@ -31,6 +31,7 @@ import { NotificationService } from '../notifications/services/notification.serv
 import { ResourceByIdService } from '../resource-by-id/resource-by-id.service';
 import { ReportReleaseService } from '../system/report-release.service';
 import { InvoiceService } from '../payment/services/invoice.service';
+import { ReceiptService } from '../payment/services/receipt.service';
 import {
   OpenAIService,
   RoleCommentContext,
@@ -54,6 +55,7 @@ export class ReportsService {
     private resourceById: ResourceByIdService,
     private reportReleaseService: ReportReleaseService,
     private invoiceService: InvoiceService,
+    private receiptService: ReceiptService,
     private openAIService: OpenAIService,
   ) {}
 
@@ -1312,21 +1314,26 @@ export class ReportsService {
     }
 
     // Students and parents: allow download when there is no outstanding debt
-    // for the term (zero or credit balances are allowed).
+    // for the term, or when the overall account is fully paid or in credit.
     if (profile instanceof StudentsEntity || profile instanceof ParentsEntity) {
-      const balance = await this.invoiceService.getBalanceForStudentTerm(
-        studentNumber,
-        termId,
-      );
-      const balanceNumber = Number(balance);
-      if (
-        balance !== null &&
-        Number.isFinite(balanceNumber) &&
-        balanceNumber > 0
-      ) {
-        throw new ForbiddenException(
-          'Report not available for download due to pending balance for this term.',
-        );
+      const [{ amountDue }, termBalance] = await Promise.all([
+        this.receiptService.getStudentBalance(studentNumber),
+        this.invoiceService.getBalanceForStudentTerm(studentNumber, termId),
+      ]);
+
+      if (amountDue <= 0) {
+        // Student has paid in full or has account credit.
+      } else {
+        const balanceNumber = Number(termBalance);
+        if (
+          termBalance !== null &&
+          Number.isFinite(balanceNumber) &&
+          balanceNumber > 0
+        ) {
+          throw new ForbiddenException(
+            'Report not available for download due to pending balance for this term.',
+          );
+        }
       }
     }
 
