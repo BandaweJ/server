@@ -506,6 +506,15 @@ export class AuthService {
     } else if (role === ROLES.parent) {
       // For parents, load with linked students so frontend can restrict finance/reports to their children
       userDetails = await this.resourceById.getParentByEmail(id, true);
+      this.logger.log(`Fetching parent details for ${id}`, {
+        hasStudentsRelation: !!userDetails?.students,
+        studentCount: userDetails?.students?.length ?? 0,
+        students:
+          userDetails?.students?.map((s) => ({
+            studentNumber: s.studentNumber,
+            name: s.name,
+          })) ?? [],
+      });
     }
 
     if (!userDetails) {
@@ -513,12 +522,29 @@ export class AuthService {
     }
 
     // Add username to the user details
-    return {
+    let result: any = {
       ...userDetails,
       username: account.username,
       accountId: account.id,
       role: account.role,
     };
+
+    // For parents, explicitly ensure students array is included (avoid serialization issues)
+    if (role === ROLES.parent && userDetails && 'students' in userDetails) {
+      result.students = (userDetails.students || []).map((s) => ({
+        studentNumber: s.studentNumber,
+        name: s.name,
+        surname: s.surname,
+      }));
+    }
+
+    this.logger.log(`fetchUserDetails response for role=${role}`, {
+      id,
+      hasStudents: 'students' in result,
+      studentCount: result.students?.length ?? 0,
+    });
+
+    return result;
   }
 
   async getAllAccounts() {
@@ -704,7 +730,10 @@ export class AuthService {
 
     if (updateData.role) {
       // Keep account role, roleId and teacher profile role consistent.
-      await this.rolesPermissionsService.syncAccountRoleByName(id, updateData.role);
+      await this.rolesPermissionsService.syncAccountRoleByName(
+        id,
+        updateData.role,
+      );
     }
 
     return {
@@ -757,9 +786,12 @@ export class AuthService {
           metadata: { username: account.username, active: updateData.active },
         });
       } catch (error) {
-        this.logger.warn('Failed to log profile activation/deactivation activity', {
-          error: error instanceof Error ? error.message : String(error),
-        });
+        this.logger.warn(
+          'Failed to log profile activation/deactivation activity',
+          {
+            error: error instanceof Error ? error.message : String(error),
+          },
+        );
       }
 
       // Remove active from updateData so it doesn't get passed to profile update
