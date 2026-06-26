@@ -1,7 +1,15 @@
 /* eslint-disable prettier/prettier */
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, IsNull, Like, Not, Or, Repository } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  IsNull,
+  Like,
+  Not,
+  Or,
+  Repository,
+} from 'typeorm';
 import * as PDFDocument from 'pdfkit';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -25,6 +33,7 @@ import { InvoiceStatsModel } from 'src/finance/models/invoice-stats.model';
 import { FeesNames } from 'src/finance/models/fees-names.enum';
 import { ExemptionEntity } from 'src/exemptions/entities/exemptions.entity';
 import { ExemptionType } from 'src/exemptions/enums/exemptions-type.enum';
+import { TermType } from 'src/enrolment/models/term-type.enum';
 import { ReceiptEntity } from '../entities/payment.entity';
 import { CreditInvoiceAllocationEntity } from '../entities/credit-invoice-allocation.entity';
 import { ReceiptInvoiceAllocationEntity } from '../entities/receipt-invoice-allocation.entity';
@@ -45,7 +54,10 @@ import { EnrolEntity } from 'src/enrolment/entities/enrol.entity';
 import { FeesEntity } from 'src/finance/entities/fees.entity';
 import { logStructured } from '../utils/logger.util';
 import { AuditService } from './audit.service';
-import { sanitizeAmount, sanitizeOptionalAmount } from '../utils/sanitization.util';
+import {
+  sanitizeAmount,
+  sanitizeOptionalAmount,
+} from '../utils/sanitization.util';
 import { InvoiceResponseDto } from '../dtos/invoice-response.dto';
 import { NotificationService } from '../../notifications/services/notification.service';
 import { SystemSettingsService } from 'src/system/services/system-settings.service';
@@ -198,7 +210,8 @@ export class InvoiceService {
       invoice.balance = sanitizeOptionalAmount(invoice.balance);
     }
 
-    const studentNumber = invoice.studentNumber || invoice.student?.studentNumber;
+    const studentNumber =
+      invoice.studentNumber || invoice.student?.studentNumber;
     const termId = invoice.termId || invoice.enrol?.termId;
 
     if (!studentNumber) {
@@ -208,9 +221,7 @@ export class InvoiceService {
     }
 
     if (termId === undefined) {
-      throw new MissingRequiredFieldException('termId', [
-        'enrol entity',
-      ]);
+      throw new MissingRequiredFieldException('termId', ['enrol entity']);
     }
 
     // Optional balance brought forward (legacy opening balance).
@@ -218,18 +229,12 @@ export class InvoiceService {
     // amount is incorporated into the first invoice's total.
     const dtoBalanceBfwd: BalancesEntity | undefined = invoice.balanceBfwd;
 
-    logStructured(
-      this.logger,
-      'log',
-      'invoice.save.start',
-      'Saving invoice',
-      {
-        studentNumber,
-        termId,
-        invoiceNumber: invoice.invoiceNumber,
-        billsCount: invoice.bills?.length || 0,
-      },
-    );
+    logStructured(this.logger, 'log', 'invoice.save.start', 'Saving invoice', {
+      studentNumber,
+      termId,
+      invoiceNumber: invoice.invoiceNumber,
+      billsCount: invoice.bills?.length || 0,
+    });
 
     let isNewInvoice = false;
     const finalInvoice: InvoiceEntity = await this.dataSource.transaction(
@@ -274,12 +279,16 @@ export class InvoiceService {
           }
 
           if (!enrol) {
-            throw new MissingRequiredFieldException('enrolment', [
-              'termId',
-            ]);
+            throw new MissingRequiredFieldException('enrolment', ['termId']);
           }
 
           const studentExemption = student.exemption;
+          const vacationTerm = await this.isVacationTerm(
+            enrol,
+            transactionalEntityManager,
+          );
+          const effectiveExemption = vacationTerm ? null : studentExemption;
+
           let bills: BillsEntity[] = [];
 
           bills =
@@ -337,7 +346,9 @@ export class InvoiceService {
                 },
               );
               throw new MissingRequiredFieldException('bill.fees.amount', [
-                `Bill ${bill.id || 'unknown'} fees object is missing amount property`,
+                `Bill ${
+                  bill.id || 'unknown'
+                } fees object is missing amount property`,
               ]);
             }
           }
@@ -349,7 +360,7 @@ export class InvoiceService {
 
           const calculatedNetTotalBill = this.calculateNetBillAmount(
             bills,
-            studentExemption,
+            effectiveExemption,
           );
 
           // Variable-amount charges (e.g. approved lost/damage incidents) that must be billed
@@ -386,7 +397,7 @@ export class InvoiceService {
               },
             );
           }
-          
+
           // If not found by ID, try to find by invoiceNumber
           if (!foundInvoice && invoice.invoiceNumber) {
             foundInvoice = await transactionalEntityManager.findOne(
@@ -411,48 +422,59 @@ export class InvoiceService {
               },
             },
           );
-          
+
           // Filter out the invoice being updated (if it exists) to avoid double-counting
           const invoicesToCount = foundInvoice
             ? existingInvoices.filter((inv) => inv.id !== foundInvoice!.id)
             : existingInvoices;
-          
+
           // Ensure proper numeric conversion - handle both string and number types
           // TypeORM may return decimal values as strings, so we need explicit conversion
-          const existingInvoicesTotal = invoicesToCount.reduce(
-            (sum, inv) => {
-              const totalBill = inv.totalBill;
-              // Convert to number, handling both string and number types
-              // Use parseFloat for strings to handle decimal values properly, and ensure it's a number
-              let numericValue: number;
-              if (typeof totalBill === 'string') {
-                // Remove any non-numeric characters except decimal point and minus sign
-                const cleaned = String(totalBill).replace(/[^0-9.-]/g, '');
-                numericValue = parseFloat(cleaned) || 0;
-              } else {
-                numericValue = Number(totalBill) || 0;
-              }
-              
-              // Debug logging to catch string concatenation issues
-              if (isNaN(numericValue) || !isFinite(numericValue)) {
-                this.logger.error(`Invalid totalBill value for invoice ${inv.invoiceNumber}: ${totalBill} (type: ${typeof totalBill}, raw: ${JSON.stringify(totalBill)})`);
-                return sum; // Skip invalid values
-              }
-              
-              // Ensure we're doing numeric addition, not string concatenation
-              const newSum = Number(sum) + numericValue;
-              if (isNaN(newSum) || !isFinite(newSum)) {
-                this.logger.error(`Invalid sum calculation: sum=${sum}, numericValue=${numericValue}, result=${newSum}`);
-                return sum; // Return previous sum if calculation fails
-              }
-              
-              return newSum;
-            },
-            0,
-          );
+          const existingInvoicesTotal = invoicesToCount.reduce((sum, inv) => {
+            const totalBill = inv.totalBill;
+            // Convert to number, handling both string and number types
+            // Use parseFloat for strings to handle decimal values properly, and ensure it's a number
+            let numericValue: number;
+            if (typeof totalBill === 'string') {
+              // Remove any non-numeric characters except decimal point and minus sign
+              const cleaned = String(totalBill).replace(/[^0-9.-]/g, '');
+              numericValue = parseFloat(cleaned) || 0;
+            } else {
+              numericValue = Number(totalBill) || 0;
+            }
+
+            // Debug logging to catch string concatenation issues
+            if (isNaN(numericValue) || !isFinite(numericValue)) {
+              this.logger.error(
+                `Invalid totalBill value for invoice ${
+                  inv.invoiceNumber
+                }: ${totalBill} (type: ${typeof totalBill}, raw: ${JSON.stringify(
+                  totalBill,
+                )})`,
+              );
+              return sum; // Skip invalid values
+            }
+
+            // Ensure we're doing numeric addition, not string concatenation
+            const newSum = Number(sum) + numericValue;
+            if (isNaN(newSum) || !isFinite(newSum)) {
+              this.logger.error(
+                `Invalid sum calculation: sum=${sum}, numericValue=${numericValue}, result=${newSum}`,
+              );
+              return sum; // Return previous sum if calculation fails
+            }
+
+            return newSum;
+          }, 0);
 
           // Debug logging to verify calculation
-          this.logger.debug(`Invoice validation - termId: ${termId}, Is update: ${!!foundInvoice}, Existing invoices count: ${invoicesToCount.length}, Existing total: ${existingInvoicesTotal}, New/Updated invoice: ${calculatedNetTotalBill}, Combined: ${existingInvoicesTotal + calculatedNetTotalBill}`);
+          this.logger.debug(
+            `Invoice validation - termId: ${termId}, Is update: ${!!foundInvoice}, Existing invoices count: ${
+              invoicesToCount.length
+            }, Existing total: ${existingInvoicesTotal}, New/Updated invoice: ${calculatedNetTotalBill}, Combined: ${
+              existingInvoicesTotal + calculatedNetTotalBill
+            }`,
+          );
 
           this.financialValidationService.validateMaximumInvoiceAmountPerTerm(
             calculatedNetTotalBill,
@@ -486,7 +508,9 @@ export class InvoiceService {
                   ? { enrolId: enrol.id }
                   : { enrolId: enrol.id },
               )
-              .andWhere('(invoice.isVoided = false OR invoice.isVoided IS NULL)')
+              .andWhere(
+                '(invoice.isVoided = false OR invoice.isVoided IS NULL)',
+              )
               .getOne();
           } else {
             // If we found it earlier, we need to load the full relations
@@ -501,7 +525,7 @@ export class InvoiceService {
               .where('invoice.id = :id', { id: foundInvoice.id })
               .getOne();
           }
-          
+
           isNewInvoice = !foundInvoice;
           const resolvedBalanceBfwd = await this.resolveBalanceBfwdForInvoice(
             dtoBalanceBfwd,
@@ -529,7 +553,8 @@ export class InvoiceService {
           if (foundInvoice) {
             invoiceToSave = foundInvoice;
 
-            invoiceToSave.totalBill = calculatedNetTotalBill + pendingChargesTotal;
+            invoiceToSave.totalBill =
+              calculatedNetTotalBill + pendingChargesTotal;
             invoiceToSave.bills = bills;
             invoiceToSave.invoiceDate = invoice.invoiceDate
               ? new Date(invoice.invoiceDate)
@@ -561,23 +586,25 @@ export class InvoiceService {
             // When updating an existing invoice, recalculate amountPaidOnInvoice from allocations
             // This prevents double-counting credits that might already be in the stored value
             // Credit should only be applied explicitly by the user or during reconciliation
-            
+
             // Load receipt allocations
-            const existingReceiptAllocations = await transactionalEntityManager.find(
-              ReceiptInvoiceAllocationEntity,
-              {
-                where: { invoice: { id: invoiceToSave.id } },
-              },
-            );
+            const existingReceiptAllocations =
+              await transactionalEntityManager.find(
+                ReceiptInvoiceAllocationEntity,
+                {
+                  where: { invoice: { id: invoiceToSave.id } },
+                },
+              );
 
             // Load credit allocations
-            const existingCreditAllocations = await transactionalEntityManager.find(
-              CreditInvoiceAllocationEntity,
-              {
-                where: { invoice: { id: invoiceToSave.id } },
-                relations: ['studentCredit'],
-              },
-            );
+            const existingCreditAllocations =
+              await transactionalEntityManager.find(
+                CreditInvoiceAllocationEntity,
+                {
+                  where: { invoice: { id: invoiceToSave.id } },
+                  relations: ['studentCredit'],
+                },
+              );
 
             // Sum receipt allocations
             const receiptAllocationsTotal = existingReceiptAllocations.reduce(
@@ -593,7 +620,8 @@ export class InvoiceService {
 
             // Recalculate amountPaidOnInvoice from allocations (not from stored value)
             // This ensures we don't double-count credits
-            invoiceToSave.amountPaidOnInvoice = receiptAllocationsTotal + creditAllocationsTotal;
+            invoiceToSave.amountPaidOnInvoice =
+              receiptAllocationsTotal + creditAllocationsTotal;
 
             // If total was reduced (e.g. bills removed), cap amount paid at totalBill, create
             // student credit for excess, reduce allocations, then apply credit to next open invoice
@@ -612,7 +640,7 @@ export class InvoiceService {
 
             this.updateInvoiceBalance(invoiceToSave, false);
             this.verifyInvoiceBalance(invoiceToSave);
-            invoiceToSave.exemption = studentExemption || null;
+            invoiceToSave.exemption = effectiveExemption || null;
             invoiceToSave.status = this.getInvoiceStatus(invoiceToSave);
           } else {
             invoiceToSave = new InvoiceEntity();
@@ -626,17 +654,18 @@ export class InvoiceService {
               invoiceToSave.balanceBfwd = resolvedBalanceBfwd;
             }
 
-          // NEW INVOICE: always generate a fresh invoice number on the server
-          // to avoid duplicate key violations on the unique invoiceNumber constraint.
-          // We deliberately ignore any invoiceNumber coming from the client for new invoices.
-          invoiceToSave.invoiceNumber = await this.generateInvoiceNumber();
+            // NEW INVOICE: always generate a fresh invoice number on the server
+            // to avoid duplicate key violations on the unique invoiceNumber constraint.
+            // We deliberately ignore any invoiceNumber coming from the client for new invoices.
+            invoiceToSave.invoiceNumber = await this.generateInvoiceNumber();
             invoiceToSave.invoiceDate = invoice.invoiceDate
               ? new Date(invoice.invoiceDate)
               : new Date();
             invoiceToSave.invoiceDueDate = invoice.invoiceDueDate
               ? new Date(invoice.invoiceDueDate)
               : new Date();
-            invoiceToSave.totalBill = calculatedNetTotalBill + pendingChargesTotal;
+            invoiceToSave.totalBill =
+              calculatedNetTotalBill + pendingChargesTotal;
 
             const balanceBfwdAmountForNew = invoiceToSave.balanceBfwd
               ? Number(invoiceToSave.balanceBfwd.amount)
@@ -658,13 +687,12 @@ export class InvoiceService {
 
             this.updateInvoiceBalance(invoiceToSave);
             this.verifyInvoiceBalance(invoiceToSave);
-            invoiceToSave.exemption = studentExemption || null;
+            invoiceToSave.exemption = effectiveExemption || null;
             invoiceToSave.status = this.getInvoiceStatus(invoiceToSave);
           }
 
-          invoiceToSave.exemptedAmount = this._calculateExemptionAmount(
-            invoiceToSave,
-          );
+          invoiceToSave.exemptedAmount =
+            this._calculateExemptionAmount(invoiceToSave);
           this.financialValidationService.validateInvoiceBeforeSave(
             invoiceToSave,
           );
@@ -678,7 +706,12 @@ export class InvoiceService {
             'log',
             'invoice.save.postReconciliation',
             'Reconciling student finances after saving invoice',
-            { studentNumber, invoiceId: saved.id, invoiceNumber: saved.invoiceNumber, isNewInvoice },
+            {
+              studentNumber,
+              invoiceId: saved.id,
+              invoiceNumber: saved.invoiceNumber,
+              isNewInvoice,
+            },
           );
           await this.reconcileStudentFinances(
             student.studentNumber,
@@ -690,7 +723,7 @@ export class InvoiceService {
               skipFullReallocation: true, // Lightweight only; full reallocation already ran pre-save for new invoices
             },
           );
-          
+
           // Reload the invoice after reconciliation to get fresh data
           // Do NOT load creditAllocations yet - we insert them via raw SQL later; loading them here would let TypeORM UPDATE them (with null invoiceId) when we save the invoice
           const reloadedInvoice = await transactionalEntityManager.findOne(
@@ -728,7 +761,7 @@ export class InvoiceService {
             reloadedInvoice,
             transactionalEntityManager,
           );
-          
+
           // Reload with allocations so balance verification uses full amount paid (receipt + credit)
           const finalInvoice = await transactionalEntityManager.findOne(
             InvoiceEntity,
@@ -754,7 +787,10 @@ export class InvoiceService {
               'error',
               'invoice.save.finalReloadFailed',
               'Failed to reload invoice after balance update',
-              { invoiceId: reloadedInvoice.id, invoiceNumber: reloadedInvoice.invoiceNumber },
+              {
+                invoiceId: reloadedInvoice.id,
+                invoiceNumber: reloadedInvoice.invoiceNumber,
+              },
             );
             throw new Error(
               `Failed to reload invoice ${reloadedInvoice.invoiceNumber} after balance update`,
@@ -767,12 +803,17 @@ export class InvoiceService {
           const calculated = this.calculateInvoiceBalance(finalInvoice);
           const actualBalance = Number(finalInvoice.balance || 0);
           const tolerance = 0.01;
-          
+
           // Allow for overpayments: if calculated balance is negative but stored is 0,
           // that's acceptable (overpayment was corrected by reconciliation)
-          const calculatedBalanceForComparison = Math.max(0, calculated.balance);
-          
-          if (Math.abs(calculatedBalanceForComparison - actualBalance) > tolerance) {
+          const calculatedBalanceForComparison = Math.max(
+            0,
+            calculated.balance,
+          );
+
+          if (
+            Math.abs(calculatedBalanceForComparison - actualBalance) > tolerance
+          ) {
             logStructured(
               this.logger,
               'error',
@@ -803,7 +844,7 @@ export class InvoiceService {
           if (creditAllocationsData.length > 0) {
             // Use the final invoice ID (after reconciliation) to ensure we have the correct ID
             const invoiceIdToUse = finalInvoice.id;
-            
+
             if (!invoiceIdToUse) {
               logStructured(
                 this.logger,
@@ -871,7 +912,10 @@ export class InvoiceService {
                 StudentCreditEntity,
                 { where: { studentNumber } },
               );
-              const studentCreditIdToUse = studentCreditRef?.id != null ? Number(studentCreditRef.id) : null;
+              const studentCreditIdToUse =
+                studentCreditRef?.id != null
+                  ? Number(studentCreditRef.id)
+                  : null;
 
               if (studentCreditIdToUse == null) {
                 // Student has no credit record (or it wasn't found) - skip allocation insert but still succeed
@@ -881,16 +925,26 @@ export class InvoiceService {
                   'warn',
                   'invoice.save.creditAllocation.skippedNoStudentCredit',
                   'Skipping credit allocation insert (no student credit found) - invoice saved successfully',
-                  { studentNumber, invoiceId: invoiceIdToUse, invoiceNumber: finalInvoice.invoiceNumber },
+                  {
+                    studentNumber,
+                    invoiceId: invoiceIdToUse,
+                    invoiceNumber: finalInvoice.invoiceNumber,
+                  },
                 );
               } else {
                 // Raw INSERT: TypeORM InsertQueryBuilder can ignore relation join columns (studentCreditId, invoiceId), so use parameterized SQL
                 const allocationDate = new Date();
                 const invoiceIdVal = Number(invoiceRef.id);
-                const cols = '"studentCreditId", "invoiceId", "amountApplied", "relatedReceiptId", "allocationDate"';
-                const placeholders = creditAllocationsData.map(
-                  (_, i) => `($${i * 5 + 1}, $${i * 5 + 2}, $${i * 5 + 3}, $${i * 5 + 4}, $${i * 5 + 5})`,
-                ).join(', ');
+                const cols =
+                  '"studentCreditId", "invoiceId", "amountApplied", "relatedReceiptId", "allocationDate"';
+                const placeholders = creditAllocationsData
+                  .map(
+                    (_, i) =>
+                      `($${i * 5 + 1}, $${i * 5 + 2}, $${i * 5 + 3}, $${
+                        i * 5 + 4
+                      }, $${i * 5 + 5})`,
+                  )
+                  .join(', ');
                 const params = creditAllocationsData.flatMap((d) => [
                   studentCreditIdToUse,
                   invoiceIdVal,
@@ -1082,7 +1136,9 @@ export class InvoiceService {
         ? sanitizeOptionalAmount(parsedAmount)
         : 0;
     const fallbackStudentNumber = dtoBalanceBfwd.studentNumber || studentNumber;
-    const requestedId = dtoBalanceBfwd.id ? Number(dtoBalanceBfwd.id) : undefined;
+    const requestedId = dtoBalanceBfwd.id
+      ? Number(dtoBalanceBfwd.id)
+      : undefined;
 
     if (requestedId) {
       const existingBalance = await transactionalEntityManager.findOne(
@@ -1152,9 +1208,7 @@ export class InvoiceService {
   /**
    * Send email notification for invoice
    */
-  private async sendInvoiceNotification(
-    invoice: InvoiceEntity,
-  ): Promise<void> {
+  private async sendInvoiceNotification(invoice: InvoiceEntity): Promise<void> {
     try {
       const student = invoice.student;
       if (!student) return;
@@ -1166,7 +1220,8 @@ export class InvoiceService {
       } else {
         // Parent relation not loaded, fetch it
         try {
-          const studentRepo = this.invoiceRepository.manager.getRepository(StudentsEntity);
+          const studentRepo =
+            this.invoiceRepository.manager.getRepository(StudentsEntity);
           const studentWithParent = await studentRepo.findOne({
             where: { studentNumber: student.studentNumber },
             relations: ['parent'],
@@ -1457,14 +1512,14 @@ export class InvoiceService {
           isVoided: activeInvoice.isVoided,
         },
       );
-      
+
       // Check if there's a voided invoice to show warning
       // No ordering needed - student + term uniquely identifies one invoice
       const voidedInvoice = await this.invoiceRepository.findOne({
         where: { ...baseWhere, isVoided: true },
         select: ['id', 'invoiceNumber', 'voidedAt', 'voidedBy'],
       });
-      
+
       const response: InvoiceResponseDto = {
         invoice: activeInvoice,
       };
@@ -1486,11 +1541,13 @@ export class InvoiceService {
           0,
         );
         response.warning = response.warning ?? {
-          message: `This student has approved lost/damage charges pending invoicing: ${pendingCharges.length} item(s), total ${total.toFixed(2)}.`,
+          message: `This student has approved lost/damage charges pending invoicing: ${
+            pendingCharges.length
+          } item(s), total ${total.toFixed(2)}.`,
         };
         response.pendingCharges = pendingCharges;
       }
-      
+
       if (voidedInvoice) {
         response.warning = {
           message: `A voided invoice (${voidedInvoice.invoiceNumber}) exists for this student and term.`,
@@ -1499,7 +1556,7 @@ export class InvoiceService {
           voidedBy: voidedInvoice.voidedBy,
         };
       }
-      
+
       return response;
     }
 
@@ -1537,16 +1594,16 @@ export class InvoiceService {
       'No existing invoice found. Generating empty invoice skeleton.',
       { studentNumber, termId },
     );
-    
+
     const emptyInvoice = await this.generateEmptyInvoice(studentNumber, termId);
-    
+
     // Check if there's a voided invoice to show warning
     // No ordering needed - student + term uniquely identifies one invoice
     const voidedInvoice = await this.invoiceRepository.findOne({
       where: { ...baseWhere, isVoided: true },
       select: ['id', 'invoiceNumber', 'voidedAt', 'voidedBy'],
     });
-    
+
     const response: InvoiceResponseDto = {
       invoice: emptyInvoice,
     };
@@ -1569,12 +1626,14 @@ export class InvoiceService {
           0,
         );
         response.warning = response.warning ?? {
-          message: `This student has approved lost/damage charges pending invoicing: ${pendingCharges.length} item(s), total ${total.toFixed(2)}.`,
+          message: `This student has approved lost/damage charges pending invoicing: ${
+            pendingCharges.length
+          } item(s), total ${total.toFixed(2)}.`,
         };
         response.pendingCharges = pendingCharges;
       }
     }
-    
+
     if (voidedInvoice) {
       response.warning = {
         message: `A voided invoice (${voidedInvoice.invoiceNumber}) exists for this student and term. A new invoice has been generated.`,
@@ -1583,7 +1642,7 @@ export class InvoiceService {
         voidedBy: voidedInvoice.voidedBy,
       };
     }
-    
+
     return response;
   }
 
@@ -1624,9 +1683,7 @@ export class InvoiceService {
     return Number.isFinite(balance) ? balance : null;
   }
 
-  async getTermInvoices(
-    termId: number,
-  ): Promise<InvoiceEntity[]> {
+  async getTermInvoices(termId: number): Promise<InvoiceEntity[]> {
     return this.invoiceRepository.find({
       where: {
         enrol: { termId },
@@ -1643,9 +1700,7 @@ export class InvoiceService {
     });
   }
 
-  async getTermInvoicesForAudit(
-    termId: number,
-  ): Promise<InvoiceEntity[]> {
+  async getTermInvoicesForAudit(termId: number): Promise<InvoiceEntity[]> {
     return this.invoiceRepository.find({
       where: { enrol: { termId } },
       relations: [
@@ -1755,7 +1810,9 @@ export class InvoiceService {
     endDate?: string;
     enrolTerm?: string;
     termType?: 'regular' | 'vacation';
-  }): Promise<{ monthLabel: string; year: number; month: number; total: number }[]> {
+  }): Promise<
+    { monthLabel: string; year: number; month: number; total: number }[]
+  > {
     const qb = this.invoiceRepository
       .createQueryBuilder('invoice')
       .select('EXTRACT(YEAR FROM invoice.invoiceDate)', 'year')
@@ -1767,8 +1824,25 @@ export class InvoiceService {
       .orderBy('year', 'ASC')
       .addOrderBy('month', 'ASC');
     this.applyDashboardFiltersToInvoiceQuery(qb, filters);
-    const rows = await qb.getRawMany<{ year: string; month: string; total: string }>();
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const rows = await qb.getRawMany<{
+      year: string;
+      month: string;
+      total: string;
+    }>();
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return rows.map((r) => {
       const year = parseInt(String(r.year), 10) || 0;
       const month = parseInt(String(r.month), 10) || 0;
@@ -1817,7 +1891,9 @@ export class InvoiceService {
           'termPeriod',
           'termPeriod.id = termEnrol.termId',
         )
-        .andWhere('termPeriod.type = :termType', { termType: filters.termType });
+        .andWhere('termPeriod.type = :termType', {
+          termType: filters.termType,
+        });
     }
   }
 
@@ -1897,9 +1973,7 @@ export class InvoiceService {
     });
   }
 
-  async getInvoiceStats(
-    termId: number,
-  ): Promise<InvoiceStatsModel[]> {
+  async getInvoiceStats(termId: number): Promise<InvoiceStatsModel[]> {
     const invoices = await this.invoiceRepository.find({
       where: { enrol: { termId } },
       relations: ['student', 'enrol', 'balanceBfwd', 'bills', 'bills.fees'],
@@ -1951,7 +2025,11 @@ export class InvoiceService {
             addAmount('application', Number(bill.fees.amount), '3');
             break;
           case FeesNames.developmentFee:
-            addAmount('development', Number(bill.fees.amount), invoice.enrol.name);
+            addAmount(
+              'development',
+              Number(bill.fees.amount),
+              invoice.enrol.name,
+            );
             break;
           case FeesNames.deskFee:
             addAmount('desk', Number(bill.fees.amount), invoice.enrol.name);
@@ -1963,7 +2041,11 @@ export class InvoiceService {
             addAmount('science', Number(bill.fees.amount), '3');
             break;
           case FeesNames.transportFee:
-            addAmount('transport', Number(bill.fees.amount), invoice.enrol.name);
+            addAmount(
+              'transport',
+              Number(bill.fees.amount),
+              invoice.enrol.name,
+            );
             break;
           case FeesNames.foodFee:
             addAmount('food', Number(bill.fees.amount), invoice.enrol.name);
@@ -1990,10 +2072,13 @@ export class InvoiceService {
   async generateInvoicePdf(invoiceData: InvoiceEntity): Promise<Buffer> {
     const settings = await this.systemSettingsService.getSettings();
     const companyName = settings.schoolName ?? 'Junior High School';
-    const companyAddress = settings.schoolAddress ?? '30588 Lundi Drive, Rhodene, Masvingo';
-    const companyPhone = settings.schoolPhone ?? '+263 392 263 293 / +263 78 223 8026';
+    const companyAddress =
+      settings.schoolAddress ?? '30588 Lundi Drive, Rhodene, Masvingo';
+    const companyPhone =
+      settings.schoolPhone ?? '+263 392 263 293 / +263 78 223 8026';
     const companyEmail = settings.schoolEmail ?? 'info@juniorhighschool.ac.zw';
-    const companyWebsite = settings.schoolWebsite ?? 'www.juniorhighschool.ac.zw';
+    const companyWebsite =
+      settings.schoolWebsite ?? 'www.juniorhighschool.ac.zw';
 
     const doc = new PDFDocument({
       size: 'A4',
@@ -2020,9 +2105,15 @@ export class InvoiceService {
         doc.image(imgPath, 50, currentY, { width: 120, height: 120 });
       }
     } catch (e) {
-      logStructured(this.logger, 'warn', 'invoice.pdf.logo', 'Error adding invoice logo', {
-        error: e instanceof Error ? e.message : String(e),
-      });
+      logStructured(
+        this.logger,
+        'warn',
+        'invoice.pdf.logo',
+        'Error adding invoice logo',
+        {
+          error: e instanceof Error ? e.message : String(e),
+        },
+      );
     }
 
     const logoWidth = 120;
@@ -2286,10 +2377,9 @@ export class InvoiceService {
         });
     });
 
-    currentY = Math.max(
-      billToEndY,
-      summaryY + summaryItems.length * summaryItemHeight,
-    ) + 8;
+    currentY =
+      Math.max(billToEndY, summaryY + summaryItems.length * summaryItemHeight) +
+      8;
 
     const tableStartX = 50;
     const tableStartY = currentY;
@@ -2480,12 +2570,13 @@ export class InvoiceService {
     for (const bill of bills) {
       // Ensure proper numeric conversion - handle both string and number types
       const amount = bill.fees.amount;
-      const numericAmount = typeof amount === 'string' 
-        ? parseFloat(amount) || 0 
-        : Number(amount) || 0;
-      
+      const numericAmount =
+        typeof amount === 'string'
+          ? parseFloat(amount) || 0
+          : Number(amount) || 0;
+
       totalGrossBill += numericAmount;
-      
+
       // Separate grooming fees - they are not subject to exemptions
       if (bill.fees.name === FeesNames.groomingFee) {
         groomingFeeTotal += numericAmount;
@@ -2501,12 +2592,13 @@ export class InvoiceService {
         // Cap it at the exemptable fees total to avoid negative amounts
         totalExemptionAmount = Math.min(
           studentExemption.fixedAmount || 0,
-          exemptableFeesTotal
+          exemptableFeesTotal,
         );
       } else if (studentExemption.type === ExemptionType.PERCENTAGE) {
         // Percentage exemption applies only to exemptable fees
         totalExemptionAmount =
-          (exemptableFeesTotal * (studentExemption.percentageAmount || 0)) / 100;
+          (exemptableFeesTotal * (studentExemption.percentageAmount || 0)) /
+          100;
       } else if (studentExemption.type === ExemptionType.STAFF_SIBLING) {
         let foodFeeTotal = 0;
         let otherFeesTotal = 0;
@@ -2516,12 +2608,13 @@ export class InvoiceService {
           if (bill.fees.name === FeesNames.groomingFee) {
             continue;
           }
-          
+
           // Ensure proper numeric conversion - handle both string and number types
           const amount = bill.fees.amount;
-          const numericAmount = typeof amount === 'string' 
-            ? parseFloat(amount) || 0 
-            : Number(amount) || 0;
+          const numericAmount =
+            typeof amount === 'string'
+              ? parseFloat(amount) || 0
+              : Number(amount) || 0;
           if (bill.fees.name === FeesNames.foodFee) {
             foodFeeTotal += numericAmount;
           } else {
@@ -2533,8 +2626,26 @@ export class InvoiceService {
     }
 
     // Net bill = (exemptable fees - exemption) + grooming fees (always full amount)
-    const netExemptableFees = Math.max(0, exemptableFeesTotal - totalExemptionAmount);
+    const netExemptableFees = Math.max(
+      0,
+      exemptableFeesTotal - totalExemptionAmount,
+    );
     return netExemptableFees + groomingFeeTotal;
+  }
+
+  private async isVacationTerm(
+    enrol: EnrolEntity,
+    transactionalEntityManager: EntityManager,
+  ): Promise<boolean> {
+    if (!enrol?.termId) {
+      return false;
+    }
+
+    const term = await transactionalEntityManager.findOne(TermsEntity, {
+      where: { id: enrol.termId },
+    });
+
+    return term?.type === TermType.VACATION;
   }
 
   private updateInvoiceBalance(
@@ -2554,13 +2665,15 @@ export class InvoiceService {
     }
   }
 
-  private calculateInvoiceBalance(
-    invoice: InvoiceEntity,
-  ): { totalBill: number; amountPaid: number; balance: number } {
+  private calculateInvoiceBalance(invoice: InvoiceEntity): {
+    totalBill: number;
+    amountPaid: number;
+    balance: number;
+  } {
     // Use the same logic as calculateNetBillAmount to ensure consistency
     // This correctly handles grooming fees being excluded from exemptions
     let totalBill: number;
-    
+
     if (invoice.totalBill && Number(invoice.totalBill) > 0) {
       // Use stored totalBill if available (it's already calculated correctly)
       totalBill = Number(invoice.totalBill);
@@ -2569,7 +2682,7 @@ export class InvoiceService {
       // This ensures grooming fees are excluded from exemption calculations
       const studentExemption = invoice.exemption;
       totalBill = this.calculateNetBillAmount(invoice.bills, studentExemption);
-      
+
       // Add balanceBfwd if present
       const balanceBfwdAmount = invoice.balanceBfwd
         ? Number(invoice.balanceBfwd.amount)
@@ -2673,9 +2786,7 @@ export class InvoiceService {
    * Creates its own transaction and calls the internal reconciliation method
    * Returns detailed results of what was reconciled
    */
-  async reconcileStudentFinancesForStudent(
-    studentNumber: string,
-  ): Promise<{
+  async reconcileStudentFinancesForStudent(studentNumber: string): Promise<{
     success: boolean;
     message: string;
     studentNumber: string;
@@ -2749,13 +2860,13 @@ export class InvoiceService {
    * 7. Creates receipt allocations from credit allocations (for traceability)
    * 8. Verifies receipt allocations match invoice payments
    * 9. Final verification of all invoices
-   * 
+   *
    * Note: Full reallocation (Step 2) runs FIRST to ensure a clean slate before other steps.
    * This prevents conflicts where earlier steps would be undone by reallocation.
-   * 
+   *
    * Should be called before saving receipts and after saving invoices.
    * All verification steps are mandatory.
-   * 
+   *
    * @param result - Optional result object to track reconciliation details
    */
   async reconcileStudentFinances(
@@ -2832,12 +2943,7 @@ export class InvoiceService {
     // Step 1: Load all invoices and receipts
     const invoices = await transactionalEntityManager.find(InvoiceEntity, {
       where: { student: { studentNumber }, isVoided: false },
-      relations: [
-        'allocations',
-        'creditAllocations',
-        'bills',
-        'bills.fees',
-      ],
+      relations: ['allocations', 'creditAllocations', 'bills', 'bills.fees'],
       order: { invoiceDate: 'ASC' }, // Oldest first for credit application
     });
 
@@ -2927,12 +3033,7 @@ export class InvoiceService {
       InvoiceEntity,
       {
         where: { student: { studentNumber }, isVoided: false },
-        relations: [
-          'allocations',
-          'creditAllocations',
-          'bills',
-          'bills.fees',
-        ],
+        relations: ['allocations', 'creditAllocations', 'bills', 'bills.fees'],
         order: { invoiceDate: 'ASC' },
       },
     );
@@ -2958,12 +3059,7 @@ export class InvoiceService {
       InvoiceEntity,
       {
         where: { student: { studentNumber }, isVoided: false },
-        relations: [
-          'allocations',
-          'creditAllocations',
-          'bills',
-          'bills.fees',
-        ],
+        relations: ['allocations', 'creditAllocations', 'bills', 'bills.fees'],
         order: { invoiceDate: 'ASC' }, // Oldest first for credit application
       },
     );
@@ -3067,13 +3163,16 @@ export class InvoiceService {
             const placeholders = creditAllocationsToSave
               .map(
                 (_, i) =>
-                  `($${i * 5 + 1}, $${i * 5 + 2}, $${i * 5 + 3}, $${i * 5 + 4}, $${i * 5 + 5})`,
+                  `($${i * 5 + 1}, $${i * 5 + 2}, $${i * 5 + 3}, $${
+                    i * 5 + 4
+                  }, $${i * 5 + 5})`,
               )
               .join(', ');
             const params = creditAllocationsToSave.flatMap((a) => {
               const studentCreditId =
                 a.studentCredit?.id != null ? Number(a.studentCredit.id) : null;
-              const invoiceId = invoiceRef.id != null ? Number(invoiceRef.id) : null;
+              const invoiceId =
+                invoiceRef.id != null ? Number(invoiceRef.id) : null;
               if (studentCreditId == null || invoiceId == null) {
                 throw new Error(
                   `Cannot insert credit allocation: missing studentCreditId (${studentCreditId}) or invoiceId (${invoiceId}) for invoice ${invoiceWithBalance.invoiceNumber}`,
@@ -3091,50 +3190,51 @@ export class InvoiceService {
               `INSERT INTO credit_invoice_allocations (${cols}) VALUES ${placeholders}`,
               params,
             );
-          logStructured(
-            this.logger,
-            'log',
-            'reconciliation.creditAllocationsSaved',
-            'Credit allocations saved',
+            logStructured(
+              this.logger,
+              'log',
+              'reconciliation.creditAllocationsSaved',
+              'Credit allocations saved',
+              {
+                studentNumber,
+                invoiceNumber: invoiceWithBalance.invoiceNumber,
+                allocationsCount: creditAllocationsToSave.length,
+                totalAmount: totalCreditApplied,
+              },
+            );
+
+            // Track credit application details
+            if (result) {
+              result.summary.creditApplied = true;
+              result.summary.creditAmount = totalCreditApplied;
+              result.summary.creditAppliedToInvoice =
+                invoiceWithBalance.invoiceNumber;
+              if (result.details) {
+                result.details.creditApplication = {
+                  invoiceNumber: invoiceWithBalance.invoiceNumber,
+                  amountApplied: totalCreditApplied,
+                };
+              }
+            }
+          }
+
+          // Reload invoice with fresh allocations after credit application
+          const updatedInvoice = await transactionalEntityManager.findOne(
+            InvoiceEntity,
             {
-              studentNumber,
-              invoiceNumber: invoiceWithBalance.invoiceNumber,
-              allocationsCount: creditAllocationsToSave.length,
-              totalAmount: totalCreditApplied,
+              where: { id: invoiceWithBalance.id },
+              relations: ['allocations', 'creditAllocations'],
             },
           );
 
-          // Track credit application details
-          if (result) {
-            result.summary.creditApplied = true;
-            result.summary.creditAmount = totalCreditApplied;
-            result.summary.creditAppliedToInvoice = invoiceWithBalance.invoiceNumber;
-            if (result.details) {
-              result.details.creditApplication = {
-                invoiceNumber: invoiceWithBalance.invoiceNumber,
-                amountApplied: totalCreditApplied,
-              };
-            }
+          if (updatedInvoice) {
+            // Recalculate balance after credit application
+            await this.verifyAndRecalculateInvoiceBalance(
+              updatedInvoice,
+              transactionalEntityManager,
+            );
           }
         }
-
-        // Reload invoice with fresh allocations after credit application
-        const updatedInvoice = await transactionalEntityManager.findOne(
-          InvoiceEntity,
-          {
-            where: { id: invoiceWithBalance.id },
-            relations: ['allocations', 'creditAllocations'],
-          },
-        );
-
-        if (updatedInvoice) {
-          // Recalculate balance after credit application
-          await this.verifyAndRecalculateInvoiceBalance(
-            updatedInvoice,
-            transactionalEntityManager,
-          );
-        }
-      }
       }
     }
 
@@ -3149,21 +3249,15 @@ export class InvoiceService {
 
     // Step 8: Verify receipt allocations match invoice payments
     for (const receipt of receipts) {
-      await this.verifyReceiptAllocations(
-        receipt,
-        transactionalEntityManager,
-      );
+      await this.verifyReceiptAllocations(receipt, transactionalEntityManager);
     }
 
     // Step 9: Final verification - reload and verify all invoices are saved correctly
     // This ensures status is updated for all invoices after all corrections and credit applications
-    const finalInvoices = await transactionalEntityManager.find(
-      InvoiceEntity,
-      {
-        where: { student: { studentNumber }, isVoided: false },
-        relations: ['allocations', 'creditAllocations'],
-      },
-    );
+    const finalInvoices = await transactionalEntityManager.find(InvoiceEntity, {
+      where: { student: { studentNumber }, isVoided: false },
+      relations: ['allocations', 'creditAllocations'],
+    });
 
     // Final pass: Verify and update status for all invoices
     // This catches any invoices that might have incorrect status after all operations
@@ -3217,7 +3311,7 @@ export class InvoiceService {
 
   /**
    * Verifies and recalculates invoice balance based on allocations.
-   * 
+   *
    * Key principles:
    * 1. totalBill already has exemptions applied (it's the net amount student owes)
    * 2. amountPaidOnInvoice never exceeds the totalBill amount
@@ -3264,17 +3358,17 @@ export class InvoiceService {
 
     // Total paid = receipt allocations + credit allocations
     const totalPaid = totalReceiptAllocated + totalCreditAllocated;
-    
+
     // FIXED LOGIC: Amount paid on invoice should never exceed the net bill
     // If total paid exceeds net bill, the excess should be converted to credit (handled elsewhere)
     // The balance should reflect what's actually still owed on THIS invoice
     const amountPaidOnThisInvoice = Math.min(totalPaid, netBill);
     const remainingBalance = netBill - amountPaidOnThisInvoice;
-    
+
     // Update invoice fields with corrected logic
     freshInvoice.amountPaidOnInvoice = amountPaidOnThisInvoice; // Never exceeds netBill
     freshInvoice.balance = Math.max(0, remainingBalance); // What's still owed on this invoice
-    
+
     // Log the calculation for debugging
     logStructured(
       this.logger,
@@ -3293,7 +3387,7 @@ export class InvoiceService {
         remainingBalance: freshInvoice.balance,
       },
     );
-    
+
     // Update status based on the recalculated balance
     freshInvoice.status = this.getInvoiceStatus(freshInvoice);
 
@@ -3301,7 +3395,7 @@ export class InvoiceService {
     const tolerance = 0.01;
     const expectedBalance = Math.max(0, netBill - amountPaidOnThisInvoice);
     const actualBalance = Number(freshInvoice.balance || 0);
-    
+
     if (Math.abs(expectedBalance - actualBalance) > tolerance) {
       logStructured(
         this.logger,
@@ -3389,13 +3483,10 @@ export class InvoiceService {
       }
 
       // Check if receipt exists and has no allocations
-      const receipt = await transactionalEntityManager.findOne(
-        ReceiptEntity,
-        {
-          where: { id: receiptId, student: { studentNumber } },
-          relations: ['allocations'],
-        },
-      );
+      const receipt = await transactionalEntityManager.findOne(ReceiptEntity, {
+        where: { id: receiptId, student: { studentNumber } },
+        relations: ['allocations'],
+      });
 
       if (!receipt || (receipt.allocations && receipt.allocations.length > 0)) {
         continue; // Receipt doesn't exist or already has allocations
@@ -3449,7 +3540,8 @@ export class InvoiceService {
           (receipt.allocations || []).reduce(
             (sum, alloc) => sum + Number(alloc.amountApplied || 0),
             0,
-          ) + allocationsToSave.reduce(
+          ) +
+          allocationsToSave.reduce(
             (sum, alloc) =>
               sum +
               (alloc.receipt?.id === allocationData.receiptId
@@ -3516,18 +3608,33 @@ export class InvoiceService {
         );
 
         for (const receiptId of receiptIds) {
-          const receipt = await transactionalEntityManager.findOne(ReceiptEntity, {
-            where: { id: receiptId },
-            relations: ['allocations', 'allocations.invoice', 'allocations.invoice.enrol'],
-          });
+          const receipt = await transactionalEntityManager.findOne(
+            ReceiptEntity,
+            {
+              where: { id: receiptId },
+              relations: [
+                'allocations',
+                'allocations.invoice',
+                'allocations.invoice.enrol',
+              ],
+            },
+          );
 
-          if (!receipt || !receipt.allocations || receipt.allocations.length === 0) {
+          if (
+            !receipt ||
+            !receipt.allocations ||
+            receipt.allocations.length === 0
+          ) {
             continue;
           }
 
           const lastAllocation = [...receipt.allocations].sort((a, b) => {
-            const ad = a.allocationDate ? new Date(a.allocationDate).getTime() : 0;
-            const bd = b.allocationDate ? new Date(b.allocationDate).getTime() : 0;
+            const ad = a.allocationDate
+              ? new Date(a.allocationDate).getTime()
+              : 0;
+            const bd = b.allocationDate
+              ? new Date(b.allocationDate).getTime()
+              : 0;
             if (ad !== bd) return ad - bd;
             return (a.id ?? 0) - (b.id ?? 0);
           })[receipt.allocations.length - 1];
@@ -3572,7 +3679,7 @@ export class InvoiceService {
   /**
    * Full reallocation of receipts and credit to invoices based on dates.
    * This fixes incorrect allocations caused by bugs (e.g., double-counting).
-   * 
+   *
    * Process:
    * 1. Delete ALL allocations (both receipt and credit allocations) for the student
    * 2. Reset all invoice amounts to zero
@@ -3582,11 +3689,11 @@ export class InvoiceService {
    * 6. If receipt payment date is before any invoice exists, create credit for remaining amount
    * 7. If receipt exceeds all available invoice balances, create credit for excess
    * 8. Apply credit to invoices with remaining balances (oldest first)
-   * 
+   *
    * Note: Credit is NOT restored when deleting allocations. Instead, credit will be
    * recreated correctly from receipts during reallocation if there are overpayments.
    * This ensures credit only comes from actual overpayments, not incorrect allocations.
-   * 
+   *
    * This ensures proper chronological allocation and handles the case where payment
    * was made before invoice was created. Everything is recalculated from scratch.
    */
@@ -3625,7 +3732,10 @@ export class InvoiceService {
     );
 
     // Always delete allocations and reset state so reallocation is deterministic
-    if (existingReceiptAllocations.length > 0 || existingCreditAllocations.length > 0) {
+    if (
+      existingReceiptAllocations.length > 0 ||
+      existingCreditAllocations.length > 0
+    ) {
       logStructured(
         this.logger,
         'log',
@@ -3658,9 +3768,12 @@ export class InvoiceService {
     // Reset ALL non-voided invoices for this student (not only those that had allocations).
     // Invoices with no allocations (e.g. Term 1 2026 created after some payments) must also
     // start from zero so they receive allocations correctly during the receipt loop.
-    const allStudentInvoices = await transactionalEntityManager.find(InvoiceEntity, {
-      where: { student: { studentNumber }, isVoided: false },
-    });
+    const allStudentInvoices = await transactionalEntityManager.find(
+      InvoiceEntity,
+      {
+        where: { student: { studentNumber }, isVoided: false },
+      },
+    );
     for (const invoice of allStudentInvoices) {
       const newAmountPaidOnInvoice = 0;
       const newBalance = Number(invoice.totalBill || 0);
@@ -3694,7 +3807,10 @@ export class InvoiceService {
         { where: { studentCredit: { id: studentCredit.id } } },
       );
       if (receiptCredits.length > 0) {
-        await transactionalEntityManager.remove(ReceiptCreditEntity, receiptCredits);
+        await transactionalEntityManager.remove(
+          ReceiptCreditEntity,
+          receiptCredits,
+        );
       }
       studentCredit.amount = 0;
       studentCredit.lastCreditSource = 'Reset: Full reallocation';
@@ -3744,7 +3860,8 @@ export class InvoiceService {
 
         // Reset credit balance to 0
         studentCredit.amount = 0;
-        studentCredit.lastCreditSource = 'Reset: No receipts found during reallocation';
+        studentCredit.lastCreditSource =
+          'Reset: No receipts found during reallocation';
         await transactionalEntityManager.save(studentCredit);
       }
 
@@ -3897,22 +4014,26 @@ export class InvoiceService {
             },
           );
 
-          const studentCredit = await this.creditService.createOrUpdateStudentCredit(
-            studentNumber,
-            remainingAmount,
-            transactionalEntityManager,
-            `Credit from receipt ${receipt.receiptNumber} (payment before invoice or excess payment)`,
-            receipt.id,
-          );
+          const studentCredit =
+            await this.creditService.createOrUpdateStudentCredit(
+              studentNumber,
+              remainingAmount,
+              transactionalEntityManager,
+              `Credit from receipt ${receipt.receiptNumber} (payment before invoice or excess payment)`,
+              receipt.id,
+            );
 
           // Create ReceiptCreditEntity record to track which receipt created this credit
           // This is required for proper credit balance verification
-          const receiptCredit = transactionalEntityManager.create(ReceiptCreditEntity, {
-            receipt: receipt,
-            studentCredit: studentCredit,
-            creditAmount: remainingAmount,
-            createdAt: receipt.paymentDate || new Date(),
-          });
+          const receiptCredit = transactionalEntityManager.create(
+            ReceiptCreditEntity,
+            {
+              receipt: receipt,
+              studentCredit: studentCredit,
+              creditAmount: remainingAmount,
+              createdAt: receipt.paymentDate || new Date(),
+            },
+          );
           await transactionalEntityManager.save(receiptCredit);
 
           totalCreditCreated += remainingAmount;
@@ -3923,12 +4044,16 @@ export class InvoiceService {
     // Step 6: Apply credit to invoices with remaining balances (oldest first)
     // Now that receipts are allocated, apply any available credit to remaining balances
     // Reload credit to get current balance (may have been updated during receipt allocation)
-    const studentCreditAfterAllocation = await this.creditService.getStudentCredit(
-      studentNumber,
-      transactionalEntityManager,
-    );
+    const studentCreditAfterAllocation =
+      await this.creditService.getStudentCredit(
+        studentNumber,
+        transactionalEntityManager,
+      );
 
-    if (studentCreditAfterAllocation && Number(studentCreditAfterAllocation.amount) > 0.01) {
+    if (
+      studentCreditAfterAllocation &&
+      Number(studentCreditAfterAllocation.amount) > 0.01
+    ) {
       // Reload invoices to get fresh balances after receipt allocation
       const invoicesWithBalances = await transactionalEntityManager.find(
         InvoiceEntity,
@@ -3940,13 +4065,11 @@ export class InvoiceService {
 
       // Filter invoices with balances and ensure they have valid IDs
       // Must check for both existence and that it's a positive number
-      const invoicesNeedingCredit = invoicesWithBalances.filter(
-        (inv) => {
-          const hasValidId = inv.id && typeof inv.id === 'number' && inv.id > 0;
-          const hasBalance = Number(inv.balance || 0) > 0.01;
-          return hasValidId && hasBalance;
-        },
-      );
+      const invoicesNeedingCredit = invoicesWithBalances.filter((inv) => {
+        const hasValidId = inv.id && typeof inv.id === 'number' && inv.id > 0;
+        const hasBalance = Number(inv.balance || 0) > 0.01;
+        return hasValidId && hasBalance;
+      });
 
       // Track remaining credit (will be updated as we apply it)
       let remainingCredit = Number(studentCreditAfterAllocation.amount);
@@ -3997,7 +4120,13 @@ export class InvoiceService {
           // Raw INSERT: ensure invoiceId is never null (TypeORM can persist null FK with detached relations)
           await transactionalEntityManager.query(
             `INSERT INTO credit_invoice_allocations ("studentCreditId","invoiceId","amountApplied","relatedReceiptId","allocationDate") VALUES ($1,$2,$3,$4,$5)`,
-            [studentCreditId, Number(invoiceId), amountToApply, null, new Date()],
+            [
+              studentCreditId,
+              Number(invoiceId),
+              amountToApply,
+              null,
+              new Date(),
+            ],
           );
 
           // Update invoice (use update() to avoid relation synchronization)
@@ -4150,10 +4279,10 @@ export class InvoiceService {
         // Strategy: Find invoice where this allocation would make sense
         let matchedInvoice: InvoiceEntity | null = null;
         const allocationAmount = Number(allocation.amountApplied || 0);
-        
+
         for (const invoice of studentInvoices) {
           const invoiceAllocations = invoice.allocations || [];
-          
+
           // Method 1: Check if this invoice already has this allocation in its allocations array
           // (even if the FK is NULL, the relation might be loaded)
           const hasThisAllocation = invoiceAllocations.some(
@@ -4171,20 +4300,20 @@ export class InvoiceService {
           const invoiceBalance = Number(invoice.balance || 0);
           const invoiceTotalBill = Number(invoice.totalBill || 0);
           const invoiceAmountPaid = Number(invoice.amountPaidOnInvoice || 0);
-          
+
           // If invoice has a balance and this allocation amount would reduce it appropriately
           if (invoiceBalance > 0.01 && allocationAmount > 0.01) {
             // Check if adding this allocation to amountPaid would make sense
             const newAmountPaid = invoiceAmountPaid + allocationAmount;
             const newBalance = invoiceTotalBill - newAmountPaid;
-            
+
             // If the new balance is reasonable (not negative beyond rounding), this is likely the invoice
             if (newBalance >= -0.01 && newBalance <= invoiceBalance + 0.01) {
               matchedInvoice = invoice;
               break;
             }
           }
-          
+
           // Method 3: If invoice has no allocations yet and has a balance, it's a candidate
           // (prefer oldest invoice first due to ordering)
           if (
@@ -4377,10 +4506,10 @@ export class InvoiceService {
    * 2. If recalculated amountPaidOnInvoice > totalBill, creates credit for the overpayment
    * 3. Sets balance = 0 (invoice is fully paid, with overpayment converted to credit)
    * 4. Saves the corrected invoice
-   * 
+   *
    * Note: We don't modify allocations here - they represent actual payments.
    * The overpayment is converted to credit, which can then be applied to other invoices.
-   * 
+   *
    * @returns true if invoice was corrected, false otherwise
    */
   private async correctInvoiceOverpayment(
@@ -4410,7 +4539,7 @@ export class InvoiceService {
     const exemptedAmount = Number(freshInvoice.exemptedAmount || 0);
     // Consistent with verifyAndRecalculateInvoiceBalance: totalBill already has exemption applied during invoice creation
     const netBill = totalBill;
-    
+
     // Calculate actual amount paid from allocations (not from stored amountPaidOnInvoice)
     const receiptAllocations = freshInvoice.allocations || [];
     const creditAllocations = freshInvoice.creditAllocations || [];
@@ -4423,7 +4552,7 @@ export class InvoiceService {
       0,
     );
     const actualAmountPaid = totalReceiptAllocated + totalCreditAllocated;
-    
+
     // Overpayment is when actual amount paid exceeds the net bill (after exemptions)
     const overpayment = actualAmountPaid - netBill;
 
@@ -4539,10 +4668,9 @@ export class InvoiceService {
       return 0;
     }
 
-    const invoiceRef = await transactionalEntityManager.findOne(
-      InvoiceEntity,
-      { where: { id: invoice.id } },
-    );
+    const invoiceRef = await transactionalEntityManager.findOne(InvoiceEntity, {
+      where: { id: invoice.id },
+    });
     if (!invoiceRef) {
       this.logger.warn(
         `Invoice ${invoice.id} not found when applying credit, skipping allocation`,
@@ -4550,11 +4678,12 @@ export class InvoiceService {
       return 0;
     }
 
-    const relatedReceiptId = await this.creditService.determineReceiptSourceForCredit(
-      studentCredit,
-      amountToApply,
-      transactionalEntityManager,
-    );
+    const relatedReceiptId =
+      await this.creditService.determineReceiptSourceForCredit(
+        studentCredit,
+        amountToApply,
+        transactionalEntityManager,
+      );
 
     await this.creditService.deductStudentCredit(
       studentNumber,
@@ -4729,16 +4858,20 @@ export class InvoiceService {
       case ExemptionType.FIXED_AMOUNT: {
         // Fixed amount exemption applies to exemptable fees only
         // Cap it at the exemptable fees total to avoid negative amounts
-        const exemptableFeesTotal = this._getGrossBillAmountExcludingGrooming(invoiceData.bills);
+        const exemptableFeesTotal = this._getGrossBillAmountExcludingGrooming(
+          invoiceData.bills,
+        );
         calculatedAmount = Math.min(
           Number(exemption.fixedAmount || 0),
-          exemptableFeesTotal
+          exemptableFeesTotal,
         );
         break;
       }
       case ExemptionType.PERCENTAGE: {
         // Percentage exemption applies only to exemptable fees (excluding grooming)
-        const exemptableFeesTotal = this._getGrossBillAmountExcludingGrooming(invoiceData.bills);
+        const exemptableFeesTotal = this._getGrossBillAmountExcludingGrooming(
+          invoiceData.bills,
+        );
         calculatedAmount =
           (exemptableFeesTotal * Number(exemption.percentageAmount || 0)) / 100;
         break;
@@ -4752,7 +4885,7 @@ export class InvoiceService {
           if (bill.fees?.name === FeesNames.groomingFee) {
             return;
           }
-          
+
           if (bill.fees) {
             if (bill.fees.name === FeesNames.foodFee) {
               totalFoodFee += +bill.fees.amount;
@@ -4802,7 +4935,8 @@ export class InvoiceService {
 
     doc.font(boldFont).fontSize(headerFontSize);
     headers.forEach((header, i) => {
-      const columnX = startX + columnWidths.slice(0, i).reduce((a, b) => a + b, 0);
+      const columnX =
+        startX + columnWidths.slice(0, i).reduce((a, b) => a + b, 0);
 
       doc
         .fillColor('#ffffff')
@@ -4834,15 +4968,10 @@ export class InvoiceService {
       doc.font(font).fontSize(fontSize).fillColor(textColor);
 
       const bfwdDate = this.formatDate(balanceBfwd.dateCreated);
-      doc.text(
-        `Balance Brought Forward`,
-        startX + padding,
-        y + 5,
-        {
-          width: columnWidths[0] - 2 * padding,
-          align: 'left',
-        },
-      );
+      doc.text(`Balance Brought Forward`, startX + padding, y + 5, {
+        width: columnWidths[0] - 2 * padding,
+        align: 'left',
+      });
       doc
         .fontSize(9)
         .fillColor('#7f8c8d')
@@ -4856,10 +4985,15 @@ export class InvoiceService {
         .font(font)
         .fontSize(fontSize)
         .fillColor(textColor)
-        .text(this.formatCurrency(balanceBfwd.amount), startX + columnWidths[0] + padding, y + rowHeight / 2 - fontSize / 2, {
-          width: columnWidths[1] - 2 * padding,
-          align: amountAlign,
-        });
+        .text(
+          this.formatCurrency(balanceBfwd.amount),
+          startX + columnWidths[0] + padding,
+          y + rowHeight / 2 - fontSize / 2,
+          {
+            width: columnWidths[1] - 2 * padding,
+            align: amountAlign,
+          },
+        );
 
       doc
         .strokeColor(borderColor)
@@ -4894,9 +5028,10 @@ export class InvoiceService {
         if (i === 0) {
           if (isExemption && row.fees?.exemptionType) {
             text = 'Exemption';
-            const exemptionDesc = `(${row.fees.exemptionType.replace(/_/g, ' ')}${
-              row.fees.description ? `: ${row.fees.description}` : ''
-            })`;
+            const exemptionDesc = `(${row.fees.exemptionType.replace(
+              /_/g,
+              ' ',
+            )}${row.fees.description ? `: ${row.fees.description}` : ''})`;
             doc
               .fontSize(9)
               .fillColor('#7f8c8d')
@@ -4933,10 +5068,15 @@ export class InvoiceService {
           doc
             .fontSize(fontSize)
             .font('Helvetica-Bold')
-            .text(text, startX + columnWidths[0] + padding, y + rowHeight / 2 - fontSize / 2, {
-              width: columnWidths[i] - 2 * padding,
-              align,
-            });
+            .text(
+              text,
+              startX + columnWidths[0] + padding,
+              y + rowHeight / 2 - fontSize / 2,
+              {
+                width: columnWidths[i] - 2 * padding,
+                align,
+              },
+            );
         }
       });
 
@@ -4966,15 +5106,10 @@ export class InvoiceService {
       .stroke();
 
     doc.font(boldFont).fontSize(14).fillColor(textColor);
-    doc.text(
-      'TOTAL'.toUpperCase(),
-      startX + padding,
-      y + rowHeight / 2 - 7,
-      {
-        width: columnWidths[0] - 2 * padding,
-        align: 'left',
-      },
-    );
+    doc.text('TOTAL'.toUpperCase(), startX + padding, y + rowHeight / 2 - 7, {
+      width: columnWidths[0] - 2 * padding,
+      align: 'left',
+    });
 
     const displayTotalAmount = !isNaN(Number(finalTotalAmount))
       ? Number(finalTotalAmount)
@@ -5128,9 +5263,7 @@ export class InvoiceService {
    * @param invoices - Invoices to normalize (will be updated and saved only when mismatch)
    * @returns Number of invoices that were corrected and saved
    */
-  async normalizeInvoiceBalances(
-    invoices: InvoiceEntity[],
-  ): Promise<number> {
+  async normalizeInvoiceBalances(invoices: InvoiceEntity[]): Promise<number> {
     const tolerance = 0.01;
     let corrected = 0;
     for (const invoice of invoices) {
@@ -5231,12 +5364,9 @@ export class InvoiceService {
 
       const studentNumber = invoice.student?.studentNumber;
       if (studentNumber) {
-        await this.reconcileStudentFinances(
-          studentNumber,
-          em,
-          undefined,
-          { skipFullReallocation: true },
-        );
+        await this.reconcileStudentFinances(studentNumber, em, undefined, {
+          skipFullReallocation: true,
+        });
       }
 
       const updated = await em.findOne(InvoiceEntity, {
@@ -5254,5 +5384,3 @@ export class InvoiceService {
     });
   }
 }
-
-
